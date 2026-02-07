@@ -1,0 +1,65 @@
+﻿{
+    "products":  [
+                     {
+                         "id":  "product1",
+                         "name":  "😡 BSRAGE CHEAT",
+                         "shortLabel":  "BSRAGE",
+                         "description":  "**FULLY COMPATIBLE WITH WINDOWS 10 \u0026 11**",
+                         "thumbnail":  "",
+                         "bannerImage":  "assets/product1/astraprojectbanner.gif",
+                         "footerImage":  "",
+                         "previewImage":  "assets/product1/produto1.gif",
+                         "gifImages":  [
+
+                                       ],
+                         "prePostGif":  "assets/product1/astraprojectbanner.gif",
+                         "demoUrl":  "https://youtube.com/",
+                         "sections":  [
+                                          {
+                                              "inline":  false,
+                                              "name":  "⚙️ [FUNCTIONS]",
+                                              "value":  "┃ 🎯 **AIM SYSTEM**\n┃ • AimBot\n┃ • AimFov\n┃ • AimSpeed\n┃ • VisibleCheck\n┃ • SelectMember"
+                                          },
+                                          {
+                                              "inline":  false,
+                                              "name":  "👁 **ESP FEATURES**",
+                                              "value":  "┃ • Box\n┃ • Line\n┃ • Distance\n┃ • Name\n┃ • Chams\n┃ • BotChams\n┃ • Health"
+                                          },
+                                          {
+                                              "inline":  false,
+                                              "name":  "🎨 **SKINCHANGER**",
+                                              "value":  "┃ • Unlock All Skins / Consiga todas as skins"
+                                          },
+                                          {
+                                              "inline":  false,
+                                              "name":  "🎥 **Video de Demonstracao**",
+                                              "value":  "Assistir no YouTube\\nhttps://youtube.com/"
+                                          }
+                                      ],
+                         "variants":  [
+                                          {
+                                              "id":  "1d",
+                                              "label":  "1DAY | 😡 BSRAGE",
+                                              "emoji":  "💎",
+                                              "duration":  "1 dia",
+                                              "price":  29.9
+                                          },
+                                          {
+                                              "id":  "7d",
+                                              "label":  "7DAYS | 😡 BSRAGE",
+                                              "emoji":  "💎",
+                                              "duration":  "7 dias",
+                                              "price":  57.0
+                                          },
+                                          {
+                                              "id":  "30d",
+                                              "label":  "30DAYS | 😡 BSRAGE",
+                                              "emoji":  "💎",
+                                              "duration":  "30 dias",
+                                              "price":  89.9
+                                          }
+                                      ],
+                         "disableThumbnail":  true
+                     }
+                 ]
+}

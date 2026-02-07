@@ -1,0 +1,27 @@
+{
+  "guildId": "1409309357568688138",
+  "staffRoleId": "1409312562570461235",
+  "adminUserIds": [
+    "1408232046081478717"
+  ],
+  "cartCategoryId": "1415834918231081080",
+  "postChannelId": "",
+  "pixInstructions": "Leia com atencao. Pague pelo Pix e aguarde a confirmacao.",
+  "currency": "BRL",
+  "paymentCheckIntervalMs": 60000,
+  "asaas": {
+    "enabled": true,
+    "sandbox": true,
+    "baseUrlSandbox": "https://sandbox.asaas.com/api/v3",
+    "baseUrlProduction": "https://api.asaas.com/v3",
+    "customerDefaults": {
+      "name": "Cliente Discord",
+      "email": "cliente@example.com",
+      "cpfCnpj": "00000000000"
+    }
+  },
+  "trackerChannelId": "1411555508833488948",
+  "maxAttachmentBytes": 15728640,
+  "systemBanner": "assets/product1/astraprojectbanner.gif",
+  "staffLogChannelId": "1415241834061365248"
+}

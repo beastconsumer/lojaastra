@@ -1,0 +1,11 @@
+{
+  "coupons": [
+    {
+      "code": "202020",
+      "percent": 20,
+      "active": true,
+      "createdAt": "2026-02-05T02:45:24.593Z",
+      "createdBy": "1408232046081478717"
+    }
+  ]
+}
