@@ -1,3 +1,80 @@
-﻿{
-  "orders": []
+{
+  "orders": [
+    {
+      "id": "356e5bc9-a9fb-49a7-9535-5f4e333e7a5c",
+      "cartId": "19c68e21-bda4-43c5-b151-b2eb9a521ebb",
+      "paymentId": "manual-fc16f438",
+      "userId": "1408232046081478717",
+      "productId": "product1",
+      "variantId": "1d",
+      "channelId": "1469490330905870550",
+      "couponCode": null,
+      "discountPercent": 0,
+      "value": 29.9,
+      "status": "delivered",
+      "asaasStatus": "MANUAL_CONFIRMED",
+      "createdAt": "2026-02-07T00:30:17.253Z",
+      "updatedAt": "2026-02-07T00:30:17.256Z",
+      "manualConfirmedByUserId": "1408232046081478717",
+      "manualConfirmedAt": "2026-02-07T00:30:17.253Z",
+      "confirmedSource": "admin_button",
+      "confirmedByUserId": "1408232046081478717",
+      "confirmedAt": "2026-02-07T00:30:17.256Z",
+      "confirmations": [
+        {
+          "id": "c2f0af44-3577-40cf-a14d-d89c88c2c18b",
+          "source": "admin_button",
+          "byUserId": "1408232046081478717",
+          "at": "2026-02-07T00:30:17.253Z",
+          "note": "Compra confirmada manualmente"
+        },
+        {
+          "id": "e075d730-eb62-4395-bb7e-26e66ef6cfa5",
+          "source": "admin_button",
+          "byUserId": "1408232046081478717",
+          "at": "2026-02-07T00:30:17.255Z",
+          "note": "Pagamento confirmado"
+        },
+        {
+          "id": "c8987969-1f68-4599-b21d-4d4d3a5e8fed",
+          "source": "admin_button",
+          "byUserId": "1408232046081478717",
+          "at": "2026-02-07T00:30:17.256Z",
+          "note": "Entrega concluida"
+        }
+      ],
+      "events": [
+        {
+          "id": "b825f291-f092-4e6d-b465-0e27251a9902",
+          "type": "manual_confirm_request",
+          "at": "2026-02-07T00:30:17.253Z",
+          "details": {
+            "actor": "1408232046081478717",
+            "mode": "new_order"
+          }
+        },
+        {
+          "id": "88fa1f0f-6da9-45bc-aa66-c99e6a6aaa1f",
+          "type": "delivery_success",
+          "at": "2026-02-07T00:30:17.256Z",
+          "details": {
+            "source": "admin_button",
+            "confirmedByUserId": "1408232046081478717",
+            "deliveryId": "d4a70d50-8bba-4d82-a017-92fef67363fc"
+          }
+        },
+        {
+          "id": "21d36091-05f0-4e6c-a6a7-74fabab1d923",
+          "type": "manual_confirm_delivered",
+          "at": "2026-02-07T00:30:20.728Z",
+          "details": {
+            "actor": "1408232046081478717",
+            "reason": ""
+          }
+        }
+      ],
+      "deliveredAt": "2026-02-07T00:30:17.256Z",
+      "deliveryId": "d4a70d50-8bba-4d82-a017-92fef67363fc"
+    }
+  ]
 }

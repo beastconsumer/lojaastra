@@ -5,6 +5,8 @@ import axios from "axios";
 import QRCode from "qrcode";
 import { fileURLToPath } from "url";
 import { startAdminServer } from "./adminServer.js";
+import { startPortalServer } from "./portalServer.js";
+import { createPortalStore } from "./portal/store.js";
 import {
   Client,
   GatewayIntentBits,
@@ -21,7 +23,7 @@ import {
   ChannelType,
   AttachmentBuilder
 } from "discord.js";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash, createDecipheriv } from "crypto";
 
 dotenv.config();
 
@@ -30,6 +32,7 @@ const LOG_LEVEL = (process.env.LOG_LEVEL || "info").toLowerCase();
 const DEFAULT_MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const CART_INACTIVE_MS = 5 * 60 * 1000;
 const BRAND_COLOR = 0xE6212A;
+const DEFAULT_CART_COLOR = BRAND_COLOR;
 const manualConfirmLocks = new Set();
 
 function shouldLog(level) {
@@ -71,6 +74,71 @@ function logError(fn, err, data) {
   log("error", `${fn}:error`, payload);
 }
 
+function asString(value) {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+}
+
+function decryptPackedJson(secret, packed) {
+  try {
+    const raw = String(packed || "");
+    const parts = raw.split(".");
+    if (parts.length !== 3) return null;
+    const [ivB64, ctB64, tagB64] = parts;
+    const key = createHash("sha256").update(String(secret || "")).digest();
+    const iv = Buffer.from(ivB64, "base64url");
+    const ciphertext = Buffer.from(ctB64, "base64url");
+    const tag = Buffer.from(tagB64, "base64url");
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return JSON.parse(plaintext.toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function getPortalUserMercadoPagoAccessToken(ownerDiscordUserId) {
+  const secret = asString(process.env.PORTAL_SESSION_SECRET);
+  if (!secret) return "";
+
+  const data = portalStore.load();
+  const user = portalStore.getUserByDiscordId(data, ownerDiscordUserId);
+  const packed = asString(user?.mercadoPago?.packed);
+  if (!packed) return "";
+
+  const decoded = decryptPackedJson(secret, packed);
+  return asString(decoded?.accessToken);
+}
+
+function getMercadoPagoAccessTokenForSale(ownerDiscordUserId) {
+  // Prefer seller token; fallback to system env token.
+  const seller = getPortalUserMercadoPagoAccessToken(ownerDiscordUserId);
+  if (seller) return seller;
+  return asString(process.env.MERCADOPAGO_ACCESS_TOKEN);
+}
+
+async function mercadoPagoRequest(method, pathUrl, payload, accessToken, options = {}) {
+  const token = asString(accessToken);
+  if (!token) throw new Error("mercadopago_not_configured");
+
+  const url = `https://api.mercadopago.com${pathUrl}`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    "User-Agent": "astrasystems-bot"
+  };
+  if (options.idempotencyKey) headers["X-Idempotency-Key"] = String(options.idempotencyKey);
+
+  const res = await axios({
+    method,
+    url,
+    headers,
+    data: payload || undefined
+  });
+  return res.data;
+}
+
 process.on("unhandledRejection", (err) => {
   logError("unhandledRejection", err);
 });
@@ -92,6 +160,11 @@ const POSTS_PATH = path.join(DATA_DIR, "posts.json");
 const CUSTOMERS_PATH = path.join(DATA_DIR, "customers.json");
 const STOCK_PATH = path.join(DATA_DIR, "stock.json");
 const DELIVERIES_PATH = path.join(DATA_DIR, "deliveries.json");
+const PORTAL_PATH = path.join(DATA_DIR, "portal.json");
+const INSTANCES_DIR = path.join(DATA_DIR, "instances");
+
+// Shared store used by the Portal (web) and by the bot runtime (licensing/wallet).
+const portalStore = createPortalStore({ filePath: PORTAL_PATH, log });
 
 const config = loadJson(CONFIG_PATH, {});
 applyConfigDefaults();
@@ -153,6 +226,16 @@ startAdminServer({
   }
 });
 
+startPortalServer({
+  rootDir: ROOT,
+  log,
+  logError,
+  client,
+  store: portalStore,
+  postProductToChannel,
+  purgeChannelMessages
+});
+
 client.on("ready", () => {
   log("info", "bot:ready", { tag: client.user.tag, pid: process.pid });
   log("info", "bot:path", { root: ROOT });
@@ -205,6 +288,14 @@ client.on("messageCreate", async (message) => {
     log("info", "cmd:permcheck", { userId: message.author.id, channelId: message.channel.id });
     await handlePermCheck(message);
   }
+  if (content.startsWith("!portal")) {
+    log("info", "cmd:portal", { userId: message.author.id, channelId: message.channel.id });
+    await handlePortalCommand(message);
+  }
+  if (content.startsWith("!link")) {
+    log("info", "cmd:link", { userId: message.author.id, channelId: message.channel.id });
+    await handleLinkCommand(message);
+  }
 });
 
 client.on("guildMemberAdd", async (member) => {
@@ -239,7 +330,9 @@ if (!token) {
   console.error("DISCORD_TOKEN nao configurado no .env");
   process.exit(1);
 }
-client.login(token);
+client.login(token).catch((err) => {
+  logError("discord:login", err);
+});
 
 function parseChannelIdArg(value) {
   return String(value || "").replace(/[<#>]/g, "").trim();
@@ -268,6 +361,93 @@ function parsePostCommand(messageContent) {
   return { productId, channelId, purge };
 }
 
+async function handlePortalCommand(message) {
+  const url = getPortalBaseUrl();
+  const license = getGuildLicense(message.guild?.id);
+  const planTier = license?.plan?.tier ? String(license.plan.tier) : "";
+
+  const lines = [];
+  if (guildId) lines.push(`Guild: ${guildId}`);
+  lines.push(`Portal: ${url}`);
+  if (!shouldEnforceLicense(message.guild?.id)) {
+    lines.push("Licenca: modo legacy (LICENSE_MODE=auto e servidor nao vinculado).");
+  } else if (license.ok) {
+    lines.push(`Licenca: ativa${planTier ? ` (${planTier})` : ""}.`);
+  } else {
+    lines.push("Licenca: pendente.");
+    lines.push("Use `!link SUA_API_KEY` para vincular este servidor.");
+  }
+  await message.reply(lines.join("\n"));
+}
+
+async function handleLinkCommand(message) {
+  const parts = String(message.content || "").trim().split(/\s+/).filter(Boolean);
+  const apiKey = parts[1] || "";
+  if (!apiKey) {
+    await message.reply("Uso: `!link <API_KEY>`");
+    return;
+  }
+
+  const member = await resolveMember(message);
+  if (!member) {
+    await message.reply("Nao consegui validar suas permissoes.");
+    return;
+  }
+
+  const canLink =
+    isAdmin(member.id) ||
+    member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
+    member.permissions?.has(PermissionsBitField.Flags.ManageGuild);
+  if (!canLink) {
+    await message.reply("Sem permissao. Voce precisa ser admin do servidor para vincular.");
+    return;
+  }
+
+  const apiKeyHash = createHash("sha256").update(apiKey).digest("hex");
+  const now = new Date().toISOString();
+
+  const result = await portalStore.runExclusive(async () => {
+    const data = portalStore.load();
+    const instance = (data.instances || []).find((i) => String(i.apiKeyHash || "") === apiKeyHash) || null;
+    if (!instance) return { ok: false, reason: "api_key_invalida" };
+    if (String(instance.ownerDiscordUserId || "") !== String(message.author.id)) {
+      return { ok: false, reason: "nao_e_dono", instanceName: instance.name || instance.id };
+    }
+
+    instance.discordGuildId = message.guild.id;
+    instance.discordGuildName = message.guild.name || "";
+    instance.linkedAt = now;
+    instance.linkedByDiscordUserId = message.author.id;
+    instance.updatedAt = now;
+
+    portalStore.save(data);
+    return { ok: true, instance };
+  });
+
+  if (!result.ok) {
+    if (result.reason === "api_key_invalida") {
+      await message.reply("API key invalida. Gere uma nova no Portal e tente novamente.");
+      return;
+    }
+    if (result.reason === "nao_e_dono") {
+      await message.reply(`Esta API key pertence a outra conta (${result.instanceName}).`);
+      return;
+    }
+    await message.reply("Falha ao vincular. Tente novamente.");
+    return;
+  }
+
+  const portalUrl = getPortalBaseUrl();
+  const payload = buildSystemEmbedPayload(
+    "Servidor vinculado",
+    `Instancia: **${result.instance.name || result.instance.id}**\nGuild: **${message.guild.name}**\n\nProximo passo:\n1) Ative seu plano em ${portalUrl}/plans\n2) Configure produtos e poste com !postar1`,
+    "success",
+    { includeBanner: true, includeThumbnail: true }
+  );
+
+  await message.reply(payload);
+}
+
 async function handlePostAnyCommand(message) {
   const { productId, channelId, purge } = parsePostCommand(message.content);
   if (!productId) {
@@ -278,7 +458,7 @@ async function handlePostAnyCommand(message) {
 }
 
 async function handleListProductsCommand(message) {
-  reloadProducts();
+  const { products } = listProductsForGuild(message.guild.id, { force: true });
   const member = await resolveMember(message);
   if (!member) {
     await message.reply("Nao consegui validar suas permissoes.");
@@ -291,7 +471,7 @@ async function handleListProductsCommand(message) {
     return;
   }
 
-  const lines = productsDb.products.map((product) => {
+  const lines = products.map((product) => {
     const variants = getSelectableVariants(product).length;
     return `${product.id} | ${product.name || product.id} | ${variants} variacoes`;
   });
@@ -341,9 +521,10 @@ async function handlePostProductCommand(message, productId, options = {}) {
     });
     return;
   }
-  const precheck = getProduct(productId, true);
+  const { product: precheck } = getProductForGuild(message.guild.id, productId, true);
   if (!precheck) {
-    const ids = productsDb.products.map((p) => p.id).join(", ") || "nenhum";
+    const list = listProductsForGuild(message.guild.id, { force: true });
+    const ids = list.products.map((p) => p.id).join(", ") || "nenhum";
     await message.reply(`Produto nao encontrado. IDs carregados: ${ids}.`);
     log("warn", "handlePostProductCommand:productNotFound", { productId, ids });
     return;
@@ -398,7 +579,7 @@ async function handleRepostCommand(message) {
     return;
   }
 
-  const product = getProduct(productId, true);
+  const { product } = getProductForGuild(message.guild.id, productId, true);
   if (!product) {
     await message.reply(`Produto ${productId} nao encontrado.`);
     log("warn", "handleRepostCommand:notFound", { productId });
@@ -407,6 +588,11 @@ async function handleRepostCommand(message) {
 
   let channel = null;
   let referencePost = null;
+
+  const posts = postsDb.posts
+    .filter((p) => p.productId === productId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
   if (channelArg) {
     const channelId = parseChannelIdArg(channelArg);
     channel = await message.guild.channels.fetch(channelId).catch(() => null);
@@ -414,15 +600,16 @@ async function handleRepostCommand(message) {
       await message.reply(`Canal ${channelId} nao encontrado.`);
       return;
     }
-  }
-
-  const posts = postsDb.posts
-    .filter((p) => p.productId === productId && (!channel || p.channelId === channel.id))
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-  referencePost = posts[0];
-  if (!channel && referencePost) {
-    channel = await message.guild.channels.fetch(referencePost.channelId).catch(() => null);
+    referencePost = posts.find((p) => p.channelId === channel.id) || null;
+  } else {
+    const scoped = posts.filter((p) => !p.guildId || String(p.guildId) === String(message.guild.id));
+    for (const post of scoped.slice(0, 25)) {
+      const found = await message.guild.channels.fetch(post.channelId).catch(() => null);
+      if (!found) continue;
+      channel = found;
+      referencePost = post;
+      break;
+    }
   }
 
   if (!channel) {
@@ -477,7 +664,8 @@ async function handleAdminMenu(message) {
     return;
   }
 
-  const defaultProductId = productsDb.products[0]?.id || "";
+  const { products } = listProductsForGuild(message.guild.id, { force: true });
+  const defaultProductId = products[0]?.id || "";
   const hasProducts = Boolean(defaultProductId);
   const embed = new EmbedBuilder()
     .setTitle("Painel Admin")
@@ -504,7 +692,7 @@ async function handleAdminMenu(message) {
   );
 
   const files = [];
-  const product = hasProducts ? getProduct(defaultProductId, true) : null;
+  const product = hasProducts ? getProductForGuild(message.guild.id, defaultProductId, true).product : null;
   if (product?.prePostGif) {
     const pre = attachIfExists(product.prePostGif, files);
     if (pre) embed.setImage(`attachment://${pre.name}`);
@@ -539,9 +727,16 @@ async function handleSelectMenu(interaction) {
 
   await interaction.deferReply({ ephemeral: true });
 
+  const license = getGuildLicense(interaction.guildId);
+  if (shouldEnforceLicense(interaction.guildId) && !license.ok) {
+    await interaction.editReply(buildLicenseBlockedPayload(interaction.guildId, license));
+    log("warn", "handleSelectMenu:licenseDenied", { guildId: interaction.guildId, reason: license.reason });
+    return;
+  }
+
   const selection = interaction.values[0] || "";
   const [productId, variantId] = selection.split("|");
-  const product = getProduct(productId, true);
+  const { product } = getProductForGuild(interaction.guildId, productId, true);
   if (!product) {
     await interaction.editReply("Produto nao encontrado.");
     log("warn", "handleSelectMenu:productNotFound", { productId });
@@ -570,8 +765,13 @@ async function handleSelectMenu(interaction) {
     { includeBanner: false }
   );
   await interaction.editReply(payload);
+  if (!cart.messageId) {
+    // Match the product post experience: send the pre-GIF once when the cart is first created.
+    await sendPreProductGif(channel, product);
+  }
   await sendOrUpdateCartMessage(channel, cart, product, variant);
   await notifyStaffLog("Carrinho criado", {
+    guildId: interaction.guildId,
     userId: interaction.user?.id,
     channelId: channel.id,
     productId,
@@ -729,9 +929,10 @@ async function handleButton(interaction) {
       return;
     }
     const channel = interaction.channel;
-    const precheck = getProduct(productId, true);
+    const precheck = getProductForGuild(interaction.guildId, productId, true).product;
     if (!precheck) {
-      const ids = productsDb.products.map((p) => p.id).join(", ") || "nenhum";
+      const list = listProductsForGuild(interaction.guildId, { force: true });
+      const ids = list.products.map((p) => p.id).join(", ") || "nenhum";
       await interaction.editReply(`Produto nao encontrado. IDs carregados: ${ids}.`);
       log("warn", "handleButton:adminPostNotFound", { ids });
       return;
@@ -792,6 +993,7 @@ async function handleButton(interaction) {
         );
       }
       await notifyStaffLog("Compra confirmada (admin)", {
+        guildId: cart.guildId,
         userId: cart.userId,
         cartId: cart.id,
         channelId: cart.channelId,
@@ -809,6 +1011,73 @@ async function handleButton(interaction) {
     return;
   }
 
+  if (customId.startsWith("cart_qty:")) {
+    const cartId = customId.split(":")[1];
+    const cart = cartsDb.carts.find((c) => c.id === cartId);
+    if (!cart) {
+      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      log("warn", "handleButton:cartQtyNotFound", { cartId });
+      return;
+    }
+    if (!canAccessCart(interaction, cart)) {
+      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      log("warn", "handleButton:cartQtyDenied", { cartId, userId: interaction.user.id });
+      return;
+    }
+    if (cart.status !== "open") {
+      await interaction.reply({ content: "Nao e possivel alterar a quantidade neste status.", ephemeral: true });
+      return;
+    }
+
+    const modal = new ModalBuilder().setCustomId(`cart_qty_modal:${cartId}`).setTitle("Alterar quantidade");
+
+    const qtyInput = new TextInputBuilder()
+      .setCustomId("quantity")
+      .setLabel("Quantidade")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true)
+      .setValue(String(getCartQuantity(cart)));
+
+    modal.addComponents(new ActionRowBuilder().addComponents(qtyInput));
+    await interaction.showModal(modal);
+    logExit("handleButton:cartQtyModal", { cartId, userId: interaction.user.id });
+    return;
+  }
+
+  if (customId.startsWith("cart_remove_coupon:")) {
+    const cartId = customId.split(":")[1];
+    const cart = cartsDb.carts.find((c) => c.id === cartId);
+    if (!cart) {
+      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      log("warn", "handleButton:cartRemoveCouponNotFound", { cartId });
+      return;
+    }
+    if (!canAccessCart(interaction, cart)) {
+      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      log("warn", "handleButton:cartRemoveCouponDenied", { cartId, userId: interaction.user.id });
+      return;
+    }
+    if (cart.status !== "open") {
+      await interaction.reply({ content: "Nao e possivel remover cupom neste status.", ephemeral: true });
+      return;
+    }
+
+    cart.couponCode = null;
+    cart.discountPercent = 0;
+    cart.updatedAt = new Date().toISOString();
+    saveJson(CARTS_PATH, cartsDb);
+
+    const product = getProductForGuild(cart.guildId, cart.productId, true).product;
+    const variant = getVariant(product, cart.variantId);
+    if (product && variant) {
+      await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
+    }
+
+    await interaction.reply({ content: "Cupom removido.", ephemeral: true });
+    await touchCartActivity(cart.id);
+    return;
+  }
+
   if (customId.startsWith("cart_coupon:")) {
     const cartId = customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
@@ -820,6 +1089,10 @@ async function handleButton(interaction) {
     if (!canAccessCart(interaction, cart)) {
       await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
       log("warn", "handleButton:cartCouponDenied", { cartId, userId: interaction.user.id });
+      return;
+    }
+    if (cart.status !== "open") {
+      await interaction.reply({ content: "Nao e possivel adicionar cupom neste status.", ephemeral: true });
       return;
     }
 
@@ -857,6 +1130,14 @@ async function handleButton(interaction) {
       log("warn", "handleButton:cartPayCancelled", { cartId });
       return;
     }
+    if (cart.status === "paid") {
+      await interaction.reply({ content: "Este carrinho ja foi finalizado.", ephemeral: true });
+      return;
+    }
+    if (cart.status === "expired") {
+      await interaction.reply({ content: "Este carrinho expirou. Abra um novo carrinho para comprar.", ephemeral: true });
+      return;
+    }
     if (cart.status === "pending") {
       await interaction.reply({ content: "Pix ja gerado. Aguarde a confirmacao.", ephemeral: true });
       log("warn", "handleButton:cartPayPending", { cartId });
@@ -865,7 +1146,14 @@ async function handleButton(interaction) {
 
     await interaction.deferReply({ ephemeral: true });
 
-    const product = getProduct(cart.productId);
+    const license = getGuildLicense(cart.guildId);
+    if (shouldEnforceLicense(cart.guildId) && !license.ok) {
+      await interaction.editReply(buildLicenseBlockedPayload(cart.guildId, license));
+      log("warn", "handleButton:cartPay:licenseDenied", { guildId: cart.guildId, reason: license.reason });
+      return;
+    }
+
+    const product = getProductForGuild(cart.guildId, cart.productId, true).product;
     const variant = getVariant(product, cart.variantId);
     if (!product || !variant) {
       await interaction.editReply("Produto/variacao invalida.");
@@ -873,10 +1161,21 @@ async function handleButton(interaction) {
       return;
     }
 
+    const quantity = getCartQuantity(cart);
+    if (!isInfiniteStock(product)) {
+      const available = getAvailableStockCount(cart.guildId, product.id, variant.id);
+      if (available <= 0 || available < quantity) {
+        await interaction.editReply(`Sem estoque para esta quantidade. Disponivel: ${available}.`);
+        return;
+      }
+    }
+
     try {
       const payment = await createPixPayment(interaction.user, cart, product, variant);
       await sendPixMessage(interaction.channel, cart, product, variant, payment);
+      await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
       await notifyStaffLog("PIX gerado", {
+        guildId: cart.guildId,
         userId: interaction.user?.id,
         cartId,
         productId: product.id,
@@ -894,6 +1193,63 @@ async function handleButton(interaction) {
     return;
   }
 
+  if (customId.startsWith("pix_copy:")) {
+    const paymentId = customId.split(":")[1];
+    const order = ordersDb.orders.find((o) => o.paymentId === paymentId);
+    if (!order) {
+      await interaction.reply({ content: "Pagamento nao encontrado.", ephemeral: true });
+      return;
+    }
+    if (interaction.user?.id !== order.userId && !isAdmin(interaction.user.id)) {
+      await interaction.reply({ content: "Sem permissao para este pagamento.", ephemeral: true });
+      return;
+    }
+    if (!order.pixPayload) {
+      await interaction.reply({ content: "Codigo Pix indisponivel.", ephemeral: true });
+      return;
+    }
+    await interaction.reply({ content: `PIX Copia e Cola:\n\`\`\`\n${order.pixPayload}\n\`\`\``, ephemeral: true });
+    return;
+  }
+
+  if (customId.startsWith("pix_qr:")) {
+    const paymentId = customId.split(":")[1];
+    const order = ordersDb.orders.find((o) => o.paymentId === paymentId);
+    if (!order) {
+      await interaction.reply({ content: "Pagamento nao encontrado.", ephemeral: true });
+      return;
+    }
+    if (interaction.user?.id !== order.userId && !isAdmin(interaction.user.id)) {
+      await interaction.reply({ content: "Sem permissao para este pagamento.", ephemeral: true });
+      return;
+    }
+    if (!order.pixPayload) {
+      await interaction.reply({ content: "QR Code indisponivel.", ephemeral: true });
+      return;
+    }
+
+    const qrBuffer = await QRCode.toBuffer(order.pixPayload);
+    const file = new AttachmentBuilder(qrBuffer, { name: "qrcode.png" });
+    await interaction.reply({ content: "QR Code:", files: [file], ephemeral: true });
+    return;
+  }
+
+  if (customId.startsWith("pix_terms:")) {
+    const paymentId = customId.split(":")[1];
+    const order = ordersDb.orders.find((o) => o.paymentId === paymentId);
+    if (!order) {
+      await interaction.reply({ content: "Pagamento nao encontrado.", ephemeral: true });
+      return;
+    }
+    if (interaction.user?.id !== order.userId && !isAdmin(interaction.user.id)) {
+      await interaction.reply({ content: "Sem permissao para este pagamento.", ephemeral: true });
+      return;
+    }
+    const terms = String(config.termsText || "").trim();
+    await interaction.reply({ content: terms || "Termos indisponiveis.", ephemeral: true });
+    return;
+  }
+
   if (customId.startsWith("cart_cancel:")) {
     const cartId = customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
@@ -907,9 +1263,40 @@ async function handleButton(interaction) {
       log("warn", "handleButton:cartCancelDenied", { cartId, userId: interaction.user.id });
       return;
     }
+    if (cart.status === "paid") {
+      await interaction.reply({ content: "Este carrinho ja foi finalizado.", ephemeral: true });
+      return;
+    }
+    if (cart.status === "cancelled" || cart.status === "expired") {
+      await interaction.reply({ content: "Este carrinho ja esta finalizado.", ephemeral: true });
+      return;
+    }
+
+    const now = new Date().toISOString();
     cart.status = "cancelled";
-    cart.updatedAt = new Date().toISOString();
+    cart.updatedAt = now;
+    cart.lastActivityAt = now;
     saveJson(CARTS_PATH, cartsDb);
+
+    const affected = ordersDb.orders.filter(
+      (o) => o.cartId === cartId && (o.status === "pending" || o.status === "waiting_stock")
+    );
+    for (const order of affected) {
+      order.status = "cancelled";
+      order.cancelledAt = now;
+      order.updatedAt = now;
+      appendOrderEvent(order, "order_cancelled", { actor: interaction.user.id, source: "cart_cancel" }, now);
+    }
+    if (affected.length) {
+      saveJson(ORDERS_PATH, ordersDb);
+    }
+
+    const product = getProductForGuild(cart.guildId, cart.productId, true).product;
+    const variant = getVariant(product, cart.variantId);
+    if (product && variant) {
+      await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
+    }
+
     await interaction.reply({ content: "Carrinho cancelado.", ephemeral: true });
     await sendSystemEmbed(
       interaction.channel,
@@ -1013,6 +1400,44 @@ async function handleModalSubmit(interaction) {
     return;
   }
 
+  if (interaction.customId.startsWith("cart_qty_modal:")) {
+    const cartId = interaction.customId.split(":")[1];
+    const cart = cartsDb.carts.find((c) => c.id === cartId);
+    if (!cart) {
+      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      return;
+    }
+    if (!canAccessCart(interaction, cart)) {
+      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      return;
+    }
+    if (cart.status !== "open") {
+      await interaction.reply({ content: "Nao e possivel alterar a quantidade neste status.", ephemeral: true });
+      return;
+    }
+
+    const raw = String(interaction.fields.getTextInputValue("quantity") || "").trim().replace(",", ".");
+    const qty = Math.floor(Number(raw));
+    if (!Number.isFinite(qty) || qty < 1 || qty > 99) {
+      await interaction.reply({ content: "Quantidade invalida. Use um numero entre 1 e 99.", ephemeral: true });
+      return;
+    }
+
+    cart.quantity = qty;
+    cart.updatedAt = new Date().toISOString();
+    saveJson(CARTS_PATH, cartsDb);
+
+    const product = getProductForGuild(cart.guildId, cart.productId, true).product;
+    const variant = getVariant(product, cart.variantId);
+    if (product && variant) {
+      await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
+    }
+
+    await interaction.reply({ content: `Quantidade atualizada para ${qty}.`, ephemeral: true });
+    await touchCartActivity(cart.id);
+    return;
+  }
+
   if (interaction.customId.startsWith("cart_coupon_modal:")) {
     const cartId = interaction.customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
@@ -1024,6 +1449,10 @@ async function handleModalSubmit(interaction) {
     if (!canAccessCart(interaction, cart)) {
       await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
       log("warn", "handleModalSubmit:cartCouponDenied", { cartId, userId: interaction.user.id });
+      return;
+    }
+    if (cart.status !== "open") {
+      await interaction.reply({ content: "Nao e possivel aplicar cupom neste status.", ephemeral: true });
       return;
     }
 
@@ -1041,15 +1470,16 @@ async function handleModalSubmit(interaction) {
     cart.updatedAt = new Date().toISOString();
     saveJson(CARTS_PATH, cartsDb);
 
-    const product = getProduct(cart.productId);
+    const product = getProductForGuild(cart.guildId, cart.productId, true).product;
     const variant = getVariant(product, cart.variantId);
     if (product && variant) {
       await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
     }
 
     await interaction.reply({ content: `Cupom ${code} aplicado.`, ephemeral: true });
-    const finalPrice = product && variant ? applyDiscount(variant.price, cart.discountPercent) : null;
-    const priceLine = finalPrice ? `Total: **${formatCurrency(finalPrice)}**` : null;
+    const quantity = getCartQuantity(cart);
+    const finalPrice = product && variant ? applyDiscount(variant.price * quantity, cart.discountPercent) : null;
+    const priceLine = finalPrice ? `Preço Total: **${formatCurrency(finalPrice)}**` : null;
     await sendSystemEmbed(
       interaction.channel,
       "Cupom aplicado",
@@ -1057,6 +1487,7 @@ async function handleModalSubmit(interaction) {
       "success"
     );
     await notifyStaffLog("Cupom aplicado", {
+      guildId: cart.guildId,
       userId: interaction.user?.id,
       cartId,
       code,
@@ -1104,8 +1535,139 @@ function getVariant(product, variantId) {
   return variants.find((entry) => entry.id === id) || null;
 }
 
-function getProductStockBuckets(productId) {
-  const raw = stockDb.stock?.[productId];
+const INSTANCE_STORE_CACHE_TTL_MS = 2000;
+const instanceStoreCache = new Map();
+
+function instanceProductsPath(instanceId) {
+  return path.join(INSTANCES_DIR, String(instanceId || ""), "products.json");
+}
+
+function instanceStockPath(instanceId) {
+  return path.join(INSTANCES_DIR, String(instanceId || ""), "stock.json");
+}
+
+function getPortalInstanceForGuild(guildId) {
+  const gid = String(guildId || "").trim();
+  if (!gid) return null;
+  const data = portalStore.load();
+  return (data.instances || []).find((i) => String(i.discordGuildId || "") === gid) || null;
+}
+
+function getGuildChannelConfig(guildId) {
+  const inst = getPortalInstanceForGuild(guildId);
+  const ch = inst?.channels && typeof inst.channels === "object" ? inst.channels : {};
+  return {
+    logsChannelId: asString(ch.logsChannelId),
+    salesChannelId: asString(ch.salesChannelId),
+    feedbackChannelId: asString(ch.feedbackChannelId)
+  };
+}
+
+function getInstanceIdForGuild(guildId) {
+  const instance = getPortalInstanceForGuild(guildId);
+  return instance?.id ? String(instance.id) : "";
+}
+
+function loadInstanceStore(instanceId, options = {}) {
+  const id = String(instanceId || "").trim();
+  if (!id) {
+    return {
+      productsDb: { products: [] },
+      stockDb: { stock: {} },
+      productsPath: "",
+      stockPath: ""
+    };
+  }
+
+  const force = options.force === true;
+  const now = Date.now();
+  const cached = instanceStoreCache.get(id) || null;
+  if (!force && cached && now - Number(cached.loadedAt || 0) < INSTANCE_STORE_CACHE_TTL_MS) {
+    return cached;
+  }
+
+  const productsPath = instanceProductsPath(id);
+  const stockPath = instanceStockPath(id);
+
+  const productsDbLocal = loadJson(productsPath, { products: [] });
+  if (!Array.isArray(productsDbLocal.products)) productsDbLocal.products = [];
+
+  const stockDbLocal = loadJson(stockPath, { stock: {} });
+  if (!stockDbLocal.stock || typeof stockDbLocal.stock !== "object") stockDbLocal.stock = {};
+
+  const record = {
+    loadedAt: now,
+    productsDb: productsDbLocal,
+    stockDb: stockDbLocal,
+    productsPath,
+    stockPath
+  };
+  instanceStoreCache.set(id, record);
+  return record;
+}
+
+function getStoreContextForGuild(guildId, options = {}) {
+  const gid = String(guildId || "").trim();
+  const instanceId = gid ? getInstanceIdForGuild(gid) : "";
+  if (instanceId) {
+    const store = loadInstanceStore(instanceId, options);
+    return {
+      source: "instance",
+      instanceId,
+      productsDb: store.productsDb,
+      stockDb: store.stockDb,
+      productsPath: store.productsPath,
+      stockPath: store.stockPath
+    };
+  }
+  return {
+    source: "legacy",
+    instanceId: "",
+    productsDb,
+    stockDb,
+    productsPath: PRODUCTS_PATH,
+    stockPath: STOCK_PATH
+  };
+}
+
+function saveStoreStock(ctx) {
+  if (!ctx || !ctx.stockPath) return;
+  saveJson(ctx.stockPath, ctx.stockDb);
+  if (ctx.source === "instance" && ctx.instanceId) {
+    instanceStoreCache.set(ctx.instanceId, {
+      loadedAt: Date.now(),
+      productsDb: ctx.productsDb,
+      stockDb: ctx.stockDb,
+      productsPath: ctx.productsPath,
+      stockPath: ctx.stockPath
+    });
+  }
+}
+
+function listProductsForGuild(guildId, options = {}) {
+  const ctx = getStoreContextForGuild(guildId, options);
+  const list = Array.isArray(ctx.productsDb?.products) ? ctx.productsDb.products : [];
+  return { ctx, products: list };
+}
+
+function getProductForGuild(guildId, productId, refreshOnMiss = false) {
+  const wanted = String(productId || "").trim();
+  const ctx = getStoreContextForGuild(guildId, { force: refreshOnMiss });
+  let product = Array.isArray(ctx.productsDb?.products)
+    ? ctx.productsDb.products.find((p) => String(p?.id) === wanted) || null
+    : null;
+
+  if (!product && refreshOnMiss && ctx.source === "legacy") {
+    reloadProducts();
+    product = productsDb.products.find((p) => String(p?.id) === wanted) || null;
+  }
+
+  return { ctx, product };
+}
+
+function getProductStockBuckets(guildId, productId) {
+  const ctx = getStoreContextForGuild(guildId);
+  const raw = ctx.stockDb.stock?.[productId];
   if (!raw) return { default: [], shared: [] };
   if (Array.isArray(raw)) {
     return { default: raw, shared: [] };
@@ -1116,9 +1678,9 @@ function getProductStockBuckets(productId) {
   return buckets;
 }
 
-function getStockCoverageForProduct(product) {
+function getStockCoverageForProduct(guildId, product) {
   const variants = getSelectableVariants(product);
-  const stock = getProductStockBuckets(product?.id);
+  const stock = getProductStockBuckets(guildId, product?.id);
   const fallbackCount = (stock.default?.length || 0) + (stock.shared?.length || 0);
   const coverage = variants.map((variant) => {
     const ownCount = Array.isArray(stock[variant.id]) ? stock[variant.id].length : 0;
@@ -1134,15 +1696,15 @@ function getStockCoverageForProduct(product) {
   return { fallbackCount, coverage };
 }
 
-function validateProductForPosting(product) {
+function validateProductForPosting(guildId, product) {
   const issues = [];
   if (!product?.id) issues.push("produto sem id");
   if (!product?.name) issues.push("produto sem nome");
   const variants = getSelectableVariants(product);
   if (!variants.length) issues.push("produto sem variacoes validas");
   if (variants.length > 25) issues.push("mais de 25 variacoes (limite do select)");
-  const stockCoverage = getStockCoverageForProduct(product);
-  const totalKeys = Object.values(getProductStockBuckets(product?.id)).reduce((sum, list) => {
+  const stockCoverage = getStockCoverageForProduct(guildId, product);
+  const totalKeys = Object.values(getProductStockBuckets(guildId, product?.id)).reduce((sum, list) => {
     if (!Array.isArray(list)) return sum;
     return sum + list.length;
   }, 0);
@@ -1152,15 +1714,6 @@ function validateProductForPosting(product) {
     issues.push(`variacao sem key: ${uncovered.variantId}`);
   }
   return issues;
-}
-
-function getProduct(productId, refreshOnMiss = false) {
-  let product = productsDb.products.find((p) => p.id === productId);
-  if (!product && refreshOnMiss) {
-    reloadProducts();
-    product = productsDb.products.find((p) => p.id === productId);
-  }
-  return product;
 }
 
 function reloadProducts() {
@@ -1206,6 +1759,90 @@ function isStaff(member) {
   const result = member.roles.cache.has(config.staffRoleId);
   log("debug", "isStaff", { userId: member.id, result, staffRoleId: config.staffRoleId });
   return result;
+}
+
+function getPortalBaseUrl() {
+  const env = String(process.env.PORTAL_BASE_URL || "").trim();
+  if (env) return env;
+  const hostRaw = String(process.env.PORTAL_HOST || "127.0.0.1").trim() || "127.0.0.1";
+  const host = hostRaw === "0.0.0.0" ? "127.0.0.1" : hostRaw;
+  const port = Number(process.env.PORTAL_PORT || 3100);
+  return `http://${host}:${port}`;
+}
+
+function isPlanActive(plan) {
+  if (!plan || typeof plan !== "object") return false;
+  if (String(plan.status || "").toLowerCase() !== "active") return false;
+  const expiresAt = String(plan.expiresAt || "").trim();
+  if (!expiresAt) return true;
+  const ts = Date.parse(expiresAt);
+  if (!Number.isFinite(ts)) return false;
+  return ts > Date.now();
+}
+
+function getLicenseMode() {
+  const raw = String(process.env.LICENSE_MODE || config.licenseMode || "auto")
+    .trim()
+    .toLowerCase();
+  if (raw === "off" || raw === "false" || raw === "0") return "off";
+  if (raw === "on" || raw === "true" || raw === "1" || raw === "enforce") return "enforce";
+  return "auto";
+}
+
+function getGuildLicense(guildId) {
+  const gid = String(guildId || "").trim();
+  if (!gid) return { ok: false, reason: "missing_guild" };
+
+  const data = portalStore.load();
+  const instance = (data.instances || []).find((i) => String(i.discordGuildId || "") === gid) || null;
+  if (!instance) return { ok: false, reason: "unlinked" };
+
+  const owner =
+    (data.users || []).find((u) => String(u.discordUserId || "") === String(instance.ownerDiscordUserId || "")) || null;
+  if (!owner) return { ok: false, reason: "owner_missing", instance };
+
+  const plan = owner.plan || null;
+  if (!isPlanActive(plan)) return { ok: false, reason: "plan_inactive", instance, owner, plan };
+
+  return { ok: true, instance, owner, plan };
+}
+
+function shouldEnforceLicense(guildId) {
+  const mode = getLicenseMode();
+  if (mode === "off") return false;
+  if (mode === "enforce") return true;
+
+  // auto: enforce only after the server is linked to a Portal instance (SaaS mode).
+  const gid = String(guildId || "").trim();
+  if (!gid) return false;
+  const data = portalStore.load();
+  return (data.instances || []).some((i) => String(i.discordGuildId || "") === gid);
+}
+
+function buildLicenseBlockedPayload(guildId, license) {
+  const baseUrl = getPortalBaseUrl();
+  const guildLabel = guildId ? `Guild: ${guildId}` : "";
+  const reason = license?.reason || "licenca_invalida";
+  const planExpires = license?.plan?.expiresAt ? `Plano expira em: ${String(license.plan.expiresAt).slice(0, 10)}` : "";
+
+  const lines = [];
+  lines.push("Este servidor precisa de uma licenca ativa para vender.");
+  if (reason === "unlinked") {
+    lines.push("Status: servidor nao vinculado ao Portal.");
+  } else if (reason === "plan_inactive") {
+    lines.push("Status: plano inativo ou expirado.");
+    if (planExpires) lines.push(planExpires);
+  } else {
+    lines.push(`Status: ${reason}`);
+  }
+  if (guildLabel) lines.push(guildLabel);
+  lines.push("");
+  lines.push(`1) Acesse: ${baseUrl}/plans`);
+  lines.push("2) Ative Trial (24h) ou Start (pago)");
+  lines.push("3) Na Dashboard, crie uma instancia e gere sua API key");
+  lines.push("4) No servidor, rode: `!link SUA_API_KEY` (admin)");
+
+  return buildSystemEmbedPayload("Licenca necessaria", lines.join("\n"), "warn", { includeBanner: true, includeThumbnail: true });
 }
 
 function canAccessCart(interaction, cart) {
@@ -1274,10 +1911,103 @@ function markOrderConfirmed(order, source, byUserId, note = "", at = new Date().
   appendOrderConfirmation(order, normalizedSource, order.confirmedByUserId || byUserId || "", note, at);
 }
 
+function toCents(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num) || num <= 0) return 0;
+  return Math.round(num * 100);
+}
+
+function getPlatformFeePercent() {
+  const raw = Number(process.env.PLATFORM_FEE_PERCENT || config.platformFeePercent || 6);
+  if (!Number.isFinite(raw) || raw < 0 || raw > 100) return 6;
+  return raw;
+}
+
+async function maybeCreditWalletForOrder(order) {
+  try {
+    if (!order) return { ok: false, reason: "missing_order" };
+    if (order.walletCreditedAt) return { ok: false, reason: "already_credited" };
+
+    const ownerDiscordUserId = String(order.ownerDiscordUserId || "").trim();
+    if (!ownerDiscordUserId) return { ok: false, reason: "missing_owner" };
+
+    const valueCents = Number(order.valueCents || 0) > 0 ? Number(order.valueCents) : toCents(order.value);
+    if (!Number.isFinite(valueCents) || valueCents <= 0) return { ok: false, reason: "missing_value" };
+
+    const feePercent = getPlatformFeePercent();
+    const feeCents = Math.round((valueCents * feePercent) / 100);
+    const netCents = Math.max(0, valueCents - feeCents);
+    const now = new Date().toISOString();
+    const txId = `tx_sale_${randomUUID()}`;
+
+    await portalStore.runExclusive(async () => {
+      const data = portalStore.load();
+      const user = (data.users || []).find((u) => String(u.discordUserId || "") === ownerDiscordUserId) || null;
+      if (!user) return;
+
+      const prevSales = Math.floor(Number(user.salesCentsTotal || 0));
+      const nextSales = prevSales + Math.floor(valueCents);
+      user.salesCentsTotal = nextSales;
+
+      user.walletCents = Math.floor(Number(user.walletCents || 0) + netCents);
+
+      // Bonus: cada R$20,00 em vendas (gross) = +1 dia no plano.
+      const prevDays = Math.floor(prevSales / 2000);
+      const nextDays = Math.floor(nextSales / 2000);
+      const bonusDays = Math.max(0, nextDays - prevDays);
+      if (bonusDays > 0 && user.plan && String(user.plan.status || "").toLowerCase() === "active") {
+        const currentExp = String(user.plan.expiresAt || "").trim();
+        const baseTs = Number.isFinite(Date.parse(currentExp)) ? Date.parse(currentExp) : Date.now();
+        const start = Math.max(Date.now(), baseTs);
+        user.plan.expiresAt = new Date(start + bonusDays * 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      if (!Array.isArray(data.transactions)) data.transactions = [];
+      data.transactions.push({
+        id: txId,
+        ownerDiscordUserId,
+        type: "sale_credit",
+        amountCents: netCents,
+        status: "paid",
+        provider: "internal",
+        providerPaymentId: String(order.paymentId || ""),
+        createdAt: now,
+        updatedAt: now,
+        metadata: {
+          orderId: String(order.id || ""),
+          grossCents: Math.floor(valueCents),
+          feePercent,
+          feeCents
+        }
+      });
+
+      portalStore.save(data);
+    });
+
+    order.walletCreditedAt = now;
+    order.platformFeePercent = feePercent;
+    order.platformFeeCents = feeCents;
+    order.netCents = netCents;
+    order.walletTxId = txId;
+    saveJson(ORDERS_PATH, ordersDb);
+
+    return { ok: true, txId, netCents, feeCents };
+  } catch (err) {
+    logError("maybeCreditWalletForOrder", err, { orderId: order?.id });
+    return { ok: false, reason: "error" };
+  }
+}
+
 function upsertManualOrderForCart(cart, product, variant, adminUserId) {
   const now = new Date().toISOString();
   const latest = getLatestOrderByCartId(cart.id);
-  const finalPrice = Number(applyDiscount(variant.price, cart.discountPercent || 0).toFixed(2));
+  const quantity = getCartQuantity(cart);
+  const finalPrice = Number(applyDiscount(variant.price * quantity, cart.discountPercent || 0).toFixed(2));
+  const valueCents = toCents(finalPrice);
+
+  const license = getGuildLicense(cart.guildId);
+  const instanceId = license.ok ? String(license.instance?.id || "") : "";
+  const ownerDiscordUserId = license.ok ? String(license.owner?.discordUserId || "") : "";
 
   if (latest && latest.status === "delivered") {
     return { order: latest, created: false, alreadyDelivered: true };
@@ -1289,8 +2019,16 @@ function upsertManualOrderForCart(cart, product, variant, adminUserId) {
     latest.channelId = cart.channelId;
     latest.couponCode = cart.couponCode || null;
     latest.discountPercent = cart.discountPercent || 0;
+    latest.quantity = quantity;
     latest.value = finalPrice;
+    latest.valueCents = valueCents;
+    latest.guildId = cart.guildId;
+    latest.instanceId = instanceId;
+    latest.ownerDiscordUserId = ownerDiscordUserId;
     latest.status = latest.status === "waiting_stock" || latest.status === "failed" ? "pending" : latest.status;
+    latest.paymentProvider = "manual";
+    latest.providerStatus = "MANUAL_CONFIRMED";
+    latest.providerStatusDetail = "";
     latest.asaasStatus = "MANUAL_CONFIRMED";
     latest.manualConfirmedByUserId = adminUserId;
     latest.manualConfirmedAt = now;
@@ -1304,13 +2042,21 @@ function upsertManualOrderForCart(cart, product, variant, adminUserId) {
     id: randomUUID(),
     cartId: cart.id,
     paymentId: `manual-${randomUUID().split("-")[0]}`,
+    paymentProvider: "manual",
+    providerStatus: "MANUAL_CONFIRMED",
+    providerStatusDetail: "",
     userId: cart.userId,
+    guildId: cart.guildId,
     productId: cart.productId,
     variantId: cart.variantId,
     channelId: cart.channelId,
     couponCode: cart.couponCode || null,
     discountPercent: cart.discountPercent || 0,
+    quantity,
     value: finalPrice,
+    valueCents,
+    instanceId,
+    ownerDiscordUserId,
     status: "pending",
     asaasStatus: "MANUAL_CONFIRMED",
     createdAt: now,
@@ -1339,7 +2085,7 @@ async function confirmCartPurchaseByAdmin(cart, adminUserId) {
       return { ok: false, reason: "carrinho finalizado" };
     }
 
-    const product = getProduct(cart.productId, true);
+    const product = getProductForGuild(cart.guildId, cart.productId, true).product;
     const variant = getVariant(product, cart.variantId);
     if (!product || !variant) {
       return { ok: false, reason: "produto ou variacao invalida" };
@@ -1373,15 +2119,25 @@ async function confirmCartPurchaseByAdmin(cart, adminUserId) {
 
 async function postProductToChannel(guild, channel, productId) {
   logEnter("postProductToChannel", { productId, channelId: channel?.id, guildId: guild?.id });
-  const product = getProduct(productId, true);
+
+  const guildId = guild?.id || "";
+  const license = getGuildLicense(guildId);
+  if (shouldEnforceLicense(guildId) && !license.ok) {
+    await channel.send(buildLicenseBlockedPayload(guildId, license));
+    log("warn", "postProductToChannel:licenseDenied", { guildId, reason: license.reason });
+    return { ok: false, reason: "licenca_necessaria" };
+  }
+
+  const product = getProductForGuild(guildId, productId, true).product;
   if (!product) {
-    const ids = productsDb.products.map((p) => p.id).join(", ") || "nenhum";
+    const list = listProductsForGuild(guildId, { force: true });
+    const ids = list.products.map((p) => p.id).join(", ") || "nenhum";
     log("warn", "postProductToChannel:notFound", { productId, ids });
     await channel.send(`Produto nao encontrado. IDs carregados: ${ids}.`);
     return { ok: false, reason: "produto nao encontrado" };
   }
 
-  const issues = validateProductForPosting(product);
+  const issues = validateProductForPosting(guildId, product);
   if (issues.length) {
     const reason = issues.join("; ");
     log("warn", "postProductToChannel:invalidProduct", { productId, issues });
@@ -1414,6 +2170,7 @@ async function postProductToChannel(guild, channel, productId) {
 
   postsDb.posts.push({
     id: randomUUID(),
+    guildId,
     productId: product.id,
     channelId: channel.id,
     messageId: message.id,
@@ -1439,7 +2196,23 @@ async function sendPreProductGif(channel, product) {
 
 function buildProductMessage(product, options = {}) {
   logEnter("buildProductMessage", { productId: product?.id, includeMedia: options.includeMedia !== false });
-  const { embeds, files } = buildProductEmbeds(product, options.includeMedia !== false);
+  const includeMedia = options.includeMedia !== false;
+  const mode = getProductPostMode();
+
+  let embeds = [];
+  let files = [];
+  let content = undefined;
+
+  if (mode === "content") {
+    const built = buildProductContentMessage(product, includeMedia);
+    embeds = built.embeds || [];
+    files = built.files || [];
+    content = built.content;
+  } else {
+    const built = buildProductEmbeds(product, includeMedia);
+    embeds = built.embeds || [];
+    files = built.files || [];
+  }
   const variants = getSelectableVariants(product);
   const limitedVariants = variants.slice(0, 25);
 
@@ -1475,10 +2248,74 @@ function buildProductMessage(product, options = {}) {
   const row = new ActionRowBuilder().addComponents(select);
 
   return {
+    content,
     embeds,
     components: [row],
     files
   };
+}
+
+function getProductPostMode() {
+  const raw = String(process.env.PRODUCT_POST_MODE || config.productPostMode || "embed")
+    .trim()
+    .toLowerCase();
+  return raw === "content" ? "content" : "embed";
+}
+
+function truncateDiscordContent(text, maxLen = 2000) {
+  const value = String(text || "");
+  if (value.length <= maxLen) return value;
+  // Keep a little room for the ellipsis.
+  return value.slice(0, Math.max(0, maxLen - 3)).trimEnd() + "...";
+}
+
+function attachIfExistsLimited(filePath, files, maxFiles = 10) {
+  if (!filePath) return null;
+  if (!Array.isArray(files)) return null;
+  if (files.length >= maxFiles) return null;
+  return attachIfExists(filePath, files);
+}
+
+function buildProductContentMessage(product, includeMedia = true) {
+  const files = [];
+
+  if (includeMedia) {
+    // The pre-GIF is already sent as its own message (sendPreProductGif), so here we focus on the media that should
+    // appear "full width" together with the product text.
+    attachIfExistsLimited(product.previewImage, files);
+
+    if (Array.isArray(product.gifImages)) {
+      for (const gifPath of product.gifImages) {
+        attachIfExistsLimited(gifPath, files);
+      }
+    }
+
+    attachIfExistsLimited(product.footerImage, files);
+  }
+
+  const lines = [];
+  lines.push(`**${String(product?.name || "Produto").trim()}**`);
+  if (product?.description) {
+    lines.push(String(product.description));
+  }
+
+  if (Array.isArray(product.sections)) {
+    for (const section of product.sections) {
+      const name = String(section?.name || "").trim();
+      const value = String(section?.value || "").trim();
+      if (!name && !value) continue;
+      if (name) lines.push(`\n${name}`);
+      if (value) lines.push(value);
+    }
+  }
+
+  if (product?.demoUrl) {
+    lines.push(`\nDemo\n${String(product.demoUrl).trim()}`);
+  }
+
+  const content = truncateDiscordContent(lines.join("\n"));
+
+  return { content, embeds: [], files };
 }
 
 function buildProductEmbeds(product, includeMedia = true) {
@@ -1571,6 +2408,7 @@ function upsertCart(userId, guildId, productId, variantId) {
       guildId,
       productId,
       variantId,
+      quantity: 1,
       status: "open",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1580,6 +2418,7 @@ function upsertCart(userId, guildId, productId, variantId) {
   } else {
     cart.productId = productId;
     cart.variantId = variantId;
+    if (!cart.quantity) cart.quantity = 1;
     cart.updatedAt = new Date().toISOString();
     cart.lastActivityAt = new Date().toISOString();
   }
@@ -1675,86 +2514,208 @@ function buildCartMessage(cart, product, variant) {
   const files = [];
   const embeds = [];
 
-  const main = new EmbedBuilder()
-    .setTitle("🛒 SEU CARRINHO")
-    .setColor(BRAND_COLOR);
-
+  const cartColor = Number.isFinite(Number(config.cartColor)) ? Number(config.cartColor) : DEFAULT_CART_COLOR;
   const author = getBrandAuthor();
-  if (author) {
-    main.setAuthor(author);
+  const quantity = getCartQuantity(cart);
+  const label = getCartProductLabel(product, variant);
+
+  // Top image embed (same visual style as product posts). Avoid duplicating the pre-GIF if it's the same file.
+  const sameAsPreGif =
+    product.prePostGif &&
+    product.bannerImage &&
+    String(product.prePostGif).toLowerCase() === String(product.bannerImage).toLowerCase();
+  if (!sameAsPreGif) {
+    const banner = attachIfExists(product.bannerImage, files);
+    if (banner) {
+      embeds.push(new EmbedBuilder().setImage('attachment://' + banner.name));
+    }
   }
 
-  const preview = attachIfExists(product.previewImage, files);
-  if (preview) main.setImage(`attachment://${preview.name}`);
-
-  const thumb = attachIfExists(product.thumbnail, files);
-  if (thumb) main.setThumbnail(`attachment://${thumb.name}`);
-
-  const basePrice = variant.price;
-  const finalPrice = applyDiscount(basePrice, cart.discountPercent);
+  const baseTotal = Number(variant.price) * quantity;
+  const finalTotal = applyDiscount(baseTotal, cart.discountPercent);
+  const availableText = isInfiniteStock(product)
+    ? 'Estoque Infinito'
+    : String(getAvailableStockCount(cart.guildId, product.id, variant.id)) + ' unidades';
 
   const lines = [];
-  lines.push("**🧾 RESUMO**");
-  lines.push(`┃ • Produto: **${product.name}**`);
-  lines.push(`┃ • Variação: **${variant.label} (${variant.duration})**`);
-  lines.push(`┃ • Valor: **${formatCurrency(finalPrice)}**`);
+  lines.push('Nossa entrega e 100% automatica.');
+  lines.push('Voce esta comprando: **' + label + ' x' + quantity + '**');
+  lines.push('');
+  lines.push('**DETALHES DO PEDIDO**');
+  lines.push('| Quantidade: **' + quantity + '**');
+  lines.push('| Preco Total: **' + formatCurrency(finalTotal) + '**');
+  lines.push('| Disponivel: **' + availableText + '**');
   if (cart.couponCode) {
-    lines.push(`┃ • Cupom: **${cart.couponCode} (-${cart.discountPercent}%)**`);
+    lines.push('| Cupom: **' + cart.couponCode + ' (-' + (cart.discountPercent || 0) + '%)**');
   }
-  if (cart.status === "pending") {
-    lines.push("┃ • Status: **Aguardando pagamento**");
-  }
-  if (cart.status === "paid") {
-    lines.push("┃ • Status: **Pagamento confirmado**");
-  }
-  if (cart.status === "cancelled") {
-    lines.push("┃ • Status: **Cancelado**");
-  }
-  lines.push("");
-  lines.push("**💳 PAGAMENTO PIX**");
-  lines.push("┃ • Gere o PIX no botão abaixo.");
-  lines.push(`┃ • ${product.pixInstructions || config.pixInstructions || "Siga as instruções para pagamento."}`);
+  if (cart.status === 'pending') lines.push('| Status: **Aguardando pagamento**');
+  if (cart.status === 'paid') lines.push('| Status: **Pagamento confirmado**');
+  if (cart.status === 'cancelled') lines.push('| Status: **Cancelado**');
+  if (cart.status === 'expired') lines.push('| Status: **Expirado**');
 
-  main.setDescription(lines.join("\n"));
+  const main = new EmbedBuilder().setTitle('SEU CARRINHO').setColor(cartColor).setDescription(lines.join('\n'));
+  if (author) main.setAuthor(author);
+
+  const footerText = String(config.cartFooterText || '').trim();
+  if (footerText) main.setFooter({ text: footerText });
+
+  const thumb = attachIfExists(product.thumbnail, files);
+  if (thumb) main.setThumbnail('attachment://' + thumb.name);
+
   embeds.push(main);
 
-  const disablePay = cart.status === "pending" || cart.status === "paid" || cart.status === "cancelled";
-  const disableCoupon = cart.status === "pending" || cart.status === "paid" || cart.status === "cancelled";
-  const disableCancel = cart.status === "paid" || cart.status === "cancelled";
-  const disableAdminConfirm =
-    cart.status === "paid" || cart.status === "cancelled" || cart.status === "expired";
+  // Bottom image embed: user asked it to match the same visual size/feel as the pre-GIF/banner.
+  const bottomPath = String(config.cartBottomImage || '').trim() || product.bannerImage || product.prePostGif || '';
+  const bottom = attachIfExists(bottomPath, files);
+  if (bottom) {
+    embeds.push(new EmbedBuilder().setImage('attachment://' + bottom.name));
+  }
 
-  const row = new ActionRowBuilder().addComponents(
+  const disableOpenActions = cart.status !== 'open';
+  const disablePay = cart.status === 'pending' || cart.status === 'paid' || cart.status === 'cancelled' || cart.status === 'expired';
+  const disableCancel = cart.status === 'paid' || cart.status === 'cancelled' || cart.status === 'expired';
+
+  const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`cart_pay:${cart.id}`)
-      .setLabel("💳 Gerar Pix")
+      .setCustomId('cart_qty:' + cart.id)
+      .setLabel('Alterar Quantidade')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disableOpenActions),
+    new ButtonBuilder()
+      .setCustomId('cart_coupon:' + cart.id)
+      .setLabel('Adicionar Cupom')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disableOpenActions),
+    new ButtonBuilder()
+      .setCustomId('cart_remove_coupon:' + cart.id)
+      .setLabel('Remover Cupom')
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(disableOpenActions || !cart.couponCode)
+  );
+
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('cart_pay:' + cart.id)
+      .setLabel('Ir para Pagamento')
       .setStyle(ButtonStyle.Success)
       .setDisabled(disablePay),
     new ButtonBuilder()
-      .setCustomId(`cart_coupon:${cart.id}`)
-      .setLabel("🏷️ Cupom")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disableCoupon),
-    new ButtonBuilder()
-      .setCustomId(`cart_cancel:${cart.id}`)
-      .setLabel("? Cancelar")
+      .setCustomId('cart_cancel:' + cart.id)
+      .setLabel('Cancelar')
       .setStyle(ButtonStyle.Danger)
-      .setDisabled(disableCancel),
-    new ButtonBuilder()
-      .setCustomId(`cart_admin_confirm:${cart.id}`)
-      .setLabel("Confirmar compra")
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(disableAdminConfirm)
+      .setDisabled(disableCancel)
   );
 
-  return { embeds, files, components: [row] };
-}
+  const components = [row1, row2];
+  if (config.showAdminConfirmButton === true) {
+    const disableAdminConfirm = cart.status === 'paid' || cart.status === 'cancelled' || cart.status === 'expired';
+    const row3 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('cart_admin_confirm:' + cart.id)
+        .setLabel('Confirmar compra (admin)')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(disableAdminConfirm)
+    );
+    components.push(row3);
+  }
 
+  return { embeds, files, components };
+}
 async function createPixPayment(user, cart, product, variant) {
   logEnter("createPixPayment", { userId: user?.id, cartId: cart?.id, productId: product?.id, variantId: variant?.id });
-  if (!config.asaas?.enabled) {
-    throw new Error("Asaas desativado");
+  const quantity = getCartQuantity(cart);
+  const baseTotal = variant.price * quantity;
+  const finalPrice = applyDiscount(baseTotal, cart.discountPercent);
+
+  const license = getGuildLicense(cart.guildId);
+  const instanceId = license.ok ? String(license.instance?.id || "") : "";
+  const ownerDiscordUserId = license.ok ? String(license.owner?.discordUserId || "") : "";
+
+  const mpToken = getMercadoPagoAccessTokenForSale(ownerDiscordUserId);
+  if (!mpToken) {
+    // Optional fallback for legacy environments.
+    if (!config.asaas?.enabled) {
+      throw new Error("Mercado Pago nao configurado");
+    }
   }
+
+  if (mpToken) {
+    const payerEmail = `discord+${user.id}@example.com`;
+    const description = `${product.name} - ${getCartProductLabel(product, variant)} x${quantity}`;
+    const mpPayment = await mercadoPagoRequest(
+      "post",
+      "/v1/payments",
+      {
+        transaction_amount: Number(Number(finalPrice || 0).toFixed(2)),
+        description,
+        payment_method_id: "pix",
+        payer: { email: payerEmail },
+        external_reference: cart.id,
+        metadata: {
+          cart_id: cart.id,
+          guild_id: cart.guildId,
+          product_id: product.id,
+          variant_id: variant.id,
+          instance_id: instanceId,
+          owner_user_id: ownerDiscordUserId
+        }
+      },
+      mpToken,
+      { idempotencyKey: `pix_${cart.id}` }
+    );
+
+    const pixPayload = asString(mpPayment?.point_of_interaction?.transaction_data?.qr_code);
+    const valueCents = Math.round(Number(finalPrice || 0) * 100);
+
+    const paymentRecord = {
+      id: randomUUID(),
+      cartId: cart.id,
+      paymentId: String(mpPayment.id || ""),
+      paymentProvider: "mercadopago",
+      providerStatus: asString(mpPayment?.status),
+      providerStatusDetail: asString(mpPayment?.status_detail),
+      userId: user.id,
+      guildId: cart.guildId,
+      productId: product.id,
+      variantId: variant.id,
+      channelId: cart.channelId,
+      couponCode: cart.couponCode || null,
+      discountPercent: cart.discountPercent || 0,
+      quantity,
+      value: Number(Number(finalPrice || 0).toFixed(2)),
+      valueCents,
+      instanceId,
+      ownerDiscordUserId,
+      pixPayload,
+      pixTicketUrl: asString(mpPayment?.point_of_interaction?.transaction_data?.ticket_url),
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    appendOrderEvent(
+      paymentRecord,
+      "payment_created",
+      { paymentId: paymentRecord.paymentId, provider: "mercadopago", source: "pix", actor: user.id },
+      paymentRecord.createdAt
+    );
+    ordersDb.orders.push(paymentRecord);
+    saveJson(ORDERS_PATH, ordersDb);
+    logExit("createPixPayment", { paymentId: paymentRecord.paymentId, value: paymentRecord.value, provider: "mercadopago" });
+
+    return {
+      paymentId: paymentRecord.paymentId,
+      payload: pixPayload,
+      encodedImage: asString(mpPayment?.point_of_interaction?.transaction_data?.qr_code_base64),
+      quantity,
+      finalPrice: paymentRecord.value,
+      couponCode: cart.couponCode || null,
+      discountPercent: cart.discountPercent || 0,
+      ticketUrl: paymentRecord.pixTicketUrl
+    };
+  }
+
+  // Legacy Asaas flow (kept for backward compatibility).
   const apiKey = process.env.ASAAS_API_KEY;
   if (!apiKey) {
     throw new Error("ASAAS_API_KEY nao configurado");
@@ -1762,32 +2723,40 @@ async function createPixPayment(user, cart, product, variant) {
 
   const customerId = await ensureCustomer(user, apiKey);
   const dueDate = new Date().toISOString().slice(0, 10);
-  const basePrice = variant.price;
-  const finalPrice = applyDiscount(basePrice, cart.discountPercent);
 
   const paymentPayload = {
     customer: customerId,
     billingType: "PIX",
     value: Number(finalPrice.toFixed(2)),
     dueDate,
-    description: `${product.name} - ${variant.label}`,
+    description: `${product.name} - ${getCartProductLabel(product, variant)} x${quantity}`,
     externalReference: cart.id
   };
 
   const payment = await asaasRequest("post", "/payments", paymentPayload, apiKey);
   const pix = await asaasRequest("get", `/payments/${payment.id}/pixQrCode`, null, apiKey);
+  const pixPayload = pix.payload || pix.encodedPayload || pix.qrCode || "";
+  const valueCents = Math.round(Number(paymentPayload.value || 0) * 100);
 
   const paymentRecord = {
     id: randomUUID(),
     cartId: cart.id,
     paymentId: payment.id,
+    paymentProvider: "asaas",
+    providerStatus: payment.status || "PENDING",
     userId: user.id,
+    guildId: cart.guildId,
     productId: product.id,
     variantId: variant.id,
     channelId: cart.channelId,
     couponCode: cart.couponCode || null,
     discountPercent: cart.discountPercent || 0,
+    quantity,
     value: paymentPayload.value,
+    valueCents,
+    instanceId,
+    ownerDiscordUserId,
+    pixPayload,
     status: "pending",
     asaasStatus: payment.status || "PENDING",
     createdAt: new Date().toISOString(),
@@ -1795,6 +2764,7 @@ async function createPixPayment(user, cart, product, variant) {
   };
   appendOrderEvent(paymentRecord, "payment_created", {
     paymentId: payment.id,
+    provider: "asaas",
     source: "pix",
     actor: user.id
   }, paymentRecord.createdAt);
@@ -1804,8 +2774,9 @@ async function createPixPayment(user, cart, product, variant) {
 
   return {
     paymentId: payment.id,
-    payload: pix.payload || pix.encodedPayload || pix.qrCode || "",
+    payload: pixPayload,
     encodedImage: pix.encodedImage || pix.encodedQrCode || "",
+    quantity,
     finalPrice: paymentPayload.value,
     couponCode: cart.couponCode || null,
     discountPercent: cart.discountPercent || 0
@@ -1814,39 +2785,48 @@ async function createPixPayment(user, cart, product, variant) {
 
 async function sendPixMessage(channel, cart, product, variant, payment) {
   logEnter("sendPixMessage", { cartId: cart?.id, channelId: channel?.id, paymentId: payment?.paymentId });
-  let qrBuffer = null;
-  if (payment.encodedImage) {
-    qrBuffer = Buffer.from(payment.encodedImage, "base64");
-  } else if (payment.payload) {
-    qrBuffer = await QRCode.toBuffer(payment.payload);
-  }
+  const cartColor = Number.isFinite(Number(config.cartColor)) ? Number(config.cartColor) : DEFAULT_CART_COLOR;
+  const quantity = Math.max(1, Math.floor(Number(payment.quantity || cart?.quantity || 1)));
+  const label = getCartProductLabel(product, variant);
+  const unitPrice = Number(variant.price || 0);
+  const baseTotal = unitPrice * quantity;
+  const finalTotal = Number(payment.finalPrice || 0);
+  const discountValue = Math.max(0, Number((baseTotal - finalTotal).toFixed(2)));
+
+  const productsLine = `${formatCurrency(unitPrice)} - ${label} (${quantity} unidade${quantity === 1 ? "" : "s"})`;
 
   const embed = new EmbedBuilder()
-    .setTitle("💳 PAGAMENTO PIX")
-    .setColor(BRAND_COLOR)
-    .setDescription(
-      `**🧾 RESUMO**\n` +
-        `┃ • Produto: **${product.name}**\n` +
-        `┃ • Variação: **${variant.label}**\n` +
-        `┃ • Valor: **${formatCurrency(payment.finalPrice)}**` +
-        `${payment.couponCode ? `\n┃ • Cupom: **${payment.couponCode} (-${payment.discountPercent}%)**` : ""}\n\n` +
-        `**📌 INSTRUÇÕES**\n` +
-        `┃ • ${product.pixInstructions || config.pixInstructions || "Copie o código PIX abaixo."}\n\n` +
-        `**📎 PIX COPIA E COLA**`
+    .setTitle("Confirmação de Compra")
+    .setColor(cartColor)
+    .setDescription("Verifique se os produtos estão corretos e efetue o pagamento.")
+    .addFields(
+      { name: "Produtos:", value: productsLine, inline: false },
+      { name: "Valor Total:", value: formatCurrency(finalTotal), inline: false },
+      { name: "Desconto:", value: formatCurrency(discountValue), inline: false }
     );
 
-  const files = [];
-  if (qrBuffer) {
-    const qr = new AttachmentBuilder(qrBuffer, { name: "qrcode.png" });
-    embed.setImage("attachment://qrcode.png");
-    files.push(qr);
+  const footerText = String(config.cartFooterText || "").trim();
+  if (footerText) {
+    embed.setFooter({ text: footerText });
   }
 
-  if (payment.payload) {
-    embed.addFields({ name: "Código", value: payment.payload, inline: false });
-  }
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`pix_copy:${payment.paymentId}`)
+      .setLabel("Código Copia e Cola")
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`pix_qr:${payment.paymentId}`).setLabel("QR Code").setStyle(ButtonStyle.Secondary)
+  );
 
-  await channel.send({ embeds: [embed], files });
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`pix_terms:${payment.paymentId}`)
+      .setLabel("Termos e Condições")
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`cart_cancel:${cart.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger)
+  );
+
+  await channel.send({ embeds: [embed], components: [row1, row2] });
 
   cart.status = "pending";
   cart.updatedAt = new Date().toISOString();
@@ -1974,7 +2954,37 @@ function applyDiscount(price, percent) {
 
 function formatCurrency(value) {
   const num = Number(value || 0);
-  return `R$ ${num.toFixed(2)}`;
+  try {
+    const currency = String(config.currency || "BRL").toUpperCase();
+    // Intl for pt-BR uses NBSP between "R$" and the amount; normalize to regular space for UI consistency.
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(num).replace(/\u00a0/g, " ");
+  } catch {
+    return `R$ ${num.toFixed(2)}`;
+  }
+}
+
+function getCartQuantity(cart) {
+  const raw = Number(cart?.quantity ?? 1);
+  if (!Number.isFinite(raw) || raw <= 0) return 1;
+  return Math.max(1, Math.floor(raw));
+}
+
+function isInfiniteStock(product) {
+  return product?.infiniteStock === true || String(product?.stockMode || "").toLowerCase() === "infinite";
+}
+
+function getAvailableStockCount(guildId, productId, variantId) {
+  const buckets = getProductStockBuckets(guildId, productId);
+  const ownCount = variantId && Array.isArray(buckets[variantId]) ? buckets[variantId].length : 0;
+  const fallbackCount = (buckets.default?.length || 0) + (buckets.shared?.length || 0);
+  return ownCount > 0 ? ownCount : fallbackCount;
+}
+
+function getCartProductLabel(product, variant) {
+  const base = String(product?.shortLabel || product?.name || "Produto").trim();
+  const duration = String(variant?.duration || "").trim();
+  if (!duration) return base;
+  return `${base} | ${duration}`;
 }
 
 function loadJson(filePath, fallback) {
@@ -1990,6 +3000,7 @@ function loadJson(filePath, fallback) {
 }
 
 function saveJson(filePath, data) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
   log("debug", "saveJson", { filePath });
 }
@@ -2002,15 +3013,20 @@ function applyConfigDefaults() {
     adminUserIds: [],
     cartCategoryId: "",
     postChannelId: "",
-    trackerChannelId: "1411555508833488948",
-    staffLogChannelId: "1415241834061365248",
-    systemBanner: "assets/product1/astraprojectbanner.gif",
-    maxAttachmentBytes: DEFAULT_MAX_ATTACHMENT_BYTES,
-    pixInstructions: "Leia com atencao. Pague pelo Pix e aguarde a confirmacao.",
-    currency: "BRL",
-    paymentCheckIntervalMs: 60000,
+      trackerChannelId: "1411555508833488948",
+      staffLogChannelId: "1415241834061365248",
+      systemBanner: "assets/product1/astraprojectbanner.gif",
+      cartColor: DEFAULT_CART_COLOR,
+      cartFooterText: "Todos os direitos reservados a AstraSystems (c) 2026",
+      termsText: "Termos e Condições: pagamento via Pix, produto digital, entrega automática. Em caso de dúvidas, fale com a equipe.",
+      cartBottomImage: "",
+      showAdminConfirmButton: false,
+      maxAttachmentBytes: DEFAULT_MAX_ATTACHMENT_BYTES,
+      pixInstructions: "Leia com atencao. Pague pelo Pix e aguarde a confirmacao.",
+      currency: "BRL",
+      paymentCheckIntervalMs: 60000,
     asaas: {
-      enabled: true,
+      enabled: false,
       sandbox: true,
       baseUrlSandbox: "https://sandbox.asaas.com/api/v3",
       baseUrlProduction: "https://api.asaas.com/v3",
@@ -2099,12 +3115,12 @@ async function sendWelcomeEmbed(channel, entry) {
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("👋 Bem-vindo(a) à ASTRA PROJECT")
+    .setTitle("Bem-vindo(a) a AstraSystems")
     .setColor(BRAND_COLOR)
     .setDescription(
-      `Olá <@${entry.id}>  seja bem-vindo à nossa loja de che4ts.\nSistema ativo, conexão segura.\nPrepare-se para che4r. ?`
+      `Ola <@${entry.id}>! Seja bem-vindo(a).\nUse o comando !portal para abrir sua Dashboard e comecar a configurar.`
     )
-    .setFooter({ text: `ID do usuario: ${entry.id} • ${new Date().toLocaleString("pt-BR")}` });
+    .setFooter({ text: `ID do usuario: ${entry.id} - ${new Date().toLocaleString("pt-BR")}` });
 
   if (files.length) {
     embed.setImage("attachment://bemvindo.gif");
@@ -2115,7 +3131,6 @@ async function sendWelcomeEmbed(channel, entry) {
 }
 
 function startPaymentWatcher() {
-  if (!config.asaas?.enabled) return;
   const interval = Number(config.paymentCheckIntervalMs || 60000);
   if (!interval || interval < 10000) return;
 
@@ -2128,15 +3143,12 @@ function startPaymentWatcher() {
 let paymentCheckRunning = false;
 async function checkPendingPayments() {
   if (paymentCheckRunning) return;
-  const apiKey = process.env.ASAAS_API_KEY;
-  if (!apiKey) return;
-
   paymentCheckRunning = true;
   try {
     const pending = ordersDb.orders.filter((o) => o.status === "pending" || o.status === "waiting_stock");
     log("info", "paymentWatcher:check", { pending: pending.length });
     for (const order of pending) {
-      await syncOrderStatus(order, apiKey);
+      await syncOrderStatus(order);
     }
     saveJson(ORDERS_PATH, ordersDb);
   } finally {
@@ -2144,35 +3156,101 @@ async function checkPendingPayments() {
   }
 }
 
-async function syncOrderStatus(order, apiKey) {
+async function syncOrderStatus(order, apiKeyOverride = "") {
+  const provider = String(order?.paymentProvider || order?.provider || "").toLowerCase();
+  if (provider === "manual") return;
+
   try {
-    const payment = await asaasRequest("get", `/payments/${order.paymentId}`, null, apiKey);
-    const status = payment.status || "PENDING";
-    const previousStatus = order.asaasStatus || "";
-    order.asaasStatus = status;
-    if (previousStatus !== status) {
-      appendOrderEvent(order, "payment_status", { from: previousStatus, to: status });
+    if (provider === "mercadopago") {
+      await syncOrderStatusMercadoPago(order);
+      return;
     }
 
-    if (isPaidStatus(status)) {
-      await deliverOrder(order);
-    } else if (isFinalFailureStatus(status)) {
-      order.status = "failed";
-      order.failedAt = new Date().toISOString();
-      order.updatedAt = order.failedAt;
-      appendOrderEvent(order, "payment_failed", { asaasStatus: status }, order.failedAt);
-      log("warn", "paymentWatcher:failed", { orderId: order.id, status });
-    }
+    // Default / legacy: Asaas
+    const apiKey = String(apiKeyOverride || process.env.ASAAS_API_KEY || "").trim();
+    if (!apiKey) return;
+    await syncOrderStatusAsaas(order, apiKey);
   } catch (err) {
-    logError("syncOrderStatus", err, { orderId: order.id });
+    logError("syncOrderStatus", err, { orderId: order?.id, provider });
   }
 }
 
-function isPaidStatus(status) {
-  return ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(status);
+async function syncOrderStatusMercadoPago(order) {
+  const paymentId = asString(order?.paymentId);
+  if (!paymentId) return;
+
+  const ownerDiscordUserId = asString(order?.ownerDiscordUserId);
+  const token = getMercadoPagoAccessTokenForSale(ownerDiscordUserId) || asString(process.env.MERCADOPAGO_ACCESS_TOKEN);
+  if (!token) return;
+
+  const payment = await mercadoPagoRequest("get", `/v1/payments/${encodeURIComponent(paymentId)}`, null, token);
+  const status = asString(payment?.status).toLowerCase() || "pending";
+  const previousStatus = asString(order?.providerStatus).toLowerCase();
+
+  order.paymentProvider = "mercadopago";
+  order.providerStatus = asString(payment?.status);
+  order.providerStatusDetail = asString(payment?.status_detail);
+  order.updatedAt = new Date().toISOString();
+
+  if (previousStatus && previousStatus !== status) {
+    appendOrderEvent(order, "payment_status", { provider: "mercadopago", from: previousStatus, to: status });
+  }
+
+  if (isPaidStatus("mercadopago", status)) {
+    await deliverOrder(order);
+  } else if (isFinalFailureStatus("mercadopago", status)) {
+    order.status = "failed";
+    order.failedAt = new Date().toISOString();
+    order.updatedAt = order.failedAt;
+    appendOrderEvent(order, "payment_failed", { provider: "mercadopago", status }, order.failedAt);
+    log("warn", "paymentWatcher:failed", { orderId: order.id, provider: "mercadopago", status });
+  }
 }
 
-function isFinalFailureStatus(status) {
+async function syncOrderStatusAsaas(order, apiKey) {
+  const paymentId = asString(order?.paymentId);
+  if (!paymentId) return;
+
+  const payment = await asaasRequest("get", `/payments/${encodeURIComponent(paymentId)}`, null, apiKey);
+  const status = asString(payment?.status) || "PENDING";
+  const previousStatus = asString(order?.providerStatus) || asString(order?.asaasStatus);
+
+  order.paymentProvider = "asaas";
+  order.providerStatus = status;
+  order.asaasStatus = status;
+  order.updatedAt = new Date().toISOString();
+
+  if (previousStatus && previousStatus !== status) {
+    appendOrderEvent(order, "payment_status", { provider: "asaas", from: previousStatus, to: status });
+  }
+
+  if (isPaidStatus("asaas", status)) {
+    await deliverOrder(order);
+  } else if (isFinalFailureStatus("asaas", status)) {
+    order.status = "failed";
+    order.failedAt = new Date().toISOString();
+    order.updatedAt = order.failedAt;
+    appendOrderEvent(order, "payment_failed", { provider: "asaas", status }, order.failedAt);
+    log("warn", "paymentWatcher:failed", { orderId: order.id, provider: "asaas", status });
+  }
+}
+
+function isPaidStatus(provider, status) {
+  const p = String(provider || "").toLowerCase();
+  if (p === "mercadopago") {
+    return String(status || "").toLowerCase() === "approved";
+  }
+  const st = String(status || "").toUpperCase();
+  return ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(st);
+}
+
+function isFinalFailureStatus(provider, status) {
+  const p = String(provider || "").toLowerCase();
+  if (p === "mercadopago") {
+    const st = String(status || "").toLowerCase();
+    return ["rejected", "cancelled", "refunded", "charged_back"].includes(st);
+  }
+  const st = String(status || "").toUpperCase();
   return [
     "CANCELED",
     "REFUNDED",
@@ -2183,7 +3261,7 @@ function isFinalFailureStatus(status) {
     "DUNNING_REQUESTED",
     "DUNNING_RECEIVED",
     "OVERDUE"
-  ].includes(status);
+  ].includes(st);
 }
 
 async function deliverOrder(order, options = {}) {
@@ -2191,14 +3269,29 @@ async function deliverOrder(order, options = {}) {
   if (order.status === "delivered") {
     return { ok: false, reason: "pedido ja entregue" };
   }
+  if (order.status === "cancelled") {
+    return { ok: false, reason: "pedido cancelado" };
+  }
+
+  const orderCart = order.cartId ? cartsDb.carts.find((entry) => entry.id === order.cartId) : null;
+  if (orderCart && orderCart.status === "cancelled") {
+    const now = new Date().toISOString();
+    order.status = "cancelled";
+    order.cancelledAt = now;
+    order.updatedAt = now;
+    appendOrderEvent(order, "delivery_blocked", { reason: "cart_cancelled" }, now);
+    saveJson(ORDERS_PATH, ordersDb);
+    return { ok: false, reason: "carrinho cancelado" };
+  }
 
   const now = new Date().toISOString();
   const source = options.source || order.confirmedSource || "pix";
   const confirmedByUserId = options.confirmedByUserId || order.confirmedByUserId || "";
   markOrderConfirmed(order, source, confirmedByUserId, "Pagamento confirmado", now);
 
-  const key = takeStockKey(order.productId, order.variantId);
-  if (!key) {
+  const quantity = Math.max(1, Math.floor(Number(order.quantity || 1)));
+  const keys = takeStockKeys(order.guildId, order.productId, order.variantId, quantity);
+  if (!keys || keys.length < quantity) {
     order.status = "waiting_stock";
     order.updatedAt = now;
     appendOrderEvent(order, "delivery_waiting_stock", { source, confirmedByUserId }, now);
@@ -2217,13 +3310,14 @@ async function deliverOrder(order, options = {}) {
 
   const deliveryId = randomUUID();
   const deliveredAt = new Date().toISOString();
+  const keyBundle = keys.join("\n");
   deliveriesDb.deliveries.push({
     id: deliveryId,
     orderId: order.id,
     productId: order.productId,
     variantId: order.variantId,
     userId: order.userId,
-    key,
+    key: keyBundle,
     deliveredAt
   });
   saveJson(DELIVERIES_PATH, deliveriesDb);
@@ -2240,9 +3334,9 @@ async function deliverOrder(order, options = {}) {
   }, deliveredAt);
   saveJson(ORDERS_PATH, ordersDb);
 
-  const product = getProduct(order.productId);
+  const product = getProductForGuild(order.guildId, order.productId, true).product;
   const variant = getVariant(product, order.variantId);
-  await sendDeliveryMessage(order, product, variant, key, {
+  await sendDeliveryMessage(order, product, variant, keyBundle, {
     source,
     confirmedByUserId: confirmedByUserId || null
   });
@@ -2254,12 +3348,22 @@ async function deliverOrder(order, options = {}) {
     cart.lastActivityAt = deliveredAt;
     saveJson(CARTS_PATH, cartsDb);
   }
+
+  // Credit the seller wallet (Portal) once per order. This is independent from DM success.
+  await maybeCreditWalletForOrder(order);
   logExit("deliverOrder", { orderId: order.id, deliveryId: deliveryId });
   return { ok: true, deliveryId, key };
 }
 
-function takeStockKey(productId, variantId) {
-  const productStock = stockDb.stock?.[productId];
+function takeStockKey(guildId, productId, variantId) {
+  const keys = takeStockKeys(guildId, productId, variantId, 1);
+  return Array.isArray(keys) && keys.length ? keys[0] : null;
+}
+
+function takeStockKeys(guildId, productId, variantId, count) {
+  const wanted = Math.max(1, Math.floor(Number(count || 1)));
+  const ctx = getStoreContextForGuild(guildId);
+  const productStock = ctx.stockDb.stock?.[productId];
   if (!productStock) return null;
 
   let list = null;
@@ -2273,11 +3377,11 @@ function takeStockKey(productId, variantId) {
     list = productStock.shared;
   }
 
-  if (!list || list.length === 0) return null;
-  const key = list.shift();
-  saveJson(STOCK_PATH, stockDb);
-  log("info", "stock:take", { productId, variantId, remaining: list.length });
-  return key;
+  if (!list || list.length < wanted) return null;
+  const keys = list.splice(0, wanted);
+  saveStoreStock(ctx);
+  log("info", "stock:take", { guildId, productId, variantId, wanted, remaining: list.length, source: ctx.source });
+  return keys;
 }
 
 function renderMessageTemplate(template, variables = {}) {
@@ -2355,6 +3459,89 @@ function buildDeliveryUserMessage(order, product, variant, key, options = {}) {
   };
 }
 
+async function fetchTextChannel(channelId, guildId = "") {
+  const cid = asString(channelId);
+  if (!cid) return null;
+  const channel = await client.channels.fetch(cid).catch(() => null);
+  if (!channel || !channel.isTextBased || !channel.isTextBased()) return null;
+  const gid = asString(guildId);
+  if (gid && channel.guildId && String(channel.guildId) !== String(gid)) return null;
+  return channel;
+}
+
+function buildDiscordChannelUrl(guildId, channelId) {
+  const gid = asString(guildId);
+  const cid = asString(channelId);
+  if (!gid || !cid) return "";
+  return `https://discord.com/channels/${gid}/${cid}`;
+}
+
+async function sendLiveSaleNotification(order, product, variant) {
+  const guildId = asString(order?.guildId);
+  if (!guildId) return;
+
+  const cfg = getGuildChannelConfig(guildId);
+  const salesChannelId = asString(cfg.salesChannelId);
+  if (!salesChannelId) return;
+
+  const channel = await fetchTextChannel(salesChannelId, guildId);
+  if (!channel) return;
+
+  const productName = product?.name || order?.productId || "Produto";
+  const variantLabel = variant?.label || order?.variantId || "Variacao";
+  const buyer = order?.userId ? `<@${order.userId}>` : "-";
+
+  const lines = [];
+  lines.push(`Cliente: ${buyer}`);
+  lines.push(`Produto: **${productName}**`);
+  lines.push(`Variacao: **${variantLabel}**`);
+  if (order?.value) lines.push(`Valor: **${formatCurrency(order.value)}**`);
+  if (order?.id) lines.push(`Pedido: \`${order.id}\``);
+
+  const payload = buildSystemEmbedPayload("Venda concluida", lines.join("\n"), "success", {
+    includeBanner: false,
+    includeThumbnail: true
+  });
+
+  await channel.send(payload);
+}
+
+async function sendFeedbackRequest(order, product, variant, options = {}) {
+  const guildId = asString(order?.guildId);
+  if (!guildId) return;
+
+  const cfg = getGuildChannelConfig(guildId);
+  const feedbackChannelId = asString(cfg.feedbackChannelId);
+  if (!feedbackChannelId) return;
+
+  const url = buildDiscordChannelUrl(guildId, feedbackChannelId);
+  const feedbackChannel = await fetchTextChannel(feedbackChannelId, guildId);
+  const channelLabel = feedbackChannel?.name ? `#${feedbackChannel.name}` : "canal de feedback";
+
+  const productName = product?.name || order?.productId || "Produto";
+  const variantLabel = variant?.label || order?.variantId || "Variacao";
+
+  const lines = [];
+  lines.push("Obrigado pela compra.");
+  lines.push(`Produto: **${productName}**`);
+  lines.push(`Variacao: **${variantLabel}**`);
+  lines.push("");
+  lines.push(`Se puder, deixe sua avaliacao no ${channelLabel}:`);
+  if (url) lines.push(url);
+
+  const user = options.user || null;
+  const channel = options.channel || null;
+
+  if (user) {
+    await sendUserSystemEmbed(user, "Avalie a loja", lines.join("\n"), "info");
+    return;
+  }
+
+  if (channel) {
+    await sendSystemEmbed(channel, "Avalie a loja", lines.join("\n"), "info");
+  }
+}
+
 async function sendDeliveryMessage(order, product, variant, key, options = {}) {
   logEnter("sendDeliveryMessage", { orderId: order.id, userId: order.userId });
   const channelId = order.channelId;
@@ -2411,6 +3598,7 @@ async function sendDeliveryMessage(order, product, variant, key, options = {}) {
 
   if (!dmSent && !channelDelivered) {
     await notifyStaffLog("Falha ao enviar entrega", {
+      guildId: order.guildId,
       userId: order.userId,
       channelId: order.channelId,
       productId: order.productId,
@@ -2418,6 +3606,18 @@ async function sendDeliveryMessage(order, product, variant, key, options = {}) {
       paymentId: order.paymentId,
       value: order.value ? formatCurrency(order.value) : null
     });
+  }
+
+  try {
+    await sendFeedbackRequest(order, product, variant, { user: dmSent ? user : null, channel: dmSent ? null : channel });
+  } catch (err) {
+    logError("sendFeedbackRequest", err, { orderId: order?.id, guildId: order?.guildId });
+  }
+
+  try {
+    await sendLiveSaleNotification(order, product, variant);
+  } catch (err) {
+    logError("sendLiveSaleNotification", err, { orderId: order?.id, guildId: order?.guildId });
   }
 
   logExit("sendDeliveryMessage", {
@@ -2513,10 +3713,24 @@ async function sendUserSystemEmbed(user, title, description, tone = "info") {
 }
 
 async function notifyStaffLog(title, details = {}) {
-  const channelId = config.staffLogChannelId || "1415241834061365248";
-  if (!channelId) return;
-  const channel = await client.channels.fetch(channelId).catch(() => null);
-  if (!channel || !channel.isTextBased || !channel.isTextBased()) return;
+  const guildId = asString(details.guildId);
+  const instChannels = guildId ? getGuildChannelConfig(guildId) : { logsChannelId: "" };
+  const candidates = [asString(instChannels.logsChannelId), asString(config.staffLogChannelId)]
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!candidates.length) return;
+
+  let channel = null;
+  let channelId = "";
+  for (const candidate of candidates) {
+    const fetched = await client.channels.fetch(candidate).catch(() => null);
+    if (!fetched || !fetched.isTextBased || !fetched.isTextBased()) continue;
+    if (guildId && fetched.guildId && String(fetched.guildId) !== String(guildId)) continue;
+    channel = fetched;
+    channelId = candidate;
+    break;
+  }
+  if (!channel) return;
 
   const lines = [];
   if (details.userId) lines.push(`Usuário: <@${details.userId}> (${details.userId})`);

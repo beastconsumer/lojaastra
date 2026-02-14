@@ -1,4 +1,8 @@
-﻿# Bot DC - Vendas
+# LojaAstra - Bot de Vendas no Discord
+
+## Descricao
+Sistema completo de vendas para Discord com painel admin web, fluxo de carrinho, pagamento via Pix (Asaas), entrega automatica de keys e operacao manual para staff quando necessario.
+O projeto foi feito para manter bot e painel sincronizados em tempo real usando base local em JSON, com foco em estabilidade operacional, controle de estoque por produto/variacao e rastreabilidade de pedidos.
 
 ## Setup rapido
 1. Instale Node.js (versao LTS).
@@ -25,6 +29,22 @@
 - O painel tem checagem de saude dos posts (mensagem/canal) e repost por linha.
 - O dashboard inclui diagnostico de consistencia entre produtos/estoque/pedidos/carrinhos/posts.
 - Ao iniciar, o console mostra o link do painel.
+
+## Portal (site + dashboard + carteira)
+O projeto agora inclui um portal web (tema AstraSystems) com:
+- Login via Discord OAuth (recomendado)
+- Login via Email/Senha
+- Pagina de planos
+- Dashboard com carteira (Mercado Pago) e instancias (API keys)
+- Invite do bot para servidores do Discord (link gerado na dashboard)
+
+### Configuracao do Portal
+1. Preencha no `.env`:
+   - `PORTAL_SESSION_SECRET`
+   - `DISCORD_OAUTH_CLIENT_ID` / `DISCORD_OAUTH_CLIENT_SECRET` / `DISCORD_OAUTH_REDIRECT_URI`
+   - `MERCADOPAGO_ACCESS_TOKEN` (para recarga da carteira)
+2. Inicie o bot (`npm start`).
+3. Acesse o portal em: http://127.0.0.1:3100
 
 ## Comandos
 - !produtos -> lista IDs de produtos e quantidade de variacoes

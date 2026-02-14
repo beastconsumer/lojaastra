@@ -10,7 +10,7 @@
   "currency": "BRL",
   "paymentCheckIntervalMs": 60000,
   "asaas": {
-    "enabled": true,
+    "enabled": false,
     "sandbox": true,
     "baseUrlSandbox": "https://sandbox.asaas.com/api/v3",
     "baseUrlProduction": "https://api.asaas.com/v3",
@@ -23,5 +23,11 @@
   "trackerChannelId": "1411555508833488948",
   "maxAttachmentBytes": 15728640,
   "systemBanner": "assets/product1/astraprojectbanner.gif",
-  "staffLogChannelId": "1415241834061365248"
+  "staffLogChannelId": "1415241834061365248",
+  "cartColor": 15081770,
+  "cartFooterText": "Todos os direitos reservados a AstraSystems (c) 2026",
+  "termsText": "Termos e Condições: pagamento via Pix, produto digital, entrega automática. Em caso de dúvidas, fale com a equipe.",
+  "showAdminConfirmButton": false,
+  "cartBottomImage": "",
+  "productPostMode": "content"
 }

@@ -726,11 +726,19 @@ export function startAdminServer(options) {
     const orderId = asString(req.params.id);
     const order = ordersDb.orders.find((o) => o.id === orderId);
     if (!order) return res.status(404).json({ error: "pedido nao encontrado" });
+
+    const provider = String(order.paymentProvider || order.provider || "").toLowerCase();
     const apiKey = asString(process.env.ASAAS_API_KEY);
-    if (!apiKey) return res.status(400).json({ error: "ASAAS_API_KEY nao configurado" });
+    if ((provider === "asaas" || !provider) && !apiKey) {
+      return res.status(400).json({ error: "ASAAS_API_KEY nao configurado" });
+    }
 
     try {
-      await syncOrderStatus(order, apiKey);
+      if (provider === "asaas" || !provider) {
+        await syncOrderStatus(order, apiKey);
+      } else {
+        await syncOrderStatus(order);
+      }
       if (paths?.orders) saveJson(paths.orders, ordersDb);
       res.json({ ok: true, order });
     } catch (err) {

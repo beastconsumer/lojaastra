@@ -1,10 +1,3 @@
 {
-  "stock": {
-    "product1": {
-      "default": [
-        "SUA-KEY-EXEMPLO-1",
-        "SUA-KEY-EXEMPLO-2"
-      ]
-    }
-  }
+  "stock": {}
 }
