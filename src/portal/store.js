@@ -33,7 +33,8 @@ export function createPortalStore(options) {
     version: 1,
     users: [],
     instances: [],
-    transactions: []
+    transactions: [],
+    withdrawals: []
   };
 
   let queue = Promise.resolve();
@@ -54,6 +55,7 @@ export function createPortalStore(options) {
     if (!Array.isArray(data.users)) data.users = [];
     if (!Array.isArray(data.instances)) data.instances = [];
     if (!Array.isArray(data.transactions)) data.transactions = [];
+    if (!Array.isArray(data.withdrawals)) data.withdrawals = [];
     if (!data.version) data.version = 1;
     return data;
   }
@@ -89,6 +91,8 @@ export function createPortalStore(options) {
       lastLoginAt: now,
       plan: { tier: "free", status: "inactive", expiresAt: "" },
       walletCents: 0,
+      salesCentsTotal: 0,
+      payout: { pixKey: "", pixKeyType: "" },
       discordToken: user?.discordToken || null
     };
     data.users.push(created);
@@ -115,4 +119,3 @@ export function createPortalStore(options) {
     listUserInstances
   };
 }
-

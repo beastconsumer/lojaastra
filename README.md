@@ -30,19 +30,19 @@ O projeto foi feito para manter bot e painel sincronizados em tempo real usando 
 - O dashboard inclui diagnostico de consistencia entre produtos/estoque/pedidos/carrinhos/posts.
 - Ao iniciar, o console mostra o link do painel.
 
-## Portal (site + dashboard + carteira)
+## Portal (site + dashboard + saques)
 O projeto agora inclui um portal web (tema AstraSystems) com:
 - Login via Discord OAuth (recomendado)
 - Login via Email/Senha
 - Pagina de planos
-- Dashboard com carteira (Mercado Pago) e instancias (API keys)
+- Dashboard com saldo de vendas/saques e instancias (API keys)
 - Invite do bot para servidores do Discord (link gerado na dashboard)
 
 ### Configuracao do Portal
 1. Preencha no `.env`:
    - `PORTAL_SESSION_SECRET`
    - `DISCORD_OAUTH_CLIENT_ID` / `DISCORD_OAUTH_CLIENT_SECRET` / `DISCORD_OAUTH_REDIRECT_URI`
-   - `MERCADOPAGO_ACCESS_TOKEN` (para recarga da carteira)
+   - `MERCADOPAGO_ACCESS_TOKEN` (pagamentos Pix e checkout dos planos)
 2. Inicie o bot (`npm start`).
 3. Acesse o portal em: http://127.0.0.1:3100
 

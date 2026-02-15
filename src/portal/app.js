@@ -162,12 +162,12 @@ function Home({ route }) {
       <div className="grid cols3">
         <div className="card pad">
           <h3 className="sectionTitle">Onboarding rapido</h3>
-          <div className="muted">Login com Discord ou Email, escolha um plano, adicione saldo na carteira e conecte seu servidor.</div>
+          <div className="muted">Login com Discord ou Email, escolha um plano, crie sua instancia, conecte seu servidor e publique seus produtos.</div>
         </div>
         <div className="card pad">
-          <h3 className="sectionTitle">Carteira propria</h3>
+          <h3 className="sectionTitle">Saldo e saques</h3>
           <div className="muted">
-            Recarregue via Mercado Pago e acompanhe saldo e transacoes direto na dashboard.
+            Acompanhe suas vendas e solicite saque via Pix direto na dashboard.
           </div>
         </div>
         <div className="card pad">
@@ -323,7 +323,7 @@ function Plans({ route, me, toast }) {
 
   const planTier = asString(me?.plan?.tier);
   const planActive = !!me?.planActive;
-  const mpEnabled = !!status?.mercadoPagoEnabled || !!me?.mercadoPagoConfigured;
+  const mpEnabled = !!status?.mercadoPagoEnabled;
 
   const onTrial = async () => {
     if (!me) return route.navigate("/login");
@@ -342,7 +342,7 @@ function Plans({ route, me, toast }) {
   const onStart = async () => {
     if (!me) return route.navigate("/login");
     if (!mpEnabled) {
-      return toast("Pagamento indisponivel", "Configure o Mercado Pago na Dashboard para continuar.", "bad");
+      return toast("Pagamento indisponivel", "Pagamentos nao estao configurados no servidor. Contate o suporte.", "bad");
     }
 
     setBusy(true);
@@ -358,7 +358,7 @@ function Plans({ route, me, toast }) {
     } catch (err) {
       const msg = err?.message || "Erro interno";
       if (msg === "mercadopago_not_configured") {
-        toast("Pagamento indisponivel", "Mercado Pago nao configurado.", "bad");
+        toast("Pagamento indisponivel", "Pagamentos nao estao configurados no servidor.", "bad");
       } else {
         toast("Falha ao criar pagamento", msg, "bad");
       }
@@ -398,9 +398,9 @@ function Plans({ route, me, toast }) {
               <div className="row" style=${{ alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
                 <div>
                   <div className="muted2">Atencao</div>
-                  <div style=${{ fontWeight: 900, fontSize: "16px", marginTop: "4px" }}>Mercado Pago nao configurado</div>
+                  <div style=${{ fontWeight: 900, fontSize: "16px", marginTop: "4px" }}>Pagamentos indisponiveis</div>
                   <div className="muted" style=${{ marginTop: "6px" }}>
-                    Para habilitar pagamentos, va na Dashboard e configure seu <b>Access Token</b> do Mercado Pago.
+                    O sistema de pagamentos nao esta configurado no servidor. Contate o suporte para habilitar.
                   </div>
                 </div>
                 <${Button} variant="ghost" onClick=${() => route.navigate("/dashboard")}>Abrir Dashboard</${Button}>
@@ -452,7 +452,7 @@ function Plans({ route, me, toast }) {
           </div>
           <ul>
             <li>Sistema de vendas completo</li>
-            <li>Carteira via Mercado Pago</li>
+            <li>Saldo de vendas + saques</li>
             <li>Seguranca e protecao basica</li>
             <li>Personalizacao completa</li>
             <li>Suporte prioritario</li>
@@ -461,7 +461,7 @@ function Plans({ route, me, toast }) {
             <${Button} variant="primary" disabled=${busy || !mpEnabled} onClick=${onStart}>Comecar Agora</${Button}>
             ${mpEnabled
               ? null
-              : html`<div className="muted2" style=${{ marginTop: "10px", fontSize: "12px" }}>Configure o Mercado Pago na Dashboard.</div>`}
+              : html`<div className="muted2" style=${{ marginTop: "10px", fontSize: "12px" }}>Pagamentos indisponiveis no servidor.</div>`}
           </div>
         </div>
 
@@ -501,9 +501,11 @@ function Dashboard({ route, me, refreshMe, toast }) {
   });
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [topup, setTopup] = useState("10,00");
   const [busy, setBusy] = useState(false);
-  const [mpToken, setMpToken] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("50,00");
+  const [pixKey, setPixKey] = useState("");
+  const [pixKeyType, setPixKeyType] = useState("");
+  const [withdrawals, setWithdrawals] = useState([]);
   const [apiKeyModal, setApiKeyModal] = useState({ open: false, title: "", apiKey: "" });
   const [editChannels, setEditChannels] = useState({ loading: false, error: "", channels: [] });
   const [edit, setEdit] = useState({
@@ -560,6 +562,12 @@ function Dashboard({ route, me, refreshMe, toast }) {
       setTxs([]);
     }
     try {
+      const w = await apiFetch("/api/wallet/withdrawals");
+      setWithdrawals(w.withdrawals || []);
+    } catch {
+      setWithdrawals([]);
+    }
+    try {
       const g = await apiFetch("/api/discord/guilds");
       setGuilds(g.guilds || []);
     } catch {
@@ -614,6 +622,11 @@ function Dashboard({ route, me, refreshMe, toast }) {
   }, [me?.discordUsername]);
 
   useEffect(() => {
+    setPixKey(asString(me?.payout?.pixKey || ""));
+    setPixKeyType(asString(me?.payout?.pixKeyType || ""));
+  }, [me?.discordUserId]);
+
+  useEffect(() => {
     try {
       window.localStorage.setItem("as_dash_tab", tab);
     } catch {}
@@ -628,33 +641,56 @@ function Dashboard({ route, me, refreshMe, toast }) {
     return tier;
   }, [me]);
 
-  const mpConfigured = !!me?.mercadoPagoConfigured;
-  const mpSource = asString(me?.mercadoPagoSource);
-  const mpLast4 = asString(me?.mercadoPagoLast4);
+  const onRequestWithdrawal = async () => {
+    const key = asString(pixKey).trim();
+    if (!key) return toast("Pix", "Informe sua chave Pix para receber.", "bad");
 
-  const onTopup = async () => {
-    if (!mpConfigured) {
-      return toast("Mercado Pago", "Configure o Access Token para habilitar pagamentos.", "bad");
-    }
-    const raw = asString(topup).replace(".", "").replace(",", ".");
+    const raw = asString(withdrawAmount).replace(".", "").replace(",", ".");
     const value = Number(raw);
     if (!Number.isFinite(value) || value <= 0) {
-      return toast("Valor invalido", "Digite um valor valido (ex: 10,00).", "bad");
+      return toast("Valor invalido", "Digite um valor valido (ex: 50,00).", "bad");
     }
+
     const cents = Math.floor(value * 100);
     setBusy(true);
     try {
-      const data = await apiFetch("/api/wallet/topup", { method: "POST", body: JSON.stringify({ amountCents: cents }) });
-      const url = data.initPoint || data.sandboxInitPoint;
-      if (url) window.location.href = url;
-      else toast("Falha ao abrir pagamento", "Sem URL de checkout.", "bad");
+      await apiFetch("/api/wallet/withdrawals", {
+        method: "POST",
+        body: JSON.stringify({ amountCents: cents, pixKey: key, pixKeyType: asString(pixKeyType).trim() })
+      });
+      toast("Saque solicitado", "Pedido criado. O processamento pode levar algum tempo.", "good");
+      await refreshMe();
+      await load();
     } catch (err) {
       const msg = err?.message || "Erro interno";
-      if (msg === "mercadopago_not_configured") {
-        toast("Pagamento indisponivel", "Mercado Pago nao configurado.", "bad");
+      if (msg === "saldo_insuficiente") {
+        toast("Saldo insuficiente", "Seu saldo nao cobre esse valor.", "bad");
+      } else if (String(msg).startsWith("valor_minimo")) {
+        toast("Valor minimo", "O saque minimo e R$ 10,00.", "bad");
+      } else if (msg === "pix_key_obrigatoria") {
+        toast("Pix", "Informe sua chave Pix.", "bad");
       } else {
-        toast("Falha ao criar pagamento", msg, "bad");
+        toast("Falha ao solicitar saque", msg, "bad");
       }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onCancelWithdrawal = async (wid) => {
+    const id = asString(wid);
+    if (!id) return;
+    const ok = window.confirm("Cancelar este saque? O valor volta para seu saldo.");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await apiFetch(`/api/wallet/withdrawals/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" });
+      toast("Saque cancelado", "O valor foi devolvido para seu saldo.", "good");
+      await refreshMe();
+      await load();
+    } catch (err) {
+      toast("Falha ao cancelar", err.message || "Erro interno", "bad");
     } finally {
       setBusy(false);
     }
@@ -867,52 +903,6 @@ function Dashboard({ route, me, refreshMe, toast }) {
       toast("Senha atualizada", "Sua senha foi alterada com sucesso.", "good");
     } catch (err) {
       toast("Falha ao alterar senha", err.message || "Erro interno", "bad");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onSaveMercadoPagoToken = async () => {
-    const token = asString(mpToken).trim();
-    if (!token) return toast("Access Token", "Cole seu Access Token do Mercado Pago.", "bad");
-
-    setBusy(true);
-    try {
-      await apiFetch("/api/me/mercadopago", { method: "PUT", body: JSON.stringify({ accessToken: token }) });
-      setMpToken("");
-      await refreshMe();
-      toast("Mercado Pago configurado", "Token salvo com sucesso.", "good");
-    } catch (err) {
-      toast("Falha ao salvar token", err.message || "Erro interno", "bad");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onTestMercadoPagoToken = async () => {
-    setBusy(true);
-    try {
-      const data = await apiFetch("/api/me/mercadopago/test", { method: "POST", body: "{}" });
-      const nick = asString(data?.account?.nickname);
-      toast("Conexao OK", nick ? `Conta: ${nick}` : "Token valido.", "good");
-    } catch (err) {
-      toast("Falha no teste", err.message || "Erro interno", "bad");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onClearMercadoPagoToken = async () => {
-    const ok = window.confirm("Remover o token do Mercado Pago desta conta?");
-    if (!ok) return;
-
-    setBusy(true);
-    try {
-      await apiFetch("/api/me/mercadopago", { method: "DELETE" });
-      await refreshMe();
-      toast("Token removido", "Mercado Pago desconfigurado.", "good");
-    } catch (err) {
-      toast("Falha ao remover token", err.message || "Erro interno", "bad");
     } finally {
       setBusy(false);
     }
@@ -1211,7 +1201,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
           </div>
         </div>
         <div className="muted" style=${{ marginTop: "10px" }}>
-          Fluxo recomendado: <b>Plano</b> -> <b>Mercado Pago</b> -> <b>Vincular servidor</b> -> <b>Invite</b> -> <b>Testar compra</b>.
+          Fluxo recomendado: <b>Plano</b> -> <b>Instancia</b> -> <b>Vincular servidor</b> -> <b>Invite</b> -> <b>Loja</b> -> <b>Testar compra</b>.
         </div>
         <div className="grid cols3" style=${{ marginTop: "14px" }}>
           <div className="kpi">
@@ -1258,22 +1248,40 @@ function Dashboard({ route, me, refreshMe, toast }) {
       ${tab === "overview" ? html`
       <div className="grid cols3" style=${{ marginTop: "16px" }}>
         <div className="kpi">
-          <div className="label">Carteira</div>
+          <div className="label">Saldo de vendas</div>
           <div className="value">${formatBRLFromCents(me?.walletCents || 0)}</div>
           <div className="hint">
-            ${mpConfigured ? "Recarregue via Mercado Pago. Minimo R$ 5,00." : "Mercado Pago nao configurado. Configure abaixo."}
+            Saldo liquido das suas vendas. Total vendido: <b>${formatBRLFromCents(me?.salesCentsTotal || 0)}</b>.
           </div>
-          <div className="row grow" style=${{ marginTop: "12px" }}>
+          <div className="stack" style=${{ marginTop: "12px" }}>
+            <div className="row grow" style=${{ gap: "10px" }}>
+              <input
+                className="input"
+                value=${withdrawAmount}
+                disabled=${busy}
+                onInput=${(e) => setWithdrawAmount(e.target.value)}
+                placeholder="50,00"
+              />
+              <${Button} variant="primary" disabled=${busy} onClick=${onRequestWithdrawal}>
+                Solicitar saque
+              </${Button}>
+            </div>
             <input
-              className="input"
-              value=${topup}
-              disabled=${busy || !mpConfigured}
-              onInput=${(e) => setTopup(e.target.value)}
-              placeholder="10,00"
+              className="input mono"
+              value=${pixKey}
+              disabled=${busy}
+              onInput=${(e) => setPixKey(e.target.value)}
+              placeholder="Chave Pix (CPF / email / telefone / aleatoria)"
             />
-            <${Button} variant="primary" disabled=${busy || !mpConfigured} onClick=${onTopup}>
-              Adicionar saldo
-            </${Button}>
+            <select className="input" value=${pixKeyType} disabled=${busy} onChange=${(e) => setPixKeyType(e.target.value)}>
+              <option value="">Tipo (opcional)</option>
+              <option value="cpf">CPF</option>
+              <option value="cnpj">CNPJ</option>
+              <option value="email">Email</option>
+              <option value="phone">Telefone</option>
+              <option value="random">Aleatoria</option>
+            </select>
+            <div className="help">Saque minimo: <b>R$ 10,00</b>. Ao solicitar, o valor sai do saldo e fica pendente.</div>
           </div>
         </div>
         <div className="kpi">
@@ -1496,7 +1504,17 @@ function Dashboard({ route, me, refreshMe, toast }) {
                   ${txs.map(
                     (t) => html`
                       <tr>
-                        <td>${t.type === "wallet_topup" ? "Recarga" : t.type === "plan_purchase" ? "Plano" : t.type}</td>
+                        <td>${
+                          t.type === "sale_credit"
+                            ? "Venda"
+                            : t.type === "plan_purchase"
+                              ? "Plano"
+                              : t.type === "withdrawal_request"
+                                ? "Saque solicitado"
+                                : t.type === "withdrawal_cancelled"
+                                  ? "Saque cancelado"
+                                  : t.type
+                        }</td>
                         <td><b>${t.amountFormatted}</b></td>
                         <td>${t.status}</td>
                         <td>${String(t.createdAt || "").slice(0, 19).replace("T", " ")}</td>
@@ -1507,6 +1525,45 @@ function Dashboard({ route, me, refreshMe, toast }) {
               </table>
             `
           : html`<div className="muted">Nenhuma transacao ainda.</div>`}
+      </div>
+
+      <div className="card pad" style=${{ marginTop: "16px" }}>
+        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>Saques</h3>
+        ${withdrawals?.length
+          ? html`
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Valor</th>
+                    <th>Status</th>
+                    <th>Pix</th>
+                    <th>Data</th>
+                    <th>Acoes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${withdrawals.map(
+                    (w) => html`
+                      <tr>
+                        <td><b>${w.amountFormatted}</b></td>
+                        <td>${w.status}</td>
+                        <td className="mono">${asString(w.pixKey).slice(0, 3)}...${asString(w.pixKey).slice(-3)}</td>
+                        <td>${String(w.createdAt || "").slice(0, 19).replace("T", " ")}</td>
+                        <td>
+                          ${asString(w.status).toLowerCase() === "requested"
+                            ? html`<${Button} variant="danger" disabled=${busy} onClick=${() => onCancelWithdrawal(w.id)}>Cancelar</${Button}>`
+                            : html`<span className="muted2">-</span>`}
+                        </td>
+                      </tr>
+                    `
+                  )}
+                </tbody>
+              </table>
+              <div className="help" style=${{ marginTop: "10px" }}>
+                Dica: mantenha sua chave Pix correta. Saques sao processados em fila (manual/automacao dependendo da operacao).
+              </div>
+            `
+          : html`<div className="muted">Nenhum saque solicitado ainda.</div>`}
       </div>
       ` : null}
 
@@ -1573,55 +1630,6 @@ function Dashboard({ route, me, refreshMe, toast }) {
                   Sua conta esta conectada pelo Discord. Para reforcar a seguranca, ative 2FA na sua conta do Discord e mantenha seu servidor protegido.
                 </div>
               `}
-        </div>
-
-        <div className="card pad">
-          <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
-            <h3 className="sectionTitle" style=${{ marginTop: 0 }}>Mercado Pago</h3>
-            <div className=${`pill ${mpConfigured ? "good" : "soon"}`}>
-              ${mpConfigured ? "Configurado" : "Nao configurado"}
-            </div>
-          </div>
-
-          <div className="muted">
-            Configure seu <b>Access Token</b> para habilitar pagamentos Pix e recursos de recarga.
-          </div>
-
-          ${mpConfigured
-            ? html`
-                <div className="help" style=${{ marginTop: "10px" }}>
-                  Fonte: <b>${mpSource === "env" ? "Servidor (.env)" : "Conta"}</b>
-                  ${mpSource === "user" && mpLast4 ? html` | Token: <span className="mono"><b>****${mpLast4}</b></span>` : null}
-                </div>
-              `
-            : html`
-                <div className="stack" style=${{ marginTop: "12px" }}>
-                  <input
-                    className="input mono"
-                    type="password"
-                    value=${mpToken}
-                    onInput=${(e) => setMpToken(e.target.value)}
-                    placeholder="APP_USR-..."
-                  />
-                  <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                    <${Button} variant="primary" disabled=${busy} onClick=${onSaveMercadoPagoToken}>Salvar token</${Button}>
-                  </div>
-                  <div className="help">
-                    Pegue no painel do Mercado Pago em <b>Credenciais</b>. Nao compartilhe esse token.
-                  </div>
-                </div>
-              `}
-
-          <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
-            <${Button} variant="ghost" disabled=${busy || !mpConfigured} onClick=${onTestMercadoPagoToken}>Testar conexao</${Button}>
-            <${Button}
-              variant="danger"
-              disabled=${busy || mpSource !== "user"}
-              onClick=${onClearMercadoPagoToken}
-            >
-              Remover token
-            </${Button}>
-          </div>
         </div>
       </div>
       ` : null}
@@ -2164,11 +2172,11 @@ function Tutorials() {
           </div>
         </div>
         <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>3) Carteira e pagamentos</h3>
+          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>3) Vendas e saques</h3>
           <div className="muted">
-            Na Dashboard, use <b>Adicionar saldo</b> para recarregar via Mercado Pago.
+            Na Dashboard, acompanhe seu <b>Saldo de vendas</b> e solicite <b>saques via Pix</b>.
             <br />
-            Assim que o webhook confirmar, seu saldo e as transacoes sao atualizados.
+            Assim que uma venda for entregue pelo bot, seu saldo e as transacoes sao atualizados.
           </div>
         </div>
         <div className="card pad">
@@ -2231,8 +2239,8 @@ function Terms() {
 
         <h3 className="sectionTitle" style=${{ marginTop: 0 }}>3) Pagamentos, planos e carteira</h3>
         <div className="muted">
-          Planos e recargas podem ser processados por provedores terceiros (ex: Mercado Pago). Prazos de confirmacao podem variar.
-          O acesso a recursos pode depender do status do pagamento e do plano ativo.
+          Planos e pagamentos (ex: Pix) podem ser processados por provedores terceiros (ex: Mercado Pago). Prazos de confirmacao podem variar.
+          O acesso a recursos pode depender do status do pagamento e do plano ativo. Saques podem levar algum tempo e podem exigir validacoes.
         </div>
 
         <div style=${{ height: "12px" }}></div>

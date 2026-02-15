@@ -446,28 +446,6 @@ function getMercadoPagoAccessToken() {
   return token;
 }
 
-function isMercadoPagoAccessToken(value) {
-  const token = asString(value);
-  if (!token) return false;
-  if (token.length < 10 || token.length > 220) return false;
-  // Mercado Pago uses prefixes like APP_USR- (prod) and TEST- (sandbox).
-  if (token.startsWith("APP_USR-")) return true;
-  if (token.startsWith("TEST-")) return true;
-  return false;
-}
-
-function getUserMercadoPagoAccessToken(user, sessionSecret) {
-  const packed = asString(user?.mercadoPago?.packed);
-  if (!packed) return "";
-  const decoded = decryptJson(sessionSecret, packed);
-  const token = asString(decoded?.accessToken);
-  return token;
-}
-
-function getMercadoPagoTokenForUser(user, sessionSecret) {
-  return getMercadoPagoAccessToken() || getUserMercadoPagoAccessToken(user, sessionSecret);
-}
-
 async function mpRequestWithToken(method, pathName, payload, token, extraHeaders = {}) {
   const tok = asString(token);
   if (!tok) throw new Error("mercadopago_not_configured");
@@ -904,10 +882,7 @@ export function startPortalServer(options = {}) {
     const user = req.portalUser;
     const plan = user.plan || { tier: "free", status: "inactive", expiresAt: "" };
 
-    const envMp = getMercadoPagoAccessToken();
-    const userMp = getUserMercadoPagoAccessToken(user, sessionSecret);
-    const mercadoPagoSource = envMp ? "env" : userMp ? "user" : "none";
-    const mercadoPagoConfigured = mercadoPagoSource !== "none";
+    const mercadoPagoConfigured = Boolean(getMercadoPagoAccessToken());
     res.json({
       ok: true,
       user: {
@@ -917,87 +892,17 @@ export function startPortalServer(options = {}) {
         email: user.email || "",
         walletCents: Number(user.walletCents || 0),
         walletFormatted: formatBRL(user.walletCents || 0),
+        salesCentsTotal: Number(user.salesCentsTotal || 0),
+        payout: {
+          pixKey: asString(user?.payout?.pixKey),
+          pixKeyType: asString(user?.payout?.pixKeyType)
+        },
         plan,
         planActive: isPlanActive(plan),
         authProvider: user?.isLocal ? "local" : "discord",
-        mercadoPagoConfigured,
-        mercadoPagoSource,
-        mercadoPagoLast4: mercadoPagoSource === "user" ? asString(user?.mercadoPago?.last4) : ""
+        mercadoPagoConfigured
       }
     });
-  });
-
-  app.put("/api/me/mercadopago", requireUser, async (req, res) => {
-    const accessToken = asString(req.body?.accessToken || req.body?.token);
-    if (!accessToken) return res.status(400).json({ error: "access_token_obrigatorio" });
-    if (!isMercadoPagoAccessToken(accessToken)) return res.status(400).json({ error: "access_token_invalido" });
-
-    const packed = encryptJson(sessionSecret, { accessToken });
-    const last4 = accessToken.slice(-4);
-
-    await store
-      .runExclusive(async () => {
-        const data = store.load();
-        const user = store.getUserByDiscordId(data, req.portalUser.discordUserId);
-        if (!user) throw new Error("not_found");
-
-        const now = nowIso();
-        user.mercadoPago = {
-          packed,
-          last4,
-          createdAt: asString(user?.mercadoPago?.createdAt) || now,
-          updatedAt: now
-        };
-        store.save(data);
-      })
-      .catch((err) => {
-        if (String(err?.message) === "not_found") return res.status(404).json({ error: "usuario nao encontrado" });
-        if (logError) logError("portal:me:mercadopago:set", err);
-        return res.status(500).json({ error: "erro interno" });
-      });
-
-    if (res.headersSent) return;
-    res.json({ ok: true });
-  });
-
-  app.delete("/api/me/mercadopago", requireUser, async (req, res) => {
-    await store
-      .runExclusive(async () => {
-        const data = store.load();
-        const user = store.getUserByDiscordId(data, req.portalUser.discordUserId);
-        if (!user) throw new Error("not_found");
-        delete user.mercadoPago;
-        store.save(data);
-      })
-      .catch((err) => {
-        if (String(err?.message) === "not_found") return res.status(404).json({ error: "usuario nao encontrado" });
-        if (logError) logError("portal:me:mercadopago:clear", err);
-        return res.status(500).json({ error: "erro interno" });
-      });
-
-    if (res.headersSent) return;
-    res.json({ ok: true });
-  });
-
-  app.post("/api/me/mercadopago/test", requireUser, async (req, res) => {
-    const token = getMercadoPagoTokenForUser(req.portalUser, sessionSecret);
-    if (!token) return res.status(409).json({ error: "access_token_nao_configurado" });
-
-    try {
-      const me = await mpRequestWithToken("get", "/users/me", null, token);
-      res.json({
-        ok: true,
-        account: {
-          id: me?.id ? String(me.id) : "",
-          nickname: asString(me?.nickname),
-          countryId: asString(me?.country_id),
-          siteId: asString(me?.site_id)
-        }
-      });
-    } catch (err) {
-      if (logError) logError("portal:me:mercadopago:test", err);
-      res.status(500).json({ error: "falha_ao_testar_token" });
-    }
   });
 
   app.put("/api/me/profile", requireUser, async (req, res) => {
@@ -1619,7 +1524,7 @@ export function startPortalServer(options = {}) {
     const catalog = getPlanCatalog();
     const plan = catalog[planId];
     if (!plan) return res.status(400).json({ error: "plano invalido" });
-    const mpToken = getMercadoPagoTokenForUser(req.portalUser, sessionSecret);
+    const mpToken = getMercadoPagoAccessToken();
     if (!mpToken) return res.status(409).json({ error: "mercadopago_not_configured" });
 
     const tx = {
@@ -1697,65 +1602,146 @@ export function startPortalServer(options = {}) {
     res.json({ ok: true, transactions: list });
   });
 
-  app.post("/api/wallet/topup", requireUser, async (req, res) => {
-    const mpToken = getMercadoPagoTokenForUser(req.portalUser, sessionSecret);
-    if (!mpToken) return res.status(409).json({ error: "mercadopago_not_configured" });
+  app.get("/api/wallet/withdrawals", requireUser, (req, res) => {
+    const data = store.load();
+    const list = (data.withdrawals || [])
+      .filter((w) => String(w.ownerDiscordUserId) === String(req.portalUser.discordUserId))
+      .slice()
+      .sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0))
+      .slice(0, 50)
+      .map((w) => ({
+        id: asString(w.id),
+        amountCents: Number(w.amountCents || 0),
+        amountFormatted: formatBRL(w.amountCents || 0),
+        status: asString(w.status || "requested"),
+        method: asString(w.method || "pix"),
+        pixKey: asString(w.pixKey),
+        pixKeyType: asString(w.pixKeyType),
+        createdAt: asString(w.createdAt),
+        updatedAt: asString(w.updatedAt)
+      }));
 
+    res.json({ ok: true, withdrawals: list });
+  });
+
+  app.post("/api/wallet/withdrawals", requireUser, async (req, res) => {
     const cents = Math.floor(Number(req.body?.amountCents || 0));
-    if (!Number.isFinite(cents) || cents < 500) {
-      return res.status(400).json({ error: "valor minimo: R$ 5,00" });
+    const pixKey = asString(req.body?.pixKey).trim();
+    const pixKeyType = asString(req.body?.pixKeyType).trim();
+
+    if (!pixKey) return res.status(400).json({ error: "pix_key_obrigatoria" });
+    if (!Number.isFinite(cents) || cents < 1000) {
+      return res.status(400).json({ error: "valor_minimo: R$ 10,00" });
     }
+
+    const now = nowIso();
+    const withdrawal = {
+      id: randomId("wd"),
+      ownerDiscordUserId: req.portalUser.discordUserId,
+      amountCents: cents,
+      status: "requested",
+      method: "pix",
+      pixKey,
+      pixKeyType,
+      createdAt: now,
+      updatedAt: now
+    };
 
     const tx = {
       id: randomId("tx"),
       ownerDiscordUserId: req.portalUser.discordUserId,
-      type: "wallet_topup",
-      amountCents: cents,
+      type: "withdrawal_request",
+      amountCents: -cents,
       status: "pending",
-      provider: "mercadopago",
+      provider: "internal",
       providerPaymentId: "",
-      createdAt: nowIso(),
-      updatedAt: nowIso()
+      createdAt: now,
+      updatedAt: now,
+      metadata: { withdrawalId: withdrawal.id }
     };
 
-    await store.runExclusive(async () => {
-      const data = store.load();
-      data.transactions.push(tx);
-      store.save(data);
-    });
+    await store
+      .runExclusive(async () => {
+        const data = store.load();
+        const user = store.getUserByDiscordId(data, req.portalUser.discordUserId);
+        if (!user) throw new Error("not_found");
 
-    try {
-      const preference = await mpRequestWithToken(
-        "post",
-        "/checkout/preferences",
-        {
-          items: [
-            {
-              title: "Recarga de Carteira (AstraSystems)",
-              quantity: 1,
-              unit_price: Number((cents / 100).toFixed(2)),
-              currency_id: "BRL"
-            }
-          ],
-          external_reference: tx.id,
-          metadata: { tx_id: tx.id, discord_user_id: req.portalUser.discordUserId },
-          back_urls: {
-            success: `${baseUrl}/dashboard?mp=success`,
-            pending: `${baseUrl}/dashboard?mp=pending`,
-            failure: `${baseUrl}/dashboard?mp=failure`
-          },
-          auto_return: "approved",
-          notification_url: `${baseUrl}/webhooks/mercadopago`
-        },
-        mpToken,
-        { "X-Idempotency-Key": tx.id }
-      );
+        const current = Math.floor(Number(user.walletCents || 0));
+        if (cents > current) throw new Error("insufficient_funds");
 
-      res.json({ ok: true, initPoint: preference.init_point || "", sandboxInitPoint: preference.sandbox_init_point || "" });
-    } catch (err) {
-      if (logError) logError("portal:wallet:topup", err);
-      res.status(500).json({ error: "falha ao criar pagamento" });
-    }
+        user.walletCents = current - cents;
+        user.payout = { pixKey, pixKeyType };
+
+        if (!Array.isArray(data.withdrawals)) data.withdrawals = [];
+        if (!Array.isArray(data.transactions)) data.transactions = [];
+
+        data.withdrawals.push(withdrawal);
+        data.transactions.push(tx);
+        store.save(data);
+      })
+      .catch((err) => {
+        const code = asString(err?.message);
+        if (code === "not_found") return res.status(404).json({ error: "usuario nao encontrado" });
+        if (code === "insufficient_funds") return res.status(409).json({ error: "saldo_insuficiente" });
+        if (logError) logError("portal:wallet:withdraw", err);
+        return res.status(500).json({ error: "erro interno" });
+      });
+
+    if (res.headersSent) return;
+    res.json({ ok: true, withdrawalId: withdrawal.id });
+  });
+
+  app.post("/api/wallet/withdrawals/:id/cancel", requireUser, async (req, res) => {
+    const wid = asString(req.params.id);
+    if (!wid) return res.status(400).json({ error: "withdrawal_id_obrigatorio" });
+
+    await store
+      .runExclusive(async () => {
+        const data = store.load();
+        const user = store.getUserByDiscordId(data, req.portalUser.discordUserId);
+        if (!user) throw new Error("not_found");
+
+        const wd = (data.withdrawals || []).find((w) => String(w.id) === wid) || null;
+        if (!wd) throw new Error("withdrawal_not_found");
+        if (String(wd.ownerDiscordUserId) !== String(req.portalUser.discordUserId)) throw new Error("forbidden");
+
+        const status = asString(wd.status || "requested").toLowerCase();
+        if (status !== "requested") throw new Error("cannot_cancel");
+
+        wd.status = "cancelled";
+        wd.updatedAt = nowIso();
+
+        const refund = Math.floor(Number(wd.amountCents || 0));
+        user.walletCents = Math.floor(Number(user.walletCents || 0) + refund);
+
+        if (!Array.isArray(data.transactions)) data.transactions = [];
+        data.transactions.push({
+          id: randomId("tx"),
+          ownerDiscordUserId: req.portalUser.discordUserId,
+          type: "withdrawal_cancelled",
+          amountCents: refund,
+          status: "paid",
+          provider: "internal",
+          providerPaymentId: "",
+          createdAt: wd.updatedAt,
+          updatedAt: wd.updatedAt,
+          metadata: { withdrawalId: wid }
+        });
+
+        store.save(data);
+      })
+      .catch((err) => {
+        const code = asString(err?.message);
+        if (code === "not_found") return res.status(404).json({ error: "usuario nao encontrado" });
+        if (code === "withdrawal_not_found") return res.status(404).json({ error: "saque_nao_encontrado" });
+        if (code === "forbidden") return res.status(403).json({ error: "forbidden" });
+        if (code === "cannot_cancel") return res.status(409).json({ error: "nao_pode_cancelar" });
+        if (logError) logError("portal:wallet:withdraw:cancel", err);
+        return res.status(500).json({ error: "erro interno" });
+      });
+
+    if (res.headersSent) return;
+    res.json({ ok: true });
   });
 
   app.post("/webhooks/mercadopago", async (req, res) => {
@@ -1780,35 +1766,9 @@ export function startPortalServer(options = {}) {
     }
 
     try {
-      let payment = null;
       const envToken = getMercadoPagoAccessToken();
-      if (envToken) {
-        payment = await mpRequestWithToken("get", `/v1/payments/${encodeURIComponent(dataId)}`, null, envToken);
-      } else {
-        // When the access token is configured per user, we don't know which one created the payment yet.
-        // Try all configured tokens until one can fetch the payment.
-        const snapshot = store.load();
-        const tokens = new Set();
-        for (const u of snapshot.users || []) {
-          const tok = getUserMercadoPagoAccessToken(u, sessionSecret);
-          if (tok) tokens.add(tok);
-        }
-
-        for (const tok of tokens) {
-          try {
-            payment = await mpRequestWithToken("get", `/v1/payments/${encodeURIComponent(dataId)}`, null, tok);
-            break;
-          } catch (err) {
-            const statusCode = Number(err?.response?.status || 0);
-            if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
-              continue;
-            }
-            throw err;
-          }
-        }
-      }
-
-      if (!payment) return res.json({ ok: true });
+      if (!envToken) return res.json({ ok: true });
+      const payment = await mpRequestWithToken("get", `/v1/payments/${encodeURIComponent(dataId)}`, null, envToken);
       const status = asString(payment?.status);
       const externalRef = asString(payment?.external_reference);
 
@@ -1827,9 +1787,6 @@ export function startPortalServer(options = {}) {
           tx.status = "paid";
           const user = store.getUserByDiscordId(data, tx.ownerDiscordUserId);
           if (user) {
-            if (tx.type === "wallet_topup") {
-              user.walletCents = Math.floor(Number(user.walletCents || 0) + Number(tx.amountCents || 0));
-            }
             if (tx.type === "plan_purchase") {
               const catalog = getPlanCatalog();
               const plan = catalog[asString(tx.planId)] || null;

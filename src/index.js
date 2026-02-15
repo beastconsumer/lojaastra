@@ -79,42 +79,9 @@ function asString(value) {
   return String(value).trim();
 }
 
-function decryptPackedJson(secret, packed) {
-  try {
-    const raw = String(packed || "");
-    const parts = raw.split(".");
-    if (parts.length !== 3) return null;
-    const [ivB64, ctB64, tagB64] = parts;
-    const key = createHash("sha256").update(String(secret || "")).digest();
-    const iv = Buffer.from(ivB64, "base64url");
-    const ciphertext = Buffer.from(ctB64, "base64url");
-    const tag = Buffer.from(tagB64, "base64url");
-    const decipher = createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(tag);
-    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    return JSON.parse(plaintext.toString("utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function getPortalUserMercadoPagoAccessToken(ownerDiscordUserId) {
-  const secret = asString(process.env.PORTAL_SESSION_SECRET);
-  if (!secret) return "";
-
-  const data = portalStore.load();
-  const user = portalStore.getUserByDiscordId(data, ownerDiscordUserId);
-  const packed = asString(user?.mercadoPago?.packed);
-  if (!packed) return "";
-
-  const decoded = decryptPackedJson(secret, packed);
-  return asString(decoded?.accessToken);
-}
-
-function getMercadoPagoAccessTokenForSale(ownerDiscordUserId) {
-  // Prefer seller token; fallback to system env token.
-  const seller = getPortalUserMercadoPagoAccessToken(ownerDiscordUserId);
-  if (seller) return seller;
+function getMercadoPagoAccessTokenForSale(_ownerDiscordUserId) {
+  // Payments are processed by the platform Mercado Pago account (server .env).
+  // Sellers withdraw their balance via the Portal wallet.
   return asString(process.env.MERCADOPAGO_ACCESS_TOKEN);
 }
 
@@ -3180,7 +3147,7 @@ async function syncOrderStatusMercadoPago(order) {
   if (!paymentId) return;
 
   const ownerDiscordUserId = asString(order?.ownerDiscordUserId);
-  const token = getMercadoPagoAccessTokenForSale(ownerDiscordUserId) || asString(process.env.MERCADOPAGO_ACCESS_TOKEN);
+  const token = getMercadoPagoAccessTokenForSale(ownerDiscordUserId);
   if (!token) return;
 
   const payment = await mercadoPagoRequest("get", `/v1/payments/${encodeURIComponent(paymentId)}`, null, token);
