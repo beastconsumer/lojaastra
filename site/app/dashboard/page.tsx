@@ -432,14 +432,15 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-2">
             <Badge variant={botStatus?.botReady ? "good" : "warn"}>
-              <Bot className="mr-1 h-3.5 w-3.5" />
+              {botStatus?.botReady ? <span className="astra-live-dot" /> : null}
+              <Bot className="mr-1 h-3.5 w-3.5 astra-icon-float" />
               {botStatus?.botReady ? "Bot online" : "Bot iniciando"}
             </Badge>
             <Badge variant={me?.planActive ? "good" : "warn"}>
               Plano {me?.plan?.tier || "free"} {me?.planActive ? "ativo" : "inativo"}
             </Badge>
             <Button variant="ghost" size="sm" onClick={refreshAll}>
-              <RefreshCcw className="mr-2 h-4 w-4" />
+              <RefreshCcw className="astra-icon-spin-hover mr-2 h-4 w-4" />
               Atualizar
             </Button>
             <Button variant="outline" size="sm" asChild>
@@ -462,7 +463,7 @@ export default function DashboardPage() {
                 <CardContent className="p-5">
                   <div className="mb-2 flex items-center justify-between text-white/70">
                     <span className="text-xs uppercase tracking-[0.14em]">{item.label}</span>
-                    <Icon className="h-4 w-4" />
+                    <Icon className="astra-icon-float h-4 w-4" />
                   </div>
                   <p className="font-['Space_Grotesk'] text-2xl font-semibold tracking-tight">{item.value}</p>
                 </CardContent>
@@ -479,19 +480,19 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="astra-interactive rounded-xl border border-white/10 bg-black/20 p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-white/55">Usuario</p>
                   <p className="mt-1 text-sm font-medium">{me?.discordUsername || "-"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="astra-interactive rounded-xl border border-white/10 bg-black/20 p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-white/55">E-mail</p>
                   <p className="mt-1 text-sm font-medium">{me?.email || "-"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="astra-interactive rounded-xl border border-white/10 bg-black/20 p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-white/55">Expira em</p>
                   <p className="mt-1 text-sm font-medium">{formatDate(me?.plan?.expiresAt || "")}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="astra-interactive rounded-xl border border-white/10 bg-black/20 p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-white/55">Autenticacao</p>
                   <p className="mt-1 text-sm font-medium">{me?.authProvider || "-"}</p>
                 </div>
@@ -555,6 +556,13 @@ export default function DashboardPage() {
                         <p className="font-['Space_Grotesk'] text-lg font-semibold">{instance.name || "Instancia"}</p>
                         <p className="text-xs text-white/55">{shortId(instance.id)}</p>
                       </div>
+                      {instance.botProfile?.avatarUrl ? (
+                        <img
+                          src={instance.botProfile.avatarUrl}
+                          alt="Avatar do bot"
+                          className="astra-interactive h-10 w-10 rounded-full border border-white/20 object-cover"
+                        />
+                      ) : null}
                       <div className="flex flex-col items-end gap-1">
                         <Badge variant={instance.botInGuild ? "good" : "muted"}>
                           {instance.botInGuild ? "Bot no servidor" : "Nao vinculado"}
@@ -719,7 +727,7 @@ export default function DashboardPage() {
                       </tr>
                     ) : (
                       transactions.slice(0, 15).map((tx) => (
-                        <tr key={tx.id} className="border-t border-white/8 transition hover:bg-white/5">
+                        <tr key={tx.id} className="astra-table-row border-t border-white/8">
                           <td className="px-3 py-2 font-mono text-xs">{shortId(tx.id)}</td>
                           <td className="px-3 py-2">{tx.type || "-"}</td>
                           <td className={`px-3 py-2 font-semibold ${tx.amountCents < 0 ? "text-rose-300" : "text-emerald-300"}`}>
@@ -776,7 +784,7 @@ export default function DashboardPage() {
                       </tr>
                     ) : (
                       withdrawals.slice(0, 15).map((wd) => (
-                        <tr key={wd.id} className="border-t border-white/8 transition hover:bg-white/5">
+                        <tr key={wd.id} className="astra-table-row border-t border-white/8">
                           <td className="px-3 py-2 font-mono text-xs">{shortId(wd.id)}</td>
                           <td className="px-3 py-2 font-semibold">{wd.amountFormatted}</td>
                           <td className="px-3 py-2">
@@ -822,12 +830,14 @@ export default function DashboardPage() {
         {(error || notice) && (
           <div className="fixed bottom-6 right-6 z-30 max-w-md space-y-2">
             {notice && (
-              <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100">
+              <div className="astra-toast-enter rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100">
                 {notice}
               </div>
             )}
             {error && (
-              <div className="rounded-xl border border-rose-400/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-100">{error}</div>
+              <div className="astra-toast-enter rounded-xl border border-rose-400/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-100">
+                {error}
+              </div>
             )}
           </div>
         )}

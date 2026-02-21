@@ -4,13 +4,13 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+  "astra-interactive astra-press inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/35",
   {
     variants: {
       variant: {
-        default: "bg-red-600 text-white hover:bg-red-500",
+        default: "bg-red-600 text-white hover:bg-red-500 hover:shadow-[0_10px_28px_rgba(220,38,38,0.35)]",
         ghost: "bg-transparent text-white hover:bg-white/10",
-        outline: "border border-white/20 bg-transparent text-white hover:bg-white/10"
+        outline: "border border-white/20 bg-transparent text-white hover:bg-white/10 hover:border-white/35"
       },
       size: {
         default: "h-10 px-4 py-2",
