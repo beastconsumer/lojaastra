@@ -1,3 +1,12 @@
 {
-  "posts": []
+  "posts": [
+    {
+      "id": "cf8c3b1d-4005-4236-9cdd-cfecc495777c",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "channelId": "1409313406393122978",
+      "messageId": "1474774206158737603",
+      "createdAt": "2026-02-21T14:26:15.835Z"
+    }
+  ]
 }

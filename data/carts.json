@@ -1,3 +1,17 @@
 {
-  "carts": []
+  "carts": [
+    {
+      "id": "95cd8e70-1dd5-4f7d-9af0-9fd7a1e33954",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "1d",
+      "quantity": 1,
+      "status": "expired",
+      "createdAt": "2026-02-21T14:27:12.495Z",
+      "updatedAt": "2026-02-21T14:33:10.133Z",
+      "lastActivityAt": "2026-02-21T14:27:12.495Z",
+      "channelId": "1474774465824034968"
+    }
+  ]
 }
