@@ -12,6 +12,20 @@
       "updatedAt": "2026-02-21T14:33:10.133Z",
       "lastActivityAt": "2026-02-21T14:27:12.495Z",
       "channelId": "1474774465824034968"
+    },
+    {
+      "id": "0b0b9856-e85b-440a-80f2-1992d7871614",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "1d",
+      "quantity": 1,
+      "status": "open",
+      "createdAt": "2026-02-21T14:35:01.115Z",
+      "updatedAt": "2026-02-21T14:35:03.865Z",
+      "lastActivityAt": "2026-02-21T14:35:03.865Z",
+      "channelId": "1474776431044071466",
+      "messageId": "1474776439097397308"
     }
   ]
 }

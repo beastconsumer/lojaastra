@@ -2541,16 +2541,19 @@ function buildCartMessage(cart, product, variant) {
     new ButtonBuilder()
       .setCustomId('cart_qty:' + cart.id)
       .setLabel('Alterar Quantidade')
+      .setEmoji('🔢')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disableOpenActions),
     new ButtonBuilder()
       .setCustomId('cart_coupon:' + cart.id)
       .setLabel('Adicionar Cupom')
+      .setEmoji('🎟️')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disableOpenActions),
     new ButtonBuilder()
       .setCustomId('cart_remove_coupon:' + cart.id)
       .setLabel('Remover Cupom')
+      .setEmoji('🧹')
       .setStyle(ButtonStyle.Danger)
       .setDisabled(disableOpenActions || !cart.couponCode)
   );
@@ -2559,11 +2562,13 @@ function buildCartMessage(cart, product, variant) {
     new ButtonBuilder()
       .setCustomId('cart_pay:' + cart.id)
       .setLabel('Ir para Pagamento')
+      .setEmoji('💳')
       .setStyle(ButtonStyle.Success)
       .setDisabled(disablePay),
     new ButtonBuilder()
       .setCustomId('cart_cancel:' + cart.id)
       .setLabel('Cancelar')
+      .setEmoji('⛔')
       .setStyle(ButtonStyle.Danger)
       .setDisabled(disableCancel)
   );
@@ -2575,6 +2580,7 @@ function buildCartMessage(cart, product, variant) {
       new ButtonBuilder()
         .setCustomId('cart_admin_confirm:' + cart.id)
         .setLabel('Confirmar compra (admin)')
+        .setEmoji('✅')
         .setStyle(ButtonStyle.Primary)
         .setDisabled(disableAdminConfirm)
     );
