@@ -407,9 +407,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#06060b] px-6 py-14 text-white">
+      <div className="min-h-screen bg-[var(--bg)] px-6 py-14 text-white">
         <div className="mx-auto max-w-[90rem]">
-          <div className="astra-fade-up rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl">
+          <div className="astra-glass-card astra-fade-up p-8">
             <p className="text-lg font-semibold">Carregando dashboard...</p>
           </div>
         </div>
@@ -418,18 +418,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#06060b] text-white">
+    <div className="min-h-screen overflow-x-hidden bg-[var(--bg)] text-white">
       <video
         autoPlay
         muted
         loop
         playsInline
-        className="pointer-events-none fixed inset-0 -z-20 h-full w-full object-cover opacity-[0.2]"
+        className="pointer-events-none fixed inset-0 -z-30 h-full w-full object-cover opacity-[0.16]"
         src="/media/painel.mp4"
       />
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_12%_18%,rgba(230,33,42,0.26),transparent_35%),radial-gradient(circle_at_80%_15%,rgba(255,77,87,0.22),transparent_37%),radial-gradient(circle_at_40%_90%,rgba(185,28,28,0.18),transparent_45%)]" />
+      <div className="pointer-events-none fixed inset-0 -z-20 astra-noise" />
+      <div className="pointer-events-none fixed inset-0 -z-20">
+        <div className="astra-orb astra-orb-a" />
+        <div className="astra-orb astra-orb-b" />
+        <div className="astra-orb astra-orb-c" />
+      </div>
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(180deg,rgba(6,6,11,0.2),rgba(6,6,11,0.82))]" />
 
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/35 backdrop-blur-xl">
+      <header className="sticky top-0 z-20 border-b border-[var(--stroke)] bg-[linear-gradient(180deg,rgba(6,6,11,0.9),rgba(6,6,11,0.46))] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-[90rem] items-center justify-between px-6 py-4">
           <div className="astra-fade-up">
             <p className="font-['Space_Grotesk'] text-2xl font-semibold tracking-tight">
@@ -488,19 +494,19 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="astra-interactive rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="astra-interactive astra-glass-surface p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-white/55">Usuario</p>
                   <p className="mt-1 text-sm font-medium">{me?.discordUsername || "-"}</p>
                 </div>
-                <div className="astra-interactive rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="astra-interactive astra-glass-surface p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-white/55">E-mail</p>
                   <p className="mt-1 text-sm font-medium">{me?.email || "-"}</p>
                 </div>
-                <div className="astra-interactive rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="astra-interactive astra-glass-surface p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-white/55">Expira em</p>
                   <p className="mt-1 text-sm font-medium">{formatDate(me?.plan?.expiresAt || "")}</p>
                 </div>
-                <div className="astra-interactive rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="astra-interactive astra-glass-surface p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-white/55">Autenticacao</p>
                   <p className="mt-1 text-sm font-medium">{me?.authProvider || "-"}</p>
                 </div>
@@ -548,12 +554,12 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 rounded-xl border border-amber-400/35 bg-amber-500/12 p-3 text-sm text-amber-100">
+            <div className="mb-4 rounded-xl border border-amber-400/35 bg-amber-500/14 p-3 text-sm text-amber-100 backdrop-blur-xl">
               Fluxo recomendado: 1) crie com token valido, 2) gere o invite desse bot, 3) adicione no servidor certo.
               Sempre rode o processo do bot com o mesmo token da instancia ativa para liberar postagens e canais.
             </div>
             {instances.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-white/20 bg-black/20 p-6 text-sm text-white/70">
+              <div className="astra-glass-surface rounded-xl border-dashed p-6 text-sm text-white/70">
                 Nenhuma instancia criada ainda.
               </div>
             ) : (
@@ -561,7 +567,7 @@ export default function DashboardPage() {
                 {instances.map((instance, idx) => (
                   <div
                     key={instance.id}
-                    className={`astra-fade-up astra-hover-lift rounded-2xl border border-white/10 bg-black/20 p-4 transition-all astra-delay-${
+                    className={`astra-glass-card astra-fade-up astra-hover-lift p-4 transition-all astra-delay-${
                       (idx % 4) + 1
                     }`}
                   >
@@ -604,7 +610,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
-                    <div className="mb-3 space-y-2 rounded-xl border border-white/10 bg-black/25 p-3">
+                    <div className="astra-glass-surface-soft mb-3 space-y-2 p-3">
                       <p className="text-xs uppercase tracking-[0.14em] text-white/55">Token do bot do cliente</p>
                       <Input
                         type="password"
@@ -701,9 +707,9 @@ export default function DashboardPage() {
               <CardDescription>Historico financeiro da conta (entradas/saidas).</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto rounded-xl border border-white/10">
+              <div className="astra-glass-surface overflow-x-auto rounded-xl">
                 <table className="w-full min-w-[620px] text-sm">
-                  <thead className="bg-white/5 text-left text-xs uppercase tracking-[0.12em] text-white/55">
+                  <thead className="bg-white/6 text-left text-xs uppercase tracking-[0.12em] text-white/55">
                     <tr>
                       <th className="px-3 py-2">ID</th>
                       <th className="px-3 py-2">Tipo</th>
@@ -758,9 +764,9 @@ export default function DashboardPage() {
               <CardDescription>Solicitacoes de saque e status operacional.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto rounded-xl border border-white/10">
+              <div className="astra-glass-surface overflow-x-auto rounded-xl">
                 <table className="w-full min-w-[620px] text-sm">
-                  <thead className="bg-white/5 text-left text-xs uppercase tracking-[0.12em] text-white/55">
+                  <thead className="bg-white/6 text-left text-xs uppercase tracking-[0.12em] text-white/55">
                     <tr>
                       <th className="px-3 py-2">ID</th>
                       <th className="px-3 py-2">Valor</th>
@@ -824,12 +830,12 @@ export default function DashboardPage() {
         {(error || notice) && (
           <div className="fixed bottom-6 right-6 z-30 max-w-md space-y-2">
             {notice && (
-              <div className="astra-toast-enter rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100">
+              <div className="astra-toast-enter astra-glass-surface rounded-xl border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100">
                 {notice}
               </div>
             )}
             {error && (
-              <div className="astra-toast-enter rounded-xl border border-rose-400/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-100">
+              <div className="astra-toast-enter astra-glass-surface rounded-xl border-rose-400/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-100">
                 {error}
               </div>
             )}

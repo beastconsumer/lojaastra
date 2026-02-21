@@ -2,6 +2,21 @@
 
 :root {
   color-scheme: dark;
+  --bg: #06060b;
+  --surface: rgba(18, 18, 28, 0.72);
+  --surface2: rgba(14, 14, 22, 0.8);
+  --stroke: rgba(255, 255, 255, 0.08);
+  --stroke2: rgba(255, 255, 255, 0.14);
+  --ink: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.64);
+  --muted2: rgba(255, 255, 255, 0.44);
+  --accent: #e6212a;
+  --accent2: #ff4d57;
+  --accent-rgb: 230 33 42;
+  --accent2-rgb: 255 77 87;
+  --shadow-soft: 0 14px 34px rgba(0, 0, 0, 0.42);
+  --shadow-hard: 0 24px 52px rgba(0, 0, 0, 0.56);
+  --radius: 22px;
 }
 
 * {
@@ -16,8 +31,9 @@ body {
 }
 
 body {
-  background: #06060b;
-  color: rgba(255, 255, 255, 0.92);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Manrope, ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 
 @keyframes astra-fade-up {
@@ -28,6 +44,16 @@ body {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes astra-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(14px, -18px, 0) scale(1.02);
   }
 }
 
@@ -67,6 +93,99 @@ body {
   }
 }
 
+.astra-noise {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E");
+  opacity: 0.3;
+  mix-blend-mode: overlay;
+}
+
+.astra-orb {
+  position: absolute;
+  width: 820px;
+  height: 820px;
+  border-radius: 999px;
+  filter: blur(52px);
+  opacity: 0.24;
+  transform: translate3d(0, 0, 0);
+  animation: astra-drift 11s ease-in-out infinite;
+}
+
+.astra-orb-a {
+  left: -280px;
+  top: -220px;
+  background: radial-gradient(circle at 30% 30%, rgb(var(--accent-rgb) / 0.92), transparent 60%);
+}
+
+.astra-orb-b {
+  right: -320px;
+  top: 80px;
+  background: radial-gradient(circle at 30% 30%, rgb(var(--accent2-rgb) / 0.82), transparent 60%);
+  animation-delay: -3s;
+}
+
+.astra-orb-c {
+  left: 18%;
+  bottom: -420px;
+  background: radial-gradient(circle at 30% 30%, rgb(239 68 68 / 0.58), transparent 60%);
+  animation-delay: -6s;
+}
+
+.astra-glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke);
+  background:
+    radial-gradient(circle at 12% -8%, rgba(255, 255, 255, 0.18), transparent 42%),
+    radial-gradient(circle at 90% 120%, rgb(var(--accent-rgb) / 0.18), transparent 44%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03) 38%, rgba(10, 10, 16, 0.56) 100%);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px) saturate(155%);
+  -webkit-backdrop-filter: blur(24px) saturate(155%);
+}
+
+.astra-glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(var(--radius) - 1px);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.01) 45%);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.astra-glass-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 80% -20%, rgba(255, 255, 255, 0.22), transparent 34%);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.astra-glass-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.astra-glass-surface {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 40%, rgba(7, 7, 12, 0.45) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+
+.astra-glass-surface-soft {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(12, 12, 18, 0.5);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+}
+
 .astra-fade-up {
   animation: astra-fade-up 0.52s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -88,17 +207,18 @@ body {
 }
 
 .astra-hover-lift {
-  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease, background-color 0.24s ease;
+  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease, background-color 0.24s ease, filter 0.24s ease;
 }
 
 .astra-hover-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
-  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-3px) scale(1.002);
+  box-shadow: var(--shadow-hard), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border-color: var(--stroke2);
+  filter: saturate(1.08);
 }
 
 .astra-interactive {
-  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background-color 0.22s ease, opacity 0.22s ease;
+  transition: transform 0.2s ease, box-shadow 0.22s ease, border-color 0.22s ease, background-color 0.22s ease, opacity 0.22s ease;
 }
 
 .astra-interactive:hover {
@@ -132,12 +252,13 @@ body {
 }
 
 .astra-table-row {
-  transition: background-color 0.18s ease, transform 0.18s ease;
+  transition: background-color 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
 }
 
 .astra-table-row:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.06);
   transform: translateX(1px);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -4,13 +4,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "astra-interactive astra-press inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/35",
+  "astra-interactive astra-press inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-extrabold transition disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--accent-rgb)/0.35)]",
   {
     variants: {
       variant: {
-        default: "bg-red-600 text-white hover:bg-red-500 hover:shadow-[0_10px_28px_rgba(220,38,38,0.35)]",
-        ghost: "bg-transparent text-white hover:bg-white/10",
-        outline: "border border-white/20 bg-transparent text-white hover:bg-white/10 hover:border-white/35"
+        default:
+          "border border-[rgb(var(--accent-rgb)/0.36)] bg-[linear-gradient(135deg,var(--accent),var(--accent2))] text-white shadow-[0_16px_36px_rgb(var(--accent-rgb)/0.28)] hover:shadow-[0_20px_44px_rgb(var(--accent-rgb)/0.34)]",
+        ghost: "border border-white/10 bg-white/6 text-white hover:border-white/20 hover:bg-white/10",
+        outline: "border border-white/18 bg-transparent text-white hover:border-white/30 hover:bg-white/9"
       },
       size: {
         default: "h-10 px-4 py-2",

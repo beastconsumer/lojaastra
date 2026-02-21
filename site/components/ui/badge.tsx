@@ -3,12 +3,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "astra-interactive inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold tracking-wide transition",
+  "astra-interactive inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-extrabold tracking-wide transition backdrop-blur-md",
   {
     variants: {
       variant: {
-        default: "border-red-400/40 bg-red-500/15 text-red-100",
-        muted: "border-white/20 bg-white/6 text-white/75",
+        default: "border-[rgb(var(--accent-rgb)/0.42)] bg-[rgb(var(--accent-rgb)/0.16)] text-red-100",
+        muted: "border-white/20 bg-white/8 text-white/75",
         good: "border-emerald-400/35 bg-emerald-500/15 text-emerald-100",
         warn: "border-amber-400/35 bg-amber-500/15 text-amber-100",
         bad: "border-rose-400/35 bg-rose-500/15 text-rose-100"
