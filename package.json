@@ -4,10 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "site:dev": "cmd /c \"cd site && npm run dev\"",
-    "site:build": "cmd /c \"cd site && npm run build\"",
-    "site:start": "cmd /c \"cd site && npm run start\""
+    "start": "node src/index.js"
   },
   "dependencies": {
     "axios": "^1.6.8",

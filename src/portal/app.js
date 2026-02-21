@@ -56,15 +56,6 @@ async function apiFetch(url, options = {}) {
   return data;
 }
 
-async function copyToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(String(text || ""));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function Button({ variant = "primary", disabled, onClick, children }) {
   return html`<button className=${`btn ${variant}`} disabled=${disabled} onClick=${onClick}>${children}</button>`;
 }
@@ -501,12 +492,16 @@ function Dashboard({ route, me, refreshMe, toast }) {
   });
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newBotToken, setNewBotToken] = useState("");
+  const [autoOnboardingDone, setAutoOnboardingDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("50,00");
   const [pixKey, setPixKey] = useState("");
   const [pixKeyType, setPixKeyType] = useState("");
   const [withdrawals, setWithdrawals] = useState([]);
-  const [apiKeyModal, setApiKeyModal] = useState({ open: false, title: "", apiKey: "" });
+  const [tokenDraftByInstance, setTokenDraftByInstance] = useState({});
+  const [savingTokenFor, setSavingTokenFor] = useState("");
+  const [clearingTokenFor, setClearingTokenFor] = useState("");
   const [editChannels, setEditChannels] = useState({ loading: false, error: "", channels: [] });
   const [edit, setEdit] = useState({
     open: false,
@@ -632,6 +627,15 @@ function Dashboard({ route, me, refreshMe, toast }) {
     } catch {}
   }, [tab]);
 
+  useEffect(() => {
+    if (autoOnboardingDone) return;
+    if (!me?.planActive) return;
+    if ((instances?.length || 0) > 0) return;
+    setTab("instances");
+    setCreating(true);
+    setAutoOnboardingDone(true);
+  }, [autoOnboardingDone, me?.planActive, instances?.length]);
+
   const planText = useMemo(() => {
     const p = me?.plan;
     if (!p) return "Free";
@@ -697,22 +701,30 @@ function Dashboard({ route, me, refreshMe, toast }) {
   };
 
   const onCreateInstance = async () => {
-    if (!newName.trim()) return toast("Nome obrigatorio", "Digite um nome para sua instancia.", "bad");
+    const name = newName.trim();
+    const token = asString(newBotToken).trim();
+    if (!name) return toast("Nome obrigatorio", "Digite um nome para sua instancia.", "bad");
+    if (!token) return toast("Token obrigatorio", "Cole o token do bot do cliente para criar.", "bad");
     setBusy(true);
     try {
-      const data = await apiFetch("/api/instances", { method: "POST", body: JSON.stringify({ name: newName.trim() }) });
+      const data = await apiFetch("/api/instances", { method: "POST", body: JSON.stringify({ name, token }) });
       setNewName("");
+      setNewBotToken("");
       setCreating(false);
-      toast("Instancia criada", "API key gerada. Guarde com cuidado.", "good");
+      const botName = asString(data?.instance?.botProfile?.username);
+      toast("Instancia criada", botName ? `Token validado para @${botName}.` : "Token validado com sucesso.", "good");
       await load();
-      if (data.apiKey) {
-        setApiKeyModal({ open: true, title: "Sua API key (aparece uma vez)", apiKey: data.apiKey });
-      }
     } catch (err) {
       const msg = err?.message || "Erro interno";
       if (String(msg).toLowerCase().includes("plano inativo")) {
         toast("Plano inativo", "Ative um plano para criar instancias.", "bad");
         route.navigate("/plans");
+      } else if (msg === "bot_token_obrigatorio") {
+        toast("Token obrigatorio", "Informe o token do bot do cliente.", "bad");
+      } else if (msg === "bot_token_invalido") {
+        toast("Token invalido", "Nao foi possivel validar o token no Discord.", "bad");
+      } else if (msg === "limite de instancias atingido para seu plano") {
+        toast("Limite do plano", "Cada assinatura libera apenas 1 bot/instancia.", "bad");
       } else {
         toast("Falha ao criar instancia", msg, "bad");
       }
@@ -721,27 +733,66 @@ function Dashboard({ route, me, refreshMe, toast }) {
     }
   };
 
-  const onInvite = async (guildId) => {
+  const onInvite = async (guildId, instanceId = "") => {
     try {
-      const data = await apiFetch(`/api/bot/invite?guildId=${encodeURIComponent(guildId || "")}`);
+      const q = new URLSearchParams();
+      if (guildId) q.set("guildId", guildId);
+      if (instanceId) q.set("instanceId", instanceId);
+      const data = await apiFetch(`/api/bot/invite?${q.toString()}`);
       if (data.url) window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (err) {
-      toast("Falha ao gerar invite", err.message || "Erro interno", "bad");
+      if (err?.message === "bot_token_nao_configurado") {
+        toast("Token pendente", "Configure o token do bot nessa instancia antes do invite.", "bad");
+      } else {
+        toast("Falha ao gerar invite", err.message || "Erro interno", "bad");
+      }
     }
   };
 
-  const onRotateKey = async (instId) => {
-    const ok = window.confirm("Gerar uma nova API key? A anterior para de funcionar.");
-    if (!ok) return;
+  const onSaveBotToken = async (instId) => {
+    const id = asString(instId);
+    const token = asString(tokenDraftByInstance?.[id]).trim();
+    if (!id) return;
+    if (!token) return toast("Token obrigatorio", "Cole o token para salvar nessa instancia.", "bad");
+
+    setSavingTokenFor(id);
     setBusy(true);
     try {
-      const data = await apiFetch(`/api/instances/${encodeURIComponent(instId)}/rotate-key`, { method: "POST", body: "{}" });
+      await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot-token`, {
+        method: "PUT",
+        body: JSON.stringify({ token })
+      });
+      setTokenDraftByInstance((prev) => ({ ...prev, [id]: "" }));
       await load();
-      if (data.apiKey) setApiKeyModal({ open: true, title: "Nova API key (aparece uma vez)", apiKey: data.apiKey });
-      toast("API key atualizada", "Vincule seu servidor na instancia (ou use !link <API_KEY> se preferir).", "good");
+      toast("Token atualizado", "Bot da instancia validado com sucesso.", "good");
     } catch (err) {
-      toast("Falha ao gerar API key", err.message || "Erro interno", "bad");
+      if (err?.message === "bot_token_invalido") {
+        toast("Token invalido", "Nao foi possivel validar esse token.", "bad");
+      } else {
+        toast("Falha ao salvar token", err.message || "Erro interno", "bad");
+      }
     } finally {
+      setSavingTokenFor("");
+      setBusy(false);
+    }
+  };
+
+  const onClearBotToken = async (instId) => {
+    const id = asString(instId);
+    if (!id) return;
+    const ok = window.confirm("Remover token do bot desta instancia?");
+    if (!ok) return;
+
+    setClearingTokenFor(id);
+    setBusy(true);
+    try {
+      await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot-token`, { method: "DELETE" });
+      await load();
+      toast("Token removido", "A instancia ficou sem token configurado.", "good");
+    } catch (err) {
+      toast("Falha ao remover token", err.message || "Erro interno", "bad");
+    } finally {
+      setClearingTokenFor("");
       setBusy(false);
     }
   };
@@ -837,7 +888,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
   };
 
   const onDeleteInstance = async (instId) => {
-    const ok = window.confirm("Excluir esta instancia? Isso remove o vinculo e desativa a API key.");
+    const ok = window.confirm("Excluir esta instancia? Isso remove o vinculo e o token configurado.");
     if (!ok) return;
 
     setBusy(true);
@@ -912,6 +963,10 @@ function Dashboard({ route, me, refreshMe, toast }) {
     const id = asString(storeInstanceId);
     return (instances || []).find((i) => asString(i?.id) === id) || null;
   }, [instances, storeInstanceId]);
+
+  const firstInstance = useMemo(() => {
+    return (instances || [])[0] || null;
+  }, [instances]);
 
   const openCreateProduct = () => {
     if (!storeInstanceId) return toast("Instancia", "Selecione uma instancia para criar produtos.", "bad");
@@ -1203,6 +1258,13 @@ function Dashboard({ route, me, refreshMe, toast }) {
         <div className="muted" style=${{ marginTop: "10px" }}>
           Fluxo recomendado: <b>Plano</b> -> <b>Instancia</b> -> <b>Vincular servidor</b> -> <b>Invite</b> -> <b>Loja</b> -> <b>Testar compra</b>.
         </div>
+        ${me?.planActive && !(instances?.length > 0)
+          ? html`
+              <div className="pill reco" style=${{ marginTop: "10px" }}>
+                Proximo passo obrigatorio: criar sua instancia com o token do bot para liberar operacao.
+              </div>
+            `
+          : null}
         <div className="grid cols3" style=${{ marginTop: "14px" }}>
           <div className="kpi">
             <div className="label">1) Plano</div>
@@ -1218,9 +1280,17 @@ function Dashboard({ route, me, refreshMe, toast }) {
           <div className="kpi">
             <div className="label">2) Invite</div>
             <div className="value">Adicionar bot</div>
-            <div className="hint">Convidar o bot para seu servidor com as permissoes recomendadas.</div>
+            <div className="hint">Convide o bot da sua instancia (token do cliente) para o servidor correto.</div>
             <div style=${{ marginTop: "10px" }}>
-              <${Button} variant="subtle" onClick=${() => onInvite("")}>Gerar invite</${Button}>
+              <${Button}
+                variant="subtle"
+                onClick=${() => {
+                  if (!firstInstance) return toast("Crie uma instancia", "Crie sua instancia com token antes do invite.", "bad");
+                  onInvite(firstInstance.discordGuildId || "", firstInstance.id);
+                }}
+              >
+                Gerar invite da instancia
+              </${Button}>
             </div>
           </div>
           <div className="kpi">
@@ -1297,9 +1367,17 @@ function Dashboard({ route, me, refreshMe, toast }) {
         <div className="kpi">
           <div className="label">Bot</div>
           <div className="value">Onboarding</div>
-          <div className="hint">Gere o link de convite e adicione o bot no seu servidor.</div>
+          <div className="hint">Cada plano ativo libera 1 bot. Configure token e convide essa instancia.</div>
           <div style=${{ marginTop: "12px" }}>
-            <${Button} variant="subtle" onClick=${() => onInvite("")}>Gerar invite</${Button}>
+            <${Button}
+              variant="subtle"
+              onClick=${() => {
+                if (!firstInstance) return toast("Crie uma instancia", "Crie sua instancia com token antes do invite.", "bad");
+                onInvite(firstInstance.discordGuildId || "", firstInstance.id);
+              }}
+            >
+              Gerar invite da instancia
+            </${Button}>
           </div>
         </div>
       </div>
@@ -1312,27 +1390,43 @@ function Dashboard({ route, me, refreshMe, toast }) {
             <h3 className="sectionTitle" style=${{ margin: 0 }}>Instancias</h3>
             <${Button}
               variant="primary"
-              disabled=${busy}
+              disabled=${busy || (me?.planActive && (instances?.length || 0) >= 1)}
               onClick=${() => {
                 if (!me?.planActive) return route.navigate("/plans");
                 setCreating((v) => !v);
               }}
             >
-              ${creating ? "Fechar" : "Criar instancia"}
+              ${creating ? "Fechar" : (instances?.length || 0) >= 1 ? "Limite atingido" : "Criar instancia"}
             </${Button}>
           </div>
 
           ${me?.planActive
             ? null
             : html`<div className="muted2" style=${{ marginTop: "10px" }}>Ative um plano para criar instancias e liberar o bot no seu servidor.</div>`}
+          ${me?.planActive && (instances?.length || 0) >= 1
+            ? html`<div className="muted2" style=${{ marginTop: "10px" }}>Seu plano atual permite 1 bot por assinatura. Exclua a instancia atual para criar outra.</div>`
+            : null}
 
           ${creating
             ? html`
                 <div className="stack" style=${{ marginTop: "12px" }}>
                   <input className="input" placeholder="Nome da sua loja/bot" value=${newName} onInput=${(e) => setNewName(e.target.value)} />
-                  <${Button} variant="primary" disabled=${busy || !me?.planActive} onClick=${onCreateInstance}>Criar</${Button}>
+                  <input
+                    className="input mono"
+                    type="password"
+                    placeholder="Token do bot criado no Discord Developer"
+                    value=${newBotToken}
+                    onInput=${(e) => setNewBotToken(e.target.value)}
+                  />
+                  <${Button}
+                    variant="primary"
+                    disabled=${busy || !me?.planActive || (instances?.length || 0) >= 1}
+                    onClick=${onCreateInstance}
+                  >
+                    Criar com token
+                  </${Button}>
                   <div className="muted2" style=${{ fontSize: "12px" }}>
-                    Ao criar, voce recebe uma API key (mostrada uma unica vez).
+                    Cada assinatura libera 1 instancia/bot. O token e validado no momento da criacao.
                   </div>
                 </div>
               `
@@ -1361,7 +1455,41 @@ function Dashboard({ route, me, refreshMe, toast }) {
                             Guild ID: <b className="mono">${inst.discordGuildId ? inst.discordGuildId : "-"}</b>
                           </div>
                           <div className="muted2">
-                            API key: <b className="mono">${inst.apiKeyLast4 ? `****${inst.apiKeyLast4}` : "-"}</b>
+                            Bot: <b>${inst?.botProfile?.username ? `${inst.botProfile.username}${inst.botProfile?.discriminator ? `#${inst.botProfile.discriminator}` : ""}` : "-"}</b>
+                          </div>
+                          <div className="muted2">
+                            Token: <b>${inst?.hasBotToken ? "Configurado" : "Pendente"}</b>
+                          </div>
+                          <div className="muted2">
+                            Integracao API: <b className="mono">${inst.apiKeyLast4 ? `****${inst.apiKeyLast4}` : "-"}</b>
+                          </div>
+                        </div>
+
+                        <div className="stack" style=${{ marginTop: "10px", gap: "8px" }}>
+                          <input
+                            className="input mono"
+                            type="password"
+                            placeholder=${inst?.hasBotToken ? "Atualizar token do bot" : "Cole o token do bot do cliente"}
+                            value=${asString(tokenDraftByInstance?.[asString(inst.id)] || "")}
+                            onInput=${(e) =>
+                              setTokenDraftByInstance((prev) => ({ ...prev, [asString(inst.id)]: asString(e.target.value) }))
+                            }
+                          />
+                          <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <${Button}
+                              variant="subtle"
+                              disabled=${busy || savingTokenFor === asString(inst.id)}
+                              onClick=${() => onSaveBotToken(inst.id)}
+                            >
+                              ${savingTokenFor === asString(inst.id) ? "Validando..." : "Salvar token"}
+                            </${Button}>
+                            <${Button}
+                              variant="danger"
+                              disabled=${busy || !inst?.hasBotToken || clearingTokenFor === asString(inst.id)}
+                              onClick=${() => onClearBotToken(inst.id)}
+                            >
+                              ${clearingTokenFor === asString(inst.id) ? "Removendo..." : "Remover token"}
+                            </${Button}>
                           </div>
                         </div>
 
@@ -1371,18 +1499,17 @@ function Dashboard({ route, me, refreshMe, toast }) {
                             variant="subtle"
                             disabled=${busy}
                             onClick=${() => {
-                              if (inst.discordGuildId) onInvite(inst.discordGuildId);
+                              if (inst.discordGuildId) onInvite(inst.discordGuildId, inst.id);
                               else openEditInstance(inst);
                             }}
                           >
-                            Convidar bot
+                            Invite desta instancia
                           </${Button}>
-                          <${Button} variant="subtle" disabled=${busy} onClick=${() => onRotateKey(inst.id)}>Nova API key</${Button}>
                           <${Button} variant="danger" disabled=${busy} onClick=${() => onDeleteInstance(inst.id)}>Excluir</${Button}>
                         </div>
 
                         <div className="help" style=${{ marginTop: "10px" }}>
-                          Vincule o servidor em <b>Editar/Vincular</b> e convide o bot. (Opcional: use <span className="mono"><b>!link SUA_API_KEY</b></span>.)
+                          Vincule o servidor em <b>Editar/Vincular</b>, mantenha token valido e gere o invite desta instancia.
                         </div>
                       </div>
                     `
@@ -1406,7 +1533,15 @@ function Dashboard({ route, me, refreshMe, toast }) {
                         <b>${g.name}</b>
                         <div className="muted2" style=${{ fontSize: "12px" }}>${g.id}</div>
                       </div>
-                      <${Button} variant="ghost" onClick=${() => onInvite(g.id)}>Convidar Bot</${Button}>
+                      <${Button}
+                        variant="ghost"
+                        onClick=${() => {
+                          if (!firstInstance) return toast("Instancia ausente", "Crie sua instancia antes de convidar o bot.", "bad");
+                          onInvite(g.id, firstInstance.id);
+                        }}
+                      >
+                        Convidar bot da instancia
+                      </${Button}>
                     </div>
                   `
                 )
@@ -1621,7 +1756,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
                     <${Button} variant="subtle" disabled=${busy} onClick=${onChangePassword}>Salvar nova senha</${Button}>
                   </div>
                   <div className="help">
-                    Nunca compartilhe sua senha ou suas API keys. Se suspeitar de acesso indevido, troque sua senha e gere uma nova API key.
+                    Nunca compartilhe sua senha nem o token do seu bot. Se suspeitar de acesso indevido, troque as credenciais imediatamente.
                   </div>
                 </div>
               `
@@ -1633,33 +1768,6 @@ function Dashboard({ route, me, refreshMe, toast }) {
         </div>
       </div>
       ` : null}
-
-      <${Modal}
-        open=${apiKeyModal.open}
-        title=${apiKeyModal.title || "API key"}
-        onClose=${() => setApiKeyModal({ open: false, title: "", apiKey: "" })}
-      >
-        <div className="muted">
-          Salve esta API key agora. Depois que fechar, ela nao aparece novamente.
-        </div>
-        <div className="code mono">${apiKeyModal.apiKey || ""}</div>
-        <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
-          <${Button}
-            variant="primary"
-            onClick=${async () => {
-              const ok = await copyToClipboard(apiKeyModal.apiKey || "");
-              if (ok) toast("Copiado", "API key copiada para a area de transferencia.", "good");
-              else window.prompt("Copie sua API key:", apiKeyModal.apiKey || "");
-            }}
-          >
-            Copiar API key
-          </${Button}>
-          <${Button} variant="ghost" onClick=${() => setApiKeyModal({ open: false, title: "", apiKey: "" })}>Fechar</${Button}>
-        </div>
-        <div className="help" style=${{ marginTop: "10px" }}>
-          Opcional: no Discord, rode <span className="mono"><b>!link SUA_API_KEY</b></span> (admin).
-        </div>
-      </${Modal}>
 
       <${Modal} open=${edit.open} title="Editar instancia" onClose=${closeEditInstance}>
         <div className="formGrid">
@@ -1803,7 +1911,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
           <${Button}
             variant="subtle"
             disabled=${busy || !asString(edit.guildId).trim()}
-            onClick=${() => onInvite(asString(edit.guildId).trim())}
+            onClick=${() => onInvite(asString(edit.guildId).trim(), asString(edit.id).trim())}
           >
             Convidar bot
           </${Button}>
@@ -2182,9 +2290,9 @@ function Tutorials() {
         <div className="card pad">
           <h3 className="sectionTitle" style=${{ marginTop: 0 }}>4) Criar sua instancia</h3>
           <div className="muted">
-            Em <b>Instancias</b>, clique em <b>Criar instancia</b> e defina um nome.
+            Em <b>Instancias</b>, clique em <b>Criar instancia</b>, defina um nome e informe o token do bot do cliente.
             <br />
-            A <b>API key</b> aparece <b>uma unica vez</b> (guarde em local seguro).
+            O token e validado na hora. Cada assinatura ativa libera <b>1 bot/instancia</b>.
           </div>
         </div>
         <div className="card pad">
@@ -2200,7 +2308,7 @@ function Tutorials() {
           <div className="muted">
             Crie uma categoria para carrinhos/atendimento, defina uma role de staff e mantenha um canal de logs.
             <br />
-            Evite compartilhar sua API key e ative 2FA na conta do Discord.
+            Evite compartilhar token/senha e ative 2FA na conta do Discord.
           </div>
         </div>
       </div>
@@ -2232,7 +2340,7 @@ function Terms() {
         <h3 className="sectionTitle" style=${{ marginTop: 0 }}>2) Conta e seguranca</h3>
         <div className="muted">
           Voce e responsavel por manter sua conta segura, incluindo senha (quando usar login por email) e acesso ao Discord.
-          Nao compartilhe sua API key. Se suspeitar de acesso indevido, troque suas credenciais e contate o suporte.
+          Nao compartilhe token do bot ou credenciais. Se suspeitar de acesso indevido, troque suas credenciais e contate o suporte.
         </div>
 
         <div style=${{ height: "12px" }}></div>

@@ -6,6 +6,15 @@ Cada entrada resume o impacto funcional entregue no commit correspondente.
 
 ## Linha do Tempo
 
+### 2026-02-21
+**Unificacao do portal na 3100 + fluxo 1 bot por assinatura**
+- Portal oficial consolidado na porta `3100` com desligamento da stack paralela da `3200`.
+- Dashboard principal mantida no visual original e com onboarding focado em token de bot.
+- Criacao de instancia passou a exigir token valido do bot no primeiro passo.
+- Fluxo comercial alinhado para `1 instancia/bot` por assinatura ativa.
+- Fundo em video (`painel.mp4`) aplicado no portal principal para consistencia visual.
+- Docker ajustado para operar apenas o container oficial do bot/portal na `3100`.
+
 ### `9c56eb7` - 2026-02-21
 **Require bot token on instance creation, add dashboard video bg, and dockerize bot/site**
 - Criacao de instancia passou a exigir token do bot do cliente no primeiro passo.

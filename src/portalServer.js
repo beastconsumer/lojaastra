@@ -346,7 +346,7 @@ function getPlanCatalog() {
       features: [
         "Sistema de vendas completo",
         "Dashboard e carteira",
-        "Instancias e API keys",
+        "1 bot por assinatura",
         "Automacao e onboarding"
       ]
     }
@@ -355,7 +355,7 @@ function getPlanCatalog() {
 
 function getMaxInstancesForTier(tier) {
   const value = asString(tier).toLowerCase();
-  if (value === "start") return 3;
+  if (value === "start") return 1;
   if (value === "trial") return 1;
   return 0;
 }
