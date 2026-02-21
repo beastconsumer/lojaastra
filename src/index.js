@@ -2579,17 +2579,15 @@ function buildCartMessage(cart, product, variant) {
   );
 
   const components = [row1, row2];
-  if (config.showAdminConfirmButton === true) {
-    const disableAdminConfirm = cart.status === 'paid' || cart.status === 'cancelled' || cart.status === 'expired';
-    const row3 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('cart_admin_confirm:' + cart.id)
-        .setLabel('Confirmar compra (admin)')
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(disableAdminConfirm)
-    );
-    components.push(row3);
-  }
+  const disableAdminConfirm = cart.status === 'paid' || cart.status === 'cancelled' || cart.status === 'expired';
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('cart_admin_confirm:' + cart.id)
+      .setLabel('Confirmar Pagamento (Admin)')
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(disableAdminConfirm)
+  );
+  components.push(row3);
 
   return { embeds, files, components };
 }
