@@ -34,14 +34,28 @@
       "productId": "product1",
       "variantId": "1d",
       "quantity": 1,
-      "status": "open",
+      "status": "expired",
       "createdAt": "2026-02-21T14:37:12.091Z",
-      "updatedAt": "2026-02-21T14:38:04.691Z",
+      "updatedAt": "2026-02-21T14:44:38.574Z",
       "lastActivityAt": "2026-02-21T14:38:04.691Z",
       "channelId": "1474776981026635778",
       "messageId": "1474777000064585892",
       "couponCode": "4444",
       "discountPercent": 44
+    },
+    {
+      "id": "943c45df-526a-4d77-90d2-e78d232c849a",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "1d",
+      "quantity": 1,
+      "status": "pending",
+      "createdAt": "2026-02-21T14:48:02.716Z",
+      "updatedAt": "2026-02-21T14:48:11.852Z",
+      "lastActivityAt": "2026-02-21T14:48:11.852Z",
+      "channelId": "1474779709312335923",
+      "messageId": "1474779718183030785"
     }
   ]
 }

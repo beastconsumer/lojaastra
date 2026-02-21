@@ -2773,15 +2773,22 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
   const discountValue = Math.max(0, Number((baseTotal - finalTotal).toFixed(2)));
 
   const productsLine = `${formatCurrency(unitPrice)} - ${label} (${quantity} unidade${quantity === 1 ? "" : "s"})`;
+  const pixPayload = asString(payment?.payload).trim();
+  const pixInstructions = asString(config.pixInstructions || "Leia com atencao. Pague pelo Pix e aguarde a confirmacao.");
+  const pixCodeForEmbed = pixPayload
+    ? `\`\`\`\n${pixPayload.length > 960 ? `${pixPayload.slice(0, 957)}...` : pixPayload}\n\`\`\``
+    : "Codigo PIX indisponivel no momento. Tente gerar novamente.";
 
   const embed = new EmbedBuilder()
     .setTitle("Confirmacao de Compra")
     .setColor(cartColor)
-    .setDescription("Verifique se os produtos estao corretos e efetue o pagamento.")
+    .setDescription("Verifique se os produtos estao corretos e efetue o pagamento.\nUse o QR Code abaixo ou o codigo Copia e Cola.")
     .addFields(
       { name: "Produtos:", value: productsLine, inline: false },
       { name: "Valor Total:", value: formatCurrency(finalTotal), inline: false },
-      { name: "Desconto:", value: formatCurrency(discountValue), inline: false }
+      { name: "Desconto:", value: formatCurrency(discountValue), inline: false },
+      { name: "PIX Copia e Cola:", value: pixCodeForEmbed, inline: false },
+      { name: "Instrucoes:", value: truncateForEmbed(pixInstructions, 900), inline: false }
     );
 
   const footerText = String(config.cartFooterText || "").trim();
@@ -2789,15 +2796,38 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
     embed.setFooter({ text: footerText });
   }
 
-  const row1 = new ActionRowBuilder().addComponents(
+  const files = [];
+  const qrFileName = `pix-${String(payment?.paymentId || cart?.id || "code")}.png`;
+  let qrBuffer = null;
+
+  if (payment?.encodedImage) {
+    try {
+      const raw = String(payment.encodedImage);
+      const base64 = raw.includes(",") ? raw.split(",").pop() : raw;
+      qrBuffer = Buffer.from(base64 || "", "base64");
+      if (!qrBuffer || !qrBuffer.length) qrBuffer = null;
+    } catch {
+      qrBuffer = null;
+    }
+  }
+  if (!qrBuffer && pixPayload) {
+    try {
+      qrBuffer = await QRCode.toBuffer(pixPayload);
+    } catch {
+      qrBuffer = null;
+    }
+  }
+  if (qrBuffer) {
+    files.push(new AttachmentBuilder(qrBuffer, { name: qrFileName }));
+    embed.setImage(`attachment://${qrFileName}`);
+  }
+
+  const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`pix_copy:${payment.paymentId}`)
       .setLabel("Codigo Copia e Cola")
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`pix_qr:${payment.paymentId}`).setLabel("QR Code").setStyle(ButtonStyle.Secondary)
-  );
-
-  const row2 = new ActionRowBuilder().addComponents(
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!pixPayload),
     new ButtonBuilder()
       .setCustomId(`pix_terms:${payment.paymentId}`)
       .setLabel("Termos e Condicoes")
@@ -2805,7 +2835,7 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
     new ButtonBuilder().setCustomId(`cart_cancel:${cart.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger)
   );
 
-  await channel.send({ embeds: [embed], components: [row1, row2] });
+  await channel.send({ embeds: [embed], components: [row], files });
 
   cart.status = "pending";
   cart.updatedAt = new Date().toISOString();

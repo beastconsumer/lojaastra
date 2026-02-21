@@ -75,6 +75,44 @@
       ],
       "deliveredAt": "2026-02-07T00:30:17.256Z",
       "deliveryId": "d4a70d50-8bba-4d82-a017-92fef67363fc"
+    },
+    {
+      "id": "53a173c1-10d2-4cc7-a0b2-32224e970666",
+      "cartId": "943c45df-526a-4d77-90d2-e78d232c849a",
+      "paymentId": "146484154485",
+      "paymentProvider": "mercadopago",
+      "providerStatus": "pending",
+      "providerStatusDetail": "pending_waiting_transfer",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "1d",
+      "channelId": "1474779709312335923",
+      "couponCode": null,
+      "discountPercent": 0,
+      "quantity": 1,
+      "value": 29.9,
+      "valueCents": 2990,
+      "instanceId": "",
+      "ownerDiscordUserId": "",
+      "pixPayload": "00020126580014br.gov.bcb.pix0136828f180f-bfb4-4317-a85c-b853b6652094520400005303986540529.905802BR5905ALUGA6009Sao Paulo62250521mpqrinter1464841544856304851B",
+      "pixTicketUrl": "https://www.mercadopago.com.br/payments/146484154485/ticket?caller_id=196631468&hash=a7f63284-86d2-4bcf-bb1b-611b6a2220b3",
+      "status": "pending",
+      "createdAt": "2026-02-21T14:48:10.472Z",
+      "updatedAt": "2026-02-21T14:49:37.183Z",
+      "events": [
+        {
+          "id": "643fe2ee-d62d-4bb6-96c2-06175cc11693",
+          "type": "payment_created",
+          "at": "2026-02-21T14:48:10.472Z",
+          "details": {
+            "paymentId": "146484154485",
+            "provider": "mercadopago",
+            "source": "pix",
+            "actor": "1408232046081478717"
+          }
+        }
+      ]
     }
   ]
 }
