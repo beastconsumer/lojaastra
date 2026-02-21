@@ -763,7 +763,7 @@ async function handleButton(interaction) {
 
     const embed = new EmbedBuilder()
       .setTitle("ðŸ·ï¸ Menu de Cupons")
-      .setDescription("â”ƒ â€¢ Escolha uma aÃ§Ã£o para cupons.")
+      .setDescription("- Escolha uma acao para cupons.")
       .setColor(BRAND_COLOR);
 
     const row = new ActionRowBuilder().addComponents(
@@ -1270,7 +1270,7 @@ async function handleButton(interaction) {
     await sendSystemEmbed(
       interaction.channel,
       "Carrinho cancelado",
-      "Carrinho cancelado pelo usuÃ¡rio.\nSe precisar, abra um novo carrinho pelo menu do produto.",
+      "Carrinho cancelado pelo usuario.\nSe precisar, abra um novo carrinho pelo menu do produto.",
       "danger"
     );
     await touchCartActivity(cart.id);
@@ -1448,7 +1448,7 @@ async function handleModalSubmit(interaction) {
     await interaction.reply({ content: `Cupom ${code} aplicado.`, flags: MessageFlags.Ephemeral });
     const quantity = getCartQuantity(cart);
     const finalPrice = product && variant ? applyDiscount(variant.price * quantity, cart.discountPercent) : null;
-    const priceLine = finalPrice ? `PreÃ§o Total: **${formatCurrency(finalPrice)}**` : null;
+    const priceLine = finalPrice ? `Preco Total: **${formatCurrency(finalPrice)}**` : null;
     await sendSystemEmbed(
       interaction.channel,
       "Cupom aplicado",
@@ -2533,13 +2533,6 @@ function buildCartMessage(cart, product, variant) {
 
   embeds.push(main);
 
-  // Bottom image embed: user asked it to match the same visual size/feel as the pre-GIF/banner.
-  const bottomPath = String(config.cartBottomImage || '').trim() || product.bannerImage || product.prePostGif || '';
-  const bottom = attachIfExists(bottomPath, files);
-  if (bottom) {
-    embeds.push(new EmbedBuilder().setImage('attachment://' + bottom.name));
-  }
-
   const disableOpenActions = cart.status !== 'open';
   const disablePay = cart.status === 'pending' || cart.status === 'paid' || cart.status === 'cancelled' || cart.status === 'expired';
   const disableCancel = cart.status === 'paid' || cart.status === 'cancelled' || cart.status === 'expired';
@@ -2765,9 +2758,9 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
   const productsLine = `${formatCurrency(unitPrice)} - ${label} (${quantity} unidade${quantity === 1 ? "" : "s"})`;
 
   const embed = new EmbedBuilder()
-    .setTitle("ConfirmaÃ§Ã£o de Compra")
+    .setTitle("Confirmacao de Compra")
     .setColor(cartColor)
-    .setDescription("Verifique se os produtos estÃ£o corretos e efetue o pagamento.")
+    .setDescription("Verifique se os produtos estao corretos e efetue o pagamento.")
     .addFields(
       { name: "Produtos:", value: productsLine, inline: false },
       { name: "Valor Total:", value: formatCurrency(finalTotal), inline: false },
@@ -2782,7 +2775,7 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`pix_copy:${payment.paymentId}`)
-      .setLabel("CÃ³digo Copia e Cola")
+      .setLabel("Codigo Copia e Cola")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`pix_qr:${payment.paymentId}`).setLabel("QR Code").setStyle(ButtonStyle.Secondary)
   );
@@ -2790,7 +2783,7 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
   const row2 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`pix_terms:${payment.paymentId}`)
-      .setLabel("Termos e CondiÃ§Ãµes")
+      .setLabel("Termos e Condicoes")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`cart_cancel:${cart.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger)
   );
@@ -2987,7 +2980,7 @@ function applyConfigDefaults() {
       systemBanner: "assets/product1/astraprojectbanner.gif",
       cartColor: DEFAULT_CART_COLOR,
       cartFooterText: "Todos os direitos reservados a AstraSystems (c) 2026",
-      termsText: "Termos e CondiÃ§Ãµes: pagamento via Pix, produto digital, entrega automÃ¡tica. Em caso de dÃºvidas, fale com a equipe.",
+      termsText: "Termos e Condicoes: pagamento via Pix, produto digital, entrega automatica. Em caso de duvidas, fale com a equipe.",
       cartBottomImage: "",
       showAdminConfirmButton: false,
       maxAttachmentBytes: DEFAULT_MAX_ATTACHMENT_BYTES,
@@ -3648,7 +3641,7 @@ function buildSystemEmbedPayload(title, description, tone = "info", options = {}
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((line) => (line.startsWith("â”ƒ") ? line : `â”ƒ ${line}`));
+      .map((line) => (line.startsWith("- ") ? line : `- ${line}`));
     if (lines.length) embed.setDescription(lines.join("\n"));
   }
 
@@ -3702,11 +3695,11 @@ async function notifyStaffLog(title, details = {}) {
   if (!channel) return;
 
   const lines = [];
-  if (details.userId) lines.push(`UsuÃ¡rio: <@${details.userId}> (${details.userId})`);
+  if (details.userId) lines.push(`Usuario: <@${details.userId}> (${details.userId})`);
   if (details.cartId) lines.push(`Carrinho: ${details.cartId}`);
   if (details.channelId) lines.push(`Canal: <#${details.channelId}>`);
   if (details.productId) lines.push(`Produto: ${details.productId}`);
-  if (details.variantId) lines.push(`VariaÃ§Ã£o: ${details.variantId}`);
+  if (details.variantId) lines.push(`Variacao: ${details.variantId}`);
   if (details.code) lines.push(`Cupom: ${details.code}`);
   if (details.percent !== undefined && details.percent !== null) lines.push(`Desconto: ${details.percent}%`);
   if (details.finalPrice) lines.push(`Total: ${details.finalPrice}`);
