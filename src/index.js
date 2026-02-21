@@ -937,8 +937,9 @@ async function handleButton(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     try {
       const result = await confirmCartPurchaseByAdmin(cart, interaction.user.id);
-      if (interaction.channel && result.product && result.variant) {
-        await sendOrUpdateCartMessage(interaction.channel, cart, result.product, result.variant);
+      const cartChannel = cart.channelId ? await client.channels.fetch(cart.channelId).catch(() => null) : null;
+      if (cartChannel && cartChannel.isTextBased && cartChannel.isTextBased() && result.product && result.variant) {
+        await sendOrUpdateCartMessage(cartChannel, cart, result.product, result.variant);
       }
       if (!result.ok) {
         if (result.reason === "confirmacao em andamento") {
@@ -953,13 +954,33 @@ async function handleButton(interaction) {
         return;
       }
 
-      if (interaction.channel && interaction.channel.isTextBased && interaction.channel.isTextBased()) {
+      if (cartChannel && cartChannel.isTextBased && cartChannel.isTextBased()) {
         await sendSystemEmbed(
-          interaction.channel,
+          cartChannel,
           "Compra confirmada pela equipe",
           `Pedido confirmado manualmente por <@${interaction.user.id}>.\nEntrega processada para <@${cart.userId}>.`,
           "success"
         );
+      }
+      if (cart.adminActionChannelId && cart.adminActionMessageId) {
+        const staffChannel = await client.channels.fetch(cart.adminActionChannelId).catch(() => null);
+        if (staffChannel && staffChannel.isTextBased && staffChannel.isTextBased()) {
+          const adminMsg = await staffChannel.messages.fetch(cart.adminActionMessageId).catch(() => null);
+          if (adminMsg) {
+            const disabledRow = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`cart_admin_confirm:${cart.id}`)
+                .setLabel("Pagamento Confirmado")
+                .setStyle(ButtonStyle.Success)
+                .setDisabled(true)
+            );
+            await adminMsg.edit({ components: [disabledRow] }).catch(() => null);
+          }
+        }
+        cart.adminActionMessageId = "";
+        cart.adminActionChannelId = "";
+        cart.updatedAt = new Date().toISOString();
+        saveJson(CARTS_PATH, cartsDb);
       }
       await notifyStaffLog("Compra confirmada (admin)", {
         guildId: cart.guildId,
@@ -2578,18 +2599,7 @@ function buildCartMessage(cart, product, variant) {
       .setDisabled(disableCancel)
   );
 
-  const components = [row1, row2];
-  const disableAdminConfirm = cart.status === 'paid' || cart.status === 'cancelled' || cart.status === 'expired';
-  const row3 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('cart_admin_confirm:' + cart.id)
-      .setLabel('Confirmar Pagamento (Admin)')
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(disableAdminConfirm)
-  );
-  components.push(row3);
-
-  return { embeds, files, components };
+  return { embeds, files, components: [row1, row2] };
 }
 async function createPixPayment(user, cart, product, variant) {
   logEnter("createPixPayment", { userId: user?.id, cartId: cart?.id, productId: product?.id, variantId: variant?.id });
@@ -2832,7 +2842,69 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
   cart.updatedAt = new Date().toISOString();
   cart.lastActivityAt = new Date().toISOString();
   saveJson(CARTS_PATH, cartsDb);
+  await sendAdminPaymentActionMessage(cart, product, variant, payment);
   logExit("sendPixMessage", { cartId: cart?.id });
+}
+
+async function sendAdminPaymentActionMessage(cart, product, variant, payment) {
+  const guildId = asString(cart?.guildId);
+  const instChannels = guildId ? getGuildChannelConfig(guildId) : { logsChannelId: "" };
+  const candidates = [asString(instChannels.logsChannelId), asString(config.staffLogChannelId)]
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!candidates.length) return;
+
+  let staffChannel = null;
+  for (const candidate of candidates) {
+    const fetched = await client.channels.fetch(candidate).catch(() => null);
+    if (!fetched || !fetched.isTextBased || !fetched.isTextBased()) continue;
+    if (guildId && fetched.guildId && String(fetched.guildId) !== String(guildId)) continue;
+    staffChannel = fetched;
+    break;
+  }
+  if (!staffChannel) return;
+
+  const quantity = getCartQuantity(cart);
+  const unitPrice = Number(variant?.price || 0);
+  const finalTotal = Number(payment?.finalPrice || applyDiscount(unitPrice * quantity, cart.discountPercent || 0));
+  const label = getCartProductLabel(product, variant);
+  const cartColor = Number.isFinite(Number(config.cartColor)) ? Number(config.cartColor) : DEFAULT_CART_COLOR;
+
+  const embed = new EmbedBuilder()
+    .setColor(cartColor)
+    .setTitle("Acao de Admin: Confirmar Pagamento")
+    .setDescription(
+      `Usuario: <@${cart.userId}>\nCanal do carrinho: <#${cart.channelId}>\nProduto: **${label}** x${quantity}\nValor: **${formatCurrency(finalTotal)}**`
+    )
+    .addFields(
+      { name: "Carrinho", value: String(cart.id), inline: true },
+      { name: "Pagamento", value: String(payment?.paymentId || "manual"), inline: true },
+      { name: "Status", value: String(cart.status || "open"), inline: true }
+    );
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`cart_admin_confirm:${cart.id}`)
+      .setLabel("Confirmar Pagamento (Admin)")
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  try {
+    if (cart.adminActionMessageId && cart.adminActionChannelId === staffChannel.id) {
+      const existing = await staffChannel.messages.fetch(cart.adminActionMessageId).catch(() => null);
+      if (existing) {
+        await existing.edit({ embeds: [embed], components: [row] });
+        return;
+      }
+    }
+    const msg = await staffChannel.send({ embeds: [embed], components: [row] });
+    cart.adminActionMessageId = msg.id;
+    cart.adminActionChannelId = staffChannel.id;
+    cart.updatedAt = new Date().toISOString();
+    saveJson(CARTS_PATH, cartsDb);
+  } catch (err) {
+    logError("sendAdminPaymentActionMessage", err, { cartId: cart?.id, guildId });
+  }
 }
 
 async function ensureCustomer(user, apiKey) {
