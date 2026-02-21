@@ -8,7 +8,10 @@ import {
   HandCoins,
   LayoutDashboard,
   Link2,
+  Pause,
+  Play,
   Plus,
+  RotateCcw,
   Rocket,
   ShoppingBag
 } from "https://esm.sh/lucide-react@0.468.0?external=react";
@@ -516,6 +519,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
   const [tokenDraftByInstance, setTokenDraftByInstance] = useState({});
   const [savingTokenFor, setSavingTokenFor] = useState("");
   const [clearingTokenFor, setClearingTokenFor] = useState("");
+  const [botActionFor, setBotActionFor] = useState("");
   const [editChannels, setEditChannels] = useState({ loading: false, error: "", channels: [] });
   const [edit, setEdit] = useState({
     open: false,
@@ -659,6 +663,16 @@ function Dashboard({ route, me, refreshMe, toast }) {
     return tier;
   }, [me]);
 
+  const getRuntimeMeta = (inst) => {
+    const status = asString(inst?.runtime?.status || (inst?.hasBotToken ? "configurado" : "nao_configurado")).toLowerCase();
+    if (status === "online") return { key: "online", label: "Online", pill: "good" };
+    if (status === "offline") return { key: "offline", label: "Offline", pill: "soon" };
+    if (status === "erro") return { key: "erro", label: "Erro", pill: "reco" };
+    if (status === "suspenso") return { key: "suspenso", label: "Suspenso", pill: "reco" };
+    if (status === "configurado") return { key: "configurado", label: "Configurado", pill: "soon" };
+    return { key: "nao_configurado", label: "Nao configurado", pill: "soon" };
+  };
+
   const onRequestWithdrawal = async () => {
     const key = asString(pixKey).trim();
     if (!key) return toast("Pix", "Informe sua chave Pix para receber.", "bad");
@@ -737,6 +751,8 @@ function Dashboard({ route, me, refreshMe, toast }) {
         toast("Token obrigatorio", "Informe o token do bot do cliente.", "bad");
       } else if (msg === "bot_token_invalido") {
         toast("Token invalido", "Nao foi possivel validar o token no Discord.", "bad");
+      } else if (msg === "bot_token_ja_em_uso") {
+        toast("Token duplicado", "Esse token ja esta em uso em outra instancia.", "bad");
       } else if (msg === "limite de instancias atingido para seu plano") {
         toast("Limite do plano", "Cada assinatura libera apenas 1 bot/instancia.", "bad");
       } else {
@@ -772,21 +788,65 @@ function Dashboard({ route, me, refreshMe, toast }) {
     setSavingTokenFor(id);
     setBusy(true);
     try {
-      await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot-token`, {
+      const data = await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot-token`, {
         method: "PUT",
         body: JSON.stringify({ token })
       });
       setTokenDraftByInstance((prev) => ({ ...prev, [id]: "" }));
       await load();
-      toast("Token atualizado", "Bot da instancia validado com sucesso.", "good");
+      if (asString(data?.warning)) {
+        toast("Token salvo", `Token validado, mas o start automatico falhou (${asString(data.warning)}).`, "bad");
+      } else {
+        toast("Token atualizado", "Bot da instancia validado e iniciado.", "good");
+      }
     } catch (err) {
       if (err?.message === "bot_token_invalido") {
         toast("Token invalido", "Nao foi possivel validar esse token.", "bad");
+      } else if (err?.message === "bot_token_ja_em_uso") {
+        toast("Token duplicado", "Esse token ja esta em uso em outra instancia.", "bad");
       } else {
         toast("Falha ao salvar token", err.message || "Erro interno", "bad");
       }
     } finally {
       setSavingTokenFor("");
+      setBusy(false);
+    }
+  };
+
+  const onBotRuntimeAction = async (instId, action) => {
+    const id = asString(instId);
+    if (!id) return;
+    const act = asString(action).toLowerCase();
+    if (!act) return;
+
+    setBotActionFor(`${act}:${id}`);
+    setBusy(true);
+    try {
+      await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot/${encodeURIComponent(act)}`, {
+        method: "POST",
+        body: "{}"
+      });
+      await load();
+      if (act === "start") toast("Bot iniciado", "Container da instancia foi iniciado.", "good");
+      else if (act === "stop") toast("Bot parado", "Container da instancia foi parado.", "good");
+      else toast("Bot reiniciado", "Container recriado com sucesso.", "good");
+    } catch (err) {
+      const msg = asString(err?.message || "erro interno");
+      if (msg === "plano_inativo") {
+        toast("Plano inativo", "Instancia suspensa ate reativar o plano.", "bad");
+        route.navigate("/plans");
+      } else if (msg === "bot_token_obrigatorio" || msg === "bot_token_invalido") {
+        toast("Token do bot", "Configure um token valido antes de iniciar.", "bad");
+      } else if (msg === "docker_unavailable" || msg === "docker_permission_denied") {
+        toast("Docker indisponivel", "Nao foi possivel acessar o Docker para gerenciar o bot.", "bad");
+      } else if (msg === "docker_image_missing") {
+        toast("Imagem ausente", "A imagem do bot por instancia nao foi encontrada.", "bad");
+      } else {
+        toast("Falha na operacao", msg, "bad");
+      }
+      await load();
+    } finally {
+      setBotActionFor("");
       setBusy(false);
     }
   };
@@ -1469,15 +1529,26 @@ function Dashboard({ route, me, refreshMe, toast }) {
             ? html`
                 <div className="stack" style=${{ marginTop: "14px" }}>
                   ${instances.map(
-                    (inst) => html`
+                    (inst) => {
+                      const meta = getRuntimeMeta(inst);
+                      const runtimeKey = meta.key;
+                      const actionKey = asString(inst.id);
+                      const actionBusy = busy || String(botActionFor || "").endsWith(`:${actionKey}`);
+                      const canStart = inst?.hasBotToken && runtimeKey !== "online" && runtimeKey !== "suspenso";
+                      const canStop = runtimeKey === "online";
+                      const canRestart = inst?.hasBotToken && runtimeKey !== "nao_configurado" && runtimeKey !== "suspenso";
+                      return html`
                       <div className="kpi">
                         <div style=${{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
                           <div style=${{ flex: 2, minWidth: "240px" }}>
                             <div style=${{ fontWeight: 900, fontSize: "16px" }}>${inst.name || "Instancia"}</div>
                             <div className="muted2 mono" style=${{ fontSize: "12px" }}>${inst.id}</div>
                           </div>
-                          <div className=${`pill ${inst.discordGuildId ? "good" : "soon"}`}>
-                            ${inst.discordGuildId ? "Servidor vinculado" : "Nao vinculado"}
+                          <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <div className=${`pill ${inst.discordGuildId ? "good" : "soon"}`}>
+                              ${inst.discordGuildId ? "Servidor vinculado" : "Nao vinculado"}
+                            </div>
+                            <div className=${`pill ${meta.pill}`}>Bot: ${meta.label}</div>
                           </div>
                         </div>
 
@@ -1492,6 +1563,9 @@ function Dashboard({ route, me, refreshMe, toast }) {
                           </div>
                           <div className="muted2">
                             Token: <b>${inst?.hasBotToken ? "Configurado" : "Pendente"}</b>
+                          </div>
+                          <div className="muted2">
+                            Operacao: <b>${meta.label}</b>
                           </div>
                           <div className="muted2">
                             Integracao API: <b className="mono">${inst.apiKeyLast4 ? `****${inst.apiKeyLast4}` : "-"}</b>
@@ -1511,17 +1585,43 @@ function Dashboard({ route, me, refreshMe, toast }) {
                           <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                             <${Button}
                               variant="subtle"
-                              disabled=${busy || savingTokenFor === asString(inst.id)}
+                              disabled=${busy || savingTokenFor === asString(inst.id) || clearingTokenFor === asString(inst.id)}
                               onClick=${() => onSaveBotToken(inst.id)}
                             >
                               ${savingTokenFor === asString(inst.id) ? "Validando..." : "Salvar token"}
                             </${Button}>
                             <${Button}
                               variant="danger"
-                              disabled=${busy || !inst?.hasBotToken || clearingTokenFor === asString(inst.id)}
+                              disabled=${busy || !inst?.hasBotToken || clearingTokenFor === asString(inst.id) || savingTokenFor === asString(inst.id)}
                               onClick=${() => onClearBotToken(inst.id)}
                             >
                               ${clearingTokenFor === asString(inst.id) ? "Removendo..." : "Remover token"}
+                            </${Button}>
+                          </div>
+                          <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <${Button}
+                              variant="primary"
+                              icon=${Play}
+                              disabled=${actionBusy || !canStart}
+                              onClick=${() => onBotRuntimeAction(inst.id, "start")}
+                            >
+                              ${botActionFor === `start:${actionKey}` ? "Iniciando..." : "Iniciar Bot"}
+                            </${Button}>
+                            <${Button}
+                              variant="ghost"
+                              icon=${Pause}
+                              disabled=${actionBusy || !canStop}
+                              onClick=${() => onBotRuntimeAction(inst.id, "stop")}
+                            >
+                              ${botActionFor === `stop:${actionKey}` ? "Parando..." : "Parar Bot"}
+                            </${Button}>
+                            <${Button}
+                              variant="subtle"
+                              icon=${RotateCcw}
+                              disabled=${actionBusy || !canRestart}
+                              onClick=${() => onBotRuntimeAction(inst.id, "restart")}
+                            >
+                              ${botActionFor === `restart:${actionKey}` ? "Reiniciando..." : "Reiniciar Bot"}
                             </${Button}>
                           </div>
                         </div>
@@ -1542,10 +1642,11 @@ function Dashboard({ route, me, refreshMe, toast }) {
                         </div>
 
                         <div className="help" style=${{ marginTop: "10px" }}>
-                          Vincule o servidor em <b>Editar/Vincular</b>, mantenha token valido e gere o invite desta instancia.
+                          Vincule o servidor em <b>Editar/Vincular</b>, mantenha token valido e gerencie o runtime com Iniciar/Parar/Reiniciar.
                         </div>
                       </div>
-                    `
+                    `;
+                    }
                   )}
                 </div>
               `
