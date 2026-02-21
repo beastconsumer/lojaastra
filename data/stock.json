@@ -1,3 +1,22 @@
 {
-  "stock": {}
+  "stock": {
+    "product1": {
+      "default": [],
+      "1d": [
+        "BSRAGE-1D-A1F9-7KQ2",
+        "BSRAGE-1D-B4L3-9MP8",
+        "BSRAGE-1D-C7N6-2RT5"
+      ],
+      "7d": [
+        "BSRAGE-7D-D2H8-4VX1",
+        "BSRAGE-7D-E5J1-6WY3",
+        "BSRAGE-7D-F9K4-8ZA7"
+      ],
+      "30d": [
+        "BSRAGE-30D-G3M7-1QC9",
+        "BSRAGE-30D-H6P2-5SD4",
+        "BSRAGE-30D-I8R5-7TF6"
+      ]
+    }
+  }
 }
