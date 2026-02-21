@@ -11,7 +11,7 @@ import {
   Plus,
   Rocket,
   ShoppingBag
-} from "https://esm.sh/lucide-react@0.468.0?external=react";
+} from "https://esm.sh/lucide-react@0.468.0?deps=react@18.2.0";
 
 const html = htm.bind(React.createElement);
 
