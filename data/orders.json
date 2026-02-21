@@ -99,7 +99,7 @@
       "pixTicketUrl": "https://www.mercadopago.com.br/payments/146484154485/ticket?caller_id=196631468&hash=a7f63284-86d2-4bcf-bb1b-611b6a2220b3",
       "status": "pending",
       "createdAt": "2026-02-21T14:48:10.472Z",
-      "updatedAt": "2026-02-21T14:57:41.791Z",
+      "updatedAt": "2026-02-21T15:06:58.103Z",
       "events": [
         {
           "id": "643fe2ee-d62d-4bb6-96c2-06175cc11693",
@@ -137,7 +137,7 @@
       "pixTicketUrl": "https://www.mercadopago.com.br/payments/147184958470/ticket?caller_id=196631468&hash=01568f83-1293-4598-a7f1-14ab09a16e18",
       "status": "pending",
       "createdAt": "2026-02-21T14:52:37.239Z",
-      "updatedAt": "2026-02-21T14:57:41.969Z",
+      "updatedAt": "2026-02-21T15:06:58.284Z",
       "events": [
         {
           "id": "8df80c5b-1521-4585-8906-ea12be42a08b",
@@ -151,6 +151,90 @@
           }
         }
       ]
+    },
+    {
+      "id": "3fae92b9-e8a0-4af2-a1f1-4685908f7b1d",
+      "cartId": "2cb6d47f-54de-4782-8b50-7b874c08c45a",
+      "paymentId": "manual-b5c2a870",
+      "paymentProvider": "manual",
+      "providerStatus": "MANUAL_CONFIRMED",
+      "providerStatusDetail": "",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "1d",
+      "channelId": "1474784449911722076",
+      "couponCode": null,
+      "discountPercent": 0,
+      "quantity": 1,
+      "value": 29.9,
+      "valueCents": 2990,
+      "instanceId": "",
+      "ownerDiscordUserId": "",
+      "status": "delivered",
+      "asaasStatus": "MANUAL_CONFIRMED",
+      "createdAt": "2026-02-21T15:07:01.383Z",
+      "updatedAt": "2026-02-21T15:07:01.395Z",
+      "manualConfirmedByUserId": "1408232046081478717",
+      "manualConfirmedAt": "2026-02-21T15:07:01.383Z",
+      "confirmedSource": "admin_button",
+      "confirmedByUserId": "1408232046081478717",
+      "confirmedAt": "2026-02-21T15:07:01.395Z",
+      "confirmations": [
+        {
+          "id": "694b221d-7af4-42c7-8aed-7391e469889f",
+          "source": "admin_button",
+          "byUserId": "1408232046081478717",
+          "at": "2026-02-21T15:07:01.383Z",
+          "note": "Compra confirmada manualmente"
+        },
+        {
+          "id": "ca1acafb-7c66-4443-a8c0-fdec59f974ef",
+          "source": "admin_button",
+          "byUserId": "1408232046081478717",
+          "at": "2026-02-21T15:07:01.387Z",
+          "note": "Pagamento confirmado"
+        },
+        {
+          "id": "f5154a1a-bf78-4a89-89e8-7fc5d6b927d6",
+          "source": "admin_button",
+          "byUserId": "1408232046081478717",
+          "at": "2026-02-21T15:07:01.395Z",
+          "note": "Entrega concluida"
+        }
+      ],
+      "events": [
+        {
+          "id": "74ac36c8-fbaf-4c21-8497-33cc6196d66d",
+          "type": "manual_confirm_request",
+          "at": "2026-02-21T15:07:01.383Z",
+          "details": {
+            "actor": "1408232046081478717",
+            "mode": "new_order"
+          }
+        },
+        {
+          "id": "084a10df-8d4f-4411-a0db-97eb4b94dca9",
+          "type": "delivery_success",
+          "at": "2026-02-21T15:07:01.395Z",
+          "details": {
+            "source": "admin_button",
+            "confirmedByUserId": "1408232046081478717",
+            "deliveryId": "cd4bfe17-77ba-44b5-9324-6add9939be79"
+          }
+        },
+        {
+          "id": "5f5d37f8-d583-4153-a71d-1e4ebf50ad8d",
+          "type": "manual_confirm_delivered",
+          "at": "2026-02-21T15:07:04.347Z",
+          "details": {
+            "actor": "1408232046081478717",
+            "reason": ""
+          }
+        }
+      ],
+      "deliveredAt": "2026-02-21T15:07:01.395Z",
+      "deliveryId": "cd4bfe17-77ba-44b5-9324-6add9939be79"
     }
   ]
 }

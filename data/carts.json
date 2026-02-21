@@ -72,6 +72,20 @@
       "messageId": "1474780807729123580",
       "couponCode": "4444",
       "discountPercent": 44
+    },
+    {
+      "id": "2cb6d47f-54de-4782-8b50-7b874c08c45a",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "1d",
+      "quantity": 1,
+      "status": "paid",
+      "createdAt": "2026-02-21T15:06:52.838Z",
+      "updatedAt": "2026-02-21T15:07:04.622Z",
+      "lastActivityAt": "2026-02-21T15:07:04.622Z",
+      "channelId": "1474784449911722076",
+      "messageId": "1474784466147872940"
     }
   ]
 }

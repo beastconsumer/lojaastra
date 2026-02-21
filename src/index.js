@@ -2206,8 +2206,8 @@ function buildProductMessage(product, options = {}) {
     .addOptions(
       limitedVariants.map((variant) => {
         const availableKeys = isInfiniteStock(product)
-          ? "infinite keys"
-          : `${Math.max(0, getAvailableStockCount(guildId, product.id, variant.id))} keys`;
+          ? "(estoque infinito)"
+          : `(estoque ${Math.max(0, getAvailableStockCount(guildId, product.id, variant.id))})`;
         const descriptionText = `${formatCurrency(variant.price)} - ${variant.duration} - ${availableKeys}`;
         const option = {
           label: truncateSelectOptionText(variant.label || `${product.shortLabel || product.name}`),
