@@ -99,7 +99,7 @@
       "pixTicketUrl": "https://www.mercadopago.com.br/payments/146484154485/ticket?caller_id=196631468&hash=a7f63284-86d2-4bcf-bb1b-611b6a2220b3",
       "status": "pending",
       "createdAt": "2026-02-21T14:48:10.472Z",
-      "updatedAt": "2026-02-21T14:49:37.183Z",
+      "updatedAt": "2026-02-21T14:55:04.156Z",
       "events": [
         {
           "id": "643fe2ee-d62d-4bb6-96c2-06175cc11693",
@@ -107,6 +107,44 @@
           "at": "2026-02-21T14:48:10.472Z",
           "details": {
             "paymentId": "146484154485",
+            "provider": "mercadopago",
+            "source": "pix",
+            "actor": "1408232046081478717"
+          }
+        }
+      ]
+    },
+    {
+      "id": "177a9d32-6637-4ece-8a13-6d441ddc6081",
+      "cartId": "681849a1-109b-4c3b-baf2-17de7f8ea927",
+      "paymentId": "147184958470",
+      "paymentProvider": "mercadopago",
+      "providerStatus": "pending",
+      "providerStatusDetail": "pending_waiting_transfer",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "7d",
+      "channelId": "1474780796702163075",
+      "couponCode": "4444",
+      "discountPercent": 44,
+      "quantity": 1,
+      "value": 31.92,
+      "valueCents": 3192,
+      "instanceId": "",
+      "ownerDiscordUserId": "",
+      "pixPayload": "00020126580014br.gov.bcb.pix0136828f180f-bfb4-4317-a85c-b853b6652094520400005303986540531.925802BR5905ALUGA6009Sao Paulo62250521mpqrinter14718495847063044DC0",
+      "pixTicketUrl": "https://www.mercadopago.com.br/payments/147184958470/ticket?caller_id=196631468&hash=01568f83-1293-4598-a7f1-14ab09a16e18",
+      "status": "pending",
+      "createdAt": "2026-02-21T14:52:37.239Z",
+      "updatedAt": "2026-02-21T14:55:04.331Z",
+      "events": [
+        {
+          "id": "8df80c5b-1521-4585-8906-ea12be42a08b",
+          "type": "payment_created",
+          "at": "2026-02-21T14:52:37.239Z",
+          "details": {
+            "paymentId": "147184958470",
             "provider": "mercadopago",
             "source": "pix",
             "actor": "1408232046081478717"

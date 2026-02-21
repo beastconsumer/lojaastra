@@ -56,6 +56,22 @@
       "lastActivityAt": "2026-02-21T14:48:11.852Z",
       "channelId": "1474779709312335923",
       "messageId": "1474779718183030785"
+    },
+    {
+      "id": "681849a1-109b-4c3b-baf2-17de7f8ea927",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "7d",
+      "quantity": 1,
+      "status": "pending",
+      "createdAt": "2026-02-21T14:52:21.845Z",
+      "updatedAt": "2026-02-21T14:52:39.427Z",
+      "lastActivityAt": "2026-02-21T14:52:39.427Z",
+      "channelId": "1474780796702163075",
+      "messageId": "1474780807729123580",
+      "couponCode": "4444",
+      "discountPercent": 44
     }
   ]
 }
