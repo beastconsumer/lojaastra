@@ -1023,16 +1023,31 @@ export function startPortalServer(options = {}) {
 
   app.post("/api/instances", requireUser, async (req, res) => {
     const name = asString(req.body?.name).trim();
+    const token = asString(req.body?.token || req.body?.botToken).trim();
     if (!name) return res.status(400).json({ error: "nome obrigatorio" });
     if (name.length > 48) return res.status(400).json({ error: "nome muito grande (max 48)" });
+    if (!token) return res.status(400).json({ error: "bot_token_obrigatorio" });
+
+    let profile = null;
+    try {
+      profile = await validateDiscordBotToken(token);
+    } catch (err) {
+      const code = asString(err?.message);
+      if (code === "bot_token_invalido" || code === "bot_token_missing") {
+        return res.status(400).json({ error: "bot_token_invalido" });
+      }
+      if (logError) logError("portal:instances:create:validateBotToken", err);
+      return res.status(500).json({ error: "falha_ao_validar_bot_token" });
+    }
 
     const apiKey = crypto.randomBytes(24).toString("base64url");
+    const now = nowIso();
     const instance = {
       id: randomId("inst"),
       ownerDiscordUserId: req.portalUser.discordUserId,
       name,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
+      createdAt: now,
+      updatedAt: now,
       branding: {
         brandName: "AstraSystems",
         accent: "#E6212A",
@@ -1043,16 +1058,21 @@ export function startPortalServer(options = {}) {
         salesChannelId: "",
         feedbackChannelId: ""
       },
-      botToken: { packed: "" },
+      botToken: {
+        packed: encryptJson(sessionSecret, {
+          token,
+          updatedAt: now
+        })
+      },
       botProfile: {
-        applicationId: "",
-        botUserId: "",
-        username: "",
-        discriminator: "",
-        avatar: "",
-        avatarUrl: "",
-        verified: false,
-        updatedAt: ""
+        applicationId: asString(profile.applicationId),
+        botUserId: asString(profile.botUserId),
+        username: asString(profile.username),
+        discriminator: asString(profile.discriminator),
+        avatar: asString(profile.avatar),
+        avatarUrl: asString(profile.avatarUrl),
+        verified: !!profile.verified,
+        updatedAt: now
       },
       discordGuildId: "",
       apiKeyLast4: apiKey.slice(-4),

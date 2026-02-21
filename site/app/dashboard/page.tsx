@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bot, Copy, ExternalLink, KeyRound, LogOut, Plus, RefreshCcw, Server, Trash2, Wallet } from "lucide-react";
+import { Bot, ExternalLink, KeyRound, LogOut, Plus, RefreshCcw, Server, Trash2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -164,12 +164,12 @@ export default function DashboardPage() {
   const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
 
   const [newInstanceName, setNewInstanceName] = useState("");
+  const [newInstanceToken, setNewInstanceToken] = useState("");
   const [creatingInstance, setCreatingInstance] = useState(false);
   const [savingBotTokenId, setSavingBotTokenId] = useState("");
   const [clearingBotTokenId, setClearingBotTokenId] = useState("");
   const [botTokenDraft, setBotTokenDraft] = useState<Record<string, string>>({});
   const [rotatingInstanceId, setRotatingInstanceId] = useState("");
-  const [newApiKey, setNewApiKey] = useState("");
   const [deletingInstanceId, setDeletingInstanceId] = useState("");
 
   const [withdrawAmount, setWithdrawAmount] = useState("50,00");
@@ -251,18 +251,21 @@ export default function DashboardPage() {
 
   async function handleCreateInstance() {
     const name = newInstanceName.trim();
+    const token = newInstanceToken.trim();
     if (!name) return setError("Informe o nome da instancia.");
+    if (!token) return setError("Informe o token do bot do cliente para criar a instancia.");
     try {
       setCreatingInstance(true);
       setError("");
-      const data = await apiJson<{ ok: true; apiKey: string }>("/api/instances", {
+      const data = await apiJson<{ ok: true; instance: Instance }>("/api/instances", {
         method: "POST",
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, token })
       });
-      setNewApiKey(data.apiKey || "");
       setNewInstanceName("");
+      setNewInstanceToken("");
       await loadDashboard();
-      setNotice("Instancia criada com sucesso.");
+      const botName = asString(data?.instance?.botProfile?.username);
+      setNotice(botName ? `Instancia criada com token validado (${botName}).` : "Instancia criada com token validado.");
     } catch (err: any) {
       setError(err?.message || "Falha ao criar instancia");
     } finally {
@@ -316,9 +319,16 @@ export default function DashboardPage() {
         method: "POST",
         body: "{}"
       });
-      setNewApiKey(data.apiKey || "");
+      const rotated = asString(data?.apiKey);
+      if (rotated) {
+        try {
+          await navigator.clipboard.writeText(rotated);
+          setNotice("API key rotacionada e copiada para a area de transferencia.");
+        } catch {
+          setNotice("API key rotacionada. Copie e armazene com seguranca.");
+        }
+      }
       await loadDashboard();
-      setNotice("API key rotacionada.");
     } catch (err: any) {
       setError(err?.message || "Falha ao rotacionar API key");
     } finally {
@@ -395,20 +405,10 @@ export default function DashboardPage() {
     }
   }
 
-  async function copyApiKey() {
-    if (!newApiKey) return;
-    try {
-      await navigator.clipboard.writeText(newApiKey);
-      setNotice("API key copiada.");
-    } catch {
-      setError("Nao foi possivel copiar a API key.");
-    }
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#06060b] px-6 py-14 text-white">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-[90rem]">
           <div className="astra-fade-up rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl">
             <p className="text-lg font-semibold">Carregando dashboard...</p>
           </div>
@@ -419,10 +419,18 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#06060b] text-white">
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        className="pointer-events-none fixed inset-0 -z-20 h-full w-full object-cover opacity-[0.2]"
+        src="/media/painel.mp4"
+      />
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_12%_18%,rgba(230,33,42,0.26),transparent_35%),radial-gradient(circle_at_80%_15%,rgba(255,77,87,0.22),transparent_37%),radial-gradient(circle_at_40%_90%,rgba(185,28,28,0.18),transparent_45%)]" />
 
       <header className="sticky top-0 z-20 border-b border-white/10 bg-black/35 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex w-full max-w-[90rem] items-center justify-between px-6 py-4">
           <div className="astra-fade-up">
             <p className="font-['Space_Grotesk'] text-2xl font-semibold tracking-tight">
               Astra<span className="text-red-400">Systems</span>
@@ -454,7 +462,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-7">
+      <main className="mx-auto flex w-full max-w-[90rem] flex-col gap-6 px-6 py-8">
         <section className="astra-fade-up grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {kpis.map((item, index) => {
             const Icon = item.icon;
@@ -465,7 +473,7 @@ export default function DashboardPage() {
                     <span className="text-xs uppercase tracking-[0.14em]">{item.label}</span>
                     <Icon className="astra-icon-float h-4 w-4" />
                   </div>
-                  <p className="font-['Space_Grotesk'] text-2xl font-semibold tracking-tight">{item.value}</p>
+                  <p className="font-['Space_Grotesk'] text-[1.8rem] font-semibold tracking-tight">{item.value}</p>
                 </CardContent>
               </Card>
             );
@@ -502,9 +510,9 @@ export default function DashboardPage() {
 
           <Card className="astra-fade-up astra-delay-3">
             <CardHeader>
-              <CardTitle>Criar instancia</CardTitle>
+              <CardTitle>Criar e ativar instancia</CardTitle>
               <CardDescription>
-                Crie a instancia e depois configure o token do bot do cliente para operar com nome/foto proprios.
+                Fluxo de producao: a instancia ja nasce com o token do bot do cliente validado.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -513,10 +521,16 @@ export default function DashboardPage() {
                 onChange={(e) => setNewInstanceName(e.target.value)}
                 placeholder="Nome da instancia (ex: Loja Principal)"
               />
+              <Input
+                type="password"
+                value={newInstanceToken}
+                onChange={(e) => setNewInstanceToken(e.target.value)}
+                placeholder="Token do bot do cliente (Discord Developer)"
+              />
               <div className="flex flex-wrap gap-2">
                 <Button onClick={handleCreateInstance} disabled={creatingInstance}>
                   <Plus className="mr-2 h-4 w-4" />
-                  {creatingInstance ? "Criando..." : "Criar instancia"}
+                  {creatingInstance ? "Validando e criando..." : "Criar com token"}
                 </Button>
                 <Button variant="outline" asChild>
                   <Link href="/tutorials">Ver tutoriais</Link>
@@ -530,13 +544,13 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Instancias</CardTitle>
             <CardDescription>
-              Novo fluxo: cada instancia usa o token do bot do cliente para gerar invite e operar com identidade propria.
+              Cada instancia opera com o token do bot do cliente (nome/foto/ID do proprio app).
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="mb-4 rounded-xl border border-amber-400/35 bg-amber-500/12 p-3 text-sm text-amber-100">
-              Fluxo recomendado: 1) crie a instancia, 2) valide/salve o token do bot do cliente, 3) gere o invite e adicione no servidor.
-              Depois rode o bot com esse mesmo token para liberar postagens e canais dessa instancia.
+              Fluxo recomendado: 1) crie com token valido, 2) gere o invite desse bot, 3) adicione no servidor certo.
+              Sempre rode o processo do bot com o mesmo token da instancia ativa para liberar postagens e canais.
             </div>
             {instances.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/20 bg-black/20 p-6 text-sm text-white/70">
@@ -578,7 +592,7 @@ export default function DashboardPage() {
                         Guild: <span className="text-white/90">{instance.discordGuildName || instance.discordGuildId || "-"}</span>
                       </p>
                       <p>
-                        API key: <span className="text-white/90">...{instance.apiKeyLast4 || "----"}</span>
+                        Integracao API: <span className="text-white/90">...{instance.apiKeyLast4 || "----"}</span>
                       </p>
                       <p>
                         Bot:{" "}
@@ -654,17 +668,17 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <section className="grid gap-4 lg:grid-cols-2">
+        <section>
           <Card className="astra-fade-up astra-delay-4">
             <CardHeader>
               <CardTitle>Saque via Pix</CardTitle>
               <CardDescription>Solicite saque do saldo acumulado para sua chave Pix.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-3">
                 <Input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="50,00" />
                 <Input
-                  className="sm:col-span-2"
+                  className="md:col-span-2"
                   value={withdrawPixKey}
                   onChange={(e) => setWithdrawPixKey(e.target.value)}
                   placeholder="Chave Pix"
@@ -674,26 +688,6 @@ export default function DashboardPage() {
                 <Input value={withdrawPixType} onChange={(e) => setWithdrawPixType(e.target.value)} placeholder="Tipo (cpf/email/aleatoria)" />
                 <Button onClick={handleRequestWithdrawal} disabled={requestingWithdrawal}>
                   {requestingWithdrawal ? "Enviando..." : "Solicitar saque"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="astra-fade-up astra-delay-4">
-            <CardHeader>
-              <CardTitle>Nova API key</CardTitle>
-              <CardDescription>
-                Sempre que criar/rotacionar, copie e guarde a chave completa em local seguro.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-xs text-white/90">
-                {newApiKey || "Nenhuma API key nova gerada nesta sessao."}
-              </div>
-              <div className="mt-3 flex gap-2">
-                <Button variant="outline" onClick={copyApiKey} disabled={!newApiKey}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar API key
                 </Button>
               </div>
             </CardContent>

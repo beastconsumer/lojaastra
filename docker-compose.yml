@@ -1,0 +1,39 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    container_name: astra-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORTAL_HOST: 0.0.0.0
+      ADMIN_PANEL_HOST: 0.0.0.0
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3100/health >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  site:
+    build:
+      context: ./site
+      dockerfile: Dockerfile
+      args:
+        PORTAL_BACKEND_ORIGIN: http://bot:3100
+    container_name: astra-site
+    restart: unless-stopped
+    depends_on:
+      bot:
+        condition: service_healthy
+    environment:
+      PORTAL_BACKEND_ORIGIN: http://bot:3100
+    ports:
+      - "3200:3200"
