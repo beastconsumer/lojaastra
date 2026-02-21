@@ -99,7 +99,7 @@
       "pixTicketUrl": "https://www.mercadopago.com.br/payments/146484154485/ticket?caller_id=196631468&hash=a7f63284-86d2-4bcf-bb1b-611b6a2220b3",
       "status": "pending",
       "createdAt": "2026-02-21T14:48:10.472Z",
-      "updatedAt": "2026-02-21T22:23:51.548Z",
+      "updatedAt": "2026-02-21T22:29:27.520Z",
       "events": [
         {
           "id": "643fe2ee-d62d-4bb6-96c2-06175cc11693",
@@ -137,7 +137,7 @@
       "pixTicketUrl": "https://www.mercadopago.com.br/payments/147184958470/ticket?caller_id=196631468&hash=01568f83-1293-4598-a7f1-14ab09a16e18",
       "status": "pending",
       "createdAt": "2026-02-21T14:52:37.239Z",
-      "updatedAt": "2026-02-21T22:23:51.725Z",
+      "updatedAt": "2026-02-21T22:29:27.708Z",
       "events": [
         {
           "id": "8df80c5b-1521-4585-8906-ea12be42a08b",
