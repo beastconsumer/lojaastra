@@ -58,6 +58,12 @@ Comandos:
 - `npm run site:build`
 - `npm run site:start` (porta 3200)
 
+### Fluxo por token do cliente (novo)
+- Cada instancia pode salvar o **token do bot do proprio cliente** no dashboard.
+- O portal valida o token com a API do Discord e guarda de forma protegida.
+- O invite passa a ser gerado com o `client_id` do bot desse token.
+- Assim cada cliente usa nome/foto/identidade proprios do bot criado no Discord Developer.
+
 ## Comandos
 - !produtos -> lista IDs de produtos e quantidade de variacoes
 - !postar <productId> [channelId] [--purge|--no-purge] -> posta qualquer produto

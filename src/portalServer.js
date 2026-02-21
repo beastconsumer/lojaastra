@@ -435,6 +435,48 @@ async function discordApiGet(url, accessToken) {
   return data;
 }
 
+async function discordBotApiGet(url, botToken) {
+  const token = asString(botToken);
+  if (!token) throw new Error("bot_token_missing");
+  const { data } = await axios.get(url, { headers: { Authorization: `Bot ${token}` } });
+  return data;
+}
+
+async function validateDiscordBotToken(botToken) {
+  const token = asString(botToken);
+  if (!token || token.length < 30) throw new Error("bot_token_invalido");
+
+  let me = null;
+  try {
+    me = await discordBotApiGet("https://discord.com/api/users/@me", token);
+  } catch {
+    throw new Error("bot_token_invalido");
+  }
+  if (!me?.id || !me?.username || me?.bot !== true) {
+    throw new Error("bot_token_invalido");
+  }
+
+  let app = null;
+  try {
+    app = await discordBotApiGet("https://discord.com/api/oauth2/applications/@me", token);
+  } catch {
+    app = null;
+  }
+
+  const applicationId = asString(app?.id || me?.id);
+  if (!applicationId) throw new Error("bot_token_invalido");
+
+  return {
+    applicationId,
+    botUserId: asString(me.id),
+    username: asString(me.username),
+    discriminator: asString(me.discriminator),
+    avatar: asString(me.avatar),
+    avatarUrl: getDiscordAvatarUrl(me.id, me.avatar),
+    verified: app?.bot_public !== undefined ? app.bot_public !== false : true
+  };
+}
+
 function getDiscordAvatarUrl(discordUserId, avatarHash) {
   if (!discordUserId || !avatarHash) return "";
   const ext = String(avatarHash).startsWith("a_") ? "gif" : "png";
@@ -539,6 +581,46 @@ export function startPortalServer(options = {}) {
   const portalFile = path.join(rootDir, "data", "portal.json");
   const store = options.store || createPortalStore({ filePath: portalFile, log });
   const instancesDir = path.join(rootDir, "data", "instances");
+
+  function toClientInstance(instance, extra = {}) {
+    const source = instance && typeof instance === "object" ? instance : {};
+    const botProfileRaw = source.botProfile && typeof source.botProfile === "object" ? source.botProfile : {};
+    const botProfile = {
+      applicationId: asString(botProfileRaw.applicationId),
+      botUserId: asString(botProfileRaw.botUserId),
+      username: asString(botProfileRaw.username),
+      discriminator: asString(botProfileRaw.discriminator),
+      avatar: asString(botProfileRaw.avatar),
+      avatarUrl: asString(botProfileRaw.avatarUrl),
+      verified: botProfileRaw.verified === undefined ? false : !!botProfileRaw.verified,
+      updatedAt: asString(botProfileRaw.updatedAt)
+    };
+    const hasBotToken = Boolean(asString(source?.botToken?.packed));
+
+    const {
+      apiKeyHash: _apiKeyHash,
+      botToken: _botToken,
+      ...safe
+    } = source;
+
+    return {
+      ...safe,
+      hasBotToken,
+      botProfile,
+      ...extra
+    };
+  }
+
+  function ensureRunningBotMatchesInstance(instance) {
+    const requiredClientId = asString(instance?.botProfile?.applicationId);
+    if (!requiredClientId) return { ok: true };
+    const runningClientId = asString(discordClient?.application?.id || discordClient?.user?.id);
+    if (!runningClientId) return { ok: false, reason: "bot_not_ready" };
+    if (runningClientId !== requiredClientId) {
+      return { ok: false, reason: "instance_requires_own_bot_token", requiredClientId, runningClientId };
+    }
+    return { ok: true };
+  }
 
   function instanceProductsPath(instanceId) {
     return path.join(instancesDir, instanceId, "products.json");
@@ -934,7 +1016,7 @@ export function startPortalServer(options = {}) {
     const list = store.listUserInstances(data, req.portalUser.discordUserId).map((inst) => {
       const gid = asString(inst?.discordGuildId);
       const botInGuild = ready && gid ? discordClient.guilds.cache.has(gid) : false;
-      return { ...inst, botInGuild };
+      return toClientInstance(inst, { botInGuild });
     });
     res.json({ ok: true, instances: list });
   });
@@ -960,6 +1042,17 @@ export function startPortalServer(options = {}) {
         logsChannelId: "",
         salesChannelId: "",
         feedbackChannelId: ""
+      },
+      botToken: { packed: "" },
+      botProfile: {
+        applicationId: "",
+        botUserId: "",
+        username: "",
+        discriminator: "",
+        avatar: "",
+        avatarUrl: "",
+        verified: false,
+        updatedAt: ""
       },
       discordGuildId: "",
       apiKeyLast4: apiKey.slice(-4),
@@ -997,7 +1090,7 @@ export function startPortalServer(options = {}) {
       });
 
     if (res.headersSent) return;
-    res.json({ ok: true, instance, apiKey });
+    res.json({ ok: true, instance: toClientInstance(instance), apiKey });
   });
 
   app.put("/api/instances/:id", requireUser, async (req, res) => {
@@ -1079,6 +1172,99 @@ export function startPortalServer(options = {}) {
     res.json({ ok: true });
   });
 
+  app.put("/api/instances/:id/bot-token", requireUser, async (req, res) => {
+    const instanceId = asString(req.params.id);
+    const token = asString(req.body?.token || req.body?.botToken).trim();
+    if (!token) return res.status(400).json({ error: "bot_token_obrigatorio" });
+
+    let profile = null;
+    try {
+      profile = await validateDiscordBotToken(token);
+    } catch (err) {
+      const code = asString(err?.message);
+      if (code === "bot_token_invalido" || code === "bot_token_missing") {
+        return res.status(400).json({ error: "bot_token_invalido" });
+      }
+      if (logError) logError("portal:instances:validateBotToken", err, { instanceId });
+      return res.status(500).json({ error: "falha_ao_validar_bot_token" });
+    }
+
+    let updatedInstance = null;
+    await store
+      .runExclusive(async () => {
+        const data = store.load();
+        const instance = data.instances.find((i) => i.id === instanceId) || null;
+        if (!instance) throw new Error("not_found");
+        if (String(instance.ownerDiscordUserId) !== String(req.portalUser.discordUserId)) throw new Error("forbidden");
+
+        const now = nowIso();
+        instance.botToken = {
+          packed: encryptJson(sessionSecret, {
+            token,
+            updatedAt: now
+          })
+        };
+        instance.botProfile = {
+          applicationId: asString(profile.applicationId),
+          botUserId: asString(profile.botUserId),
+          username: asString(profile.username),
+          discriminator: asString(profile.discriminator),
+          avatar: asString(profile.avatar),
+          avatarUrl: asString(profile.avatarUrl),
+          verified: !!profile.verified,
+          updatedAt: now
+        };
+        instance.updatedAt = now;
+        updatedInstance = instance;
+        store.save(data);
+      })
+      .catch((err) => {
+        const code = asString(err?.message);
+        if (code === "not_found") return res.status(404).json({ error: "instancia nao encontrada" });
+        if (code === "forbidden") return res.status(403).json({ error: "forbidden" });
+        if (logError) logError("portal:instances:setBotToken", err, { instanceId });
+        return res.status(500).json({ error: "erro interno" });
+      });
+
+    if (res.headersSent) return;
+    res.json({ ok: true, instance: toClientInstance(updatedInstance) });
+  });
+
+  app.delete("/api/instances/:id/bot-token", requireUser, async (req, res) => {
+    const instanceId = asString(req.params.id);
+    await store
+      .runExclusive(async () => {
+        const data = store.load();
+        const instance = data.instances.find((i) => i.id === instanceId) || null;
+        if (!instance) throw new Error("not_found");
+        if (String(instance.ownerDiscordUserId) !== String(req.portalUser.discordUserId)) throw new Error("forbidden");
+
+        instance.botToken = { packed: "" };
+        instance.botProfile = {
+          applicationId: "",
+          botUserId: "",
+          username: "",
+          discriminator: "",
+          avatar: "",
+          avatarUrl: "",
+          verified: false,
+          updatedAt: nowIso()
+        };
+        instance.updatedAt = nowIso();
+        store.save(data);
+      })
+      .catch((err) => {
+        const code = asString(err?.message);
+        if (code === "not_found") return res.status(404).json({ error: "instancia nao encontrada" });
+        if (code === "forbidden") return res.status(403).json({ error: "forbidden" });
+        if (logError) logError("portal:instances:clearBotToken", err, { instanceId });
+        return res.status(500).json({ error: "erro interno" });
+      });
+
+    if (res.headersSent) return;
+    res.json({ ok: true });
+  });
+
   app.get("/api/instances/:id/discord/channels", requireUser, async (req, res) => {
     const instanceId = asString(req.params.id);
     const data = req.portalData;
@@ -1086,6 +1272,12 @@ export function startPortalServer(options = {}) {
     if (!instance) return res.status(404).json({ error: "instancia nao encontrada" });
     if (String(instance.ownerDiscordUserId) !== String(req.portalUser.discordUserId)) {
       return res.status(403).json({ error: "forbidden" });
+    }
+
+    const botMatch = ensureRunningBotMatchesInstance(instance);
+    if (!botMatch.ok) {
+      if (botMatch.reason === "bot_not_ready") return res.status(409).json({ error: "bot_not_ready" });
+      return res.status(409).json({ error: "instance_requires_own_bot_token" });
     }
 
     const guildId = asString(req.query.guildId || instance.discordGuildId).trim();
@@ -1340,6 +1532,12 @@ export function startPortalServer(options = {}) {
       return res.status(403).json({ error: "forbidden" });
     }
 
+    const botMatch = ensureRunningBotMatchesInstance(instance);
+    if (!botMatch.ok) {
+      if (botMatch.reason === "bot_not_ready") return res.status(409).json({ error: "bot_not_ready" });
+      return res.status(409).json({ error: "instance_requires_own_bot_token" });
+    }
+
     if (!postProductToChannel) return res.status(409).json({ error: "post_indisponivel" });
     if (!discordClient || typeof discordClient.isReady !== "function" || !discordClient.isReady()) {
       return res.status(409).json({ error: "bot_not_ready" });
@@ -1462,9 +1660,26 @@ export function startPortalServer(options = {}) {
   });
 
   app.get("/api/bot/invite", requireUser, (req, res) => {
-    const clientId = oauthClientId || asString(discordClient?.user?.id);
+    const instanceId = asString(req.query.instanceId);
+    const guildIdRaw = asString(req.query.guildId);
+    let guildId = guildIdRaw;
+    let clientId = oauthClientId || asString(discordClient?.user?.id);
+
+    if (instanceId) {
+      const data = store.load();
+      const instance = (data.instances || []).find((entry) => String(entry.id) === instanceId) || null;
+      if (!instance) return res.status(404).json({ error: "instancia nao encontrada" });
+      if (String(instance.ownerDiscordUserId) !== String(req.portalUser.discordUserId)) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+
+      const instanceClientId = asString(instance?.botProfile?.applicationId);
+      if (!instanceClientId) return res.status(409).json({ error: "bot_token_nao_configurado" });
+      clientId = instanceClientId;
+      if (!guildId) guildId = asString(instance.discordGuildId);
+    }
+
     if (!clientId) return res.status(409).json({ error: "bot_client_id_missing" });
-    const guildId = asString(req.query.guildId);
     const perms = getInvitePermissions();
     const qs = new URLSearchParams({
       client_id: clientId,
