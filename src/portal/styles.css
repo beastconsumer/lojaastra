@@ -293,7 +293,8 @@ body {
   z-index: 2;
   opacity: 0;
   transition: opacity 0.18s ease;
-  background: radial-gradient(circle at var(--plan-gx) var(--plan-gy), rgb(var(--accent-rgb) / 0.38), transparent 60%);
+  background: transparent;
+  box-shadow: 0 0 0 1px rgb(var(--accent-rgb) / 0.26), 0 14px 30px rgb(var(--accent-rgb) / 0.14);
 }
 .plan:hover .outlineGlow { opacity: 1; }
 .plan.recommended { border-color: rgb(var(--accent-rgb) / 0.42); }
