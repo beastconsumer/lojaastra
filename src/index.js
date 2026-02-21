@@ -21,7 +21,8 @@ import {
   TextInputStyle,
   PermissionsBitField,
   ChannelType,
-  AttachmentBuilder
+  AttachmentBuilder,
+  MessageFlags
 } from "discord.js";
 import { randomUUID, createHash, createDecipheriv } from "crypto";
 
@@ -203,7 +204,7 @@ startPortalServer({
   purgeChannelMessages
 });
 
-client.on("ready", () => {
+client.once("clientReady", () => {
   log("info", "bot:ready", { tag: client.user.tag, pid: process.pid });
   log("info", "bot:path", { root: ROOT });
   log("info", "bot:data", { products: productsDb.products.length, productsPath: PRODUCTS_PATH });
@@ -284,9 +285,9 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isRepliable()) {
       const msg = "Ocorreu um erro. Avise um staff.";
       if (interaction.deferred || interaction.replied) {
-        await interaction.followUp({ content: msg, ephemeral: true });
+        await interaction.followUp({ content: msg, flags: MessageFlags.Ephemeral });
       } else {
-        await interaction.reply({ content: msg, ephemeral: true });
+        await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral });
       }
     }
   }
@@ -329,6 +330,7 @@ function parsePostCommand(messageContent) {
 }
 
 async function handlePortalCommand(message) {
+  const guildId = asString(message.guild?.id);
   const url = getPortalBaseUrl();
   const license = getGuildLicense(message.guild?.id);
   const planTier = license?.plan?.tier ? String(license.plan.tier) : "";
@@ -692,7 +694,7 @@ async function handleSelectMenu(interaction) {
   logEnter("handleSelectMenu", { userId: interaction.user?.id, customId: interaction.customId });
   if (!interaction.customId.startsWith("product_select:")) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const license = getGuildLicense(interaction.guildId);
   if (shouldEnforceLicense(interaction.guildId) && !license.ok) {
@@ -754,14 +756,14 @@ async function handleButton(interaction) {
 
   if (customId === "admin_create_coupon") {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:adminCreateCouponDenied", { userId: interaction.user.id });
       return;
     }
 
     const embed = new EmbedBuilder()
-      .setTitle("🏷️ Menu de Cupons")
-      .setDescription("┃ • Escolha uma ação para cupons.")
+      .setTitle("ðŸ·ï¸ Menu de Cupons")
+      .setDescription("â”ƒ â€¢ Escolha uma aÃ§Ã£o para cupons.")
       .setColor(BRAND_COLOR);
 
     const row = new ActionRowBuilder().addComponents(
@@ -783,14 +785,14 @@ async function handleButton(interaction) {
         .setStyle(ButtonStyle.Danger)
     );
 
-    await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    await interaction.reply({ embeds: [embed], components: [row], flags: MessageFlags.Ephemeral });
     logExit("handleButton:adminCreateCouponMenu", { userId: interaction.user.id });
     return;
   }
 
   if (customId === "admin_coupon_create_modal") {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:adminCreateCouponDenied", { userId: interaction.user.id });
       return;
     }
@@ -823,7 +825,7 @@ async function handleButton(interaction) {
 
   if (customId === "admin_list_coupons" || customId === "admin_coupon_list") {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:adminListCouponsDenied", { userId: interaction.user.id });
       return;
     }
@@ -832,14 +834,14 @@ async function handleButton(interaction) {
       .map((c) => `${c.code} | ${c.percent}% | ${c.active === false ? "inativo" : "ativo"}`)
       .join("\n");
     const content = list ? `Cupons:\n\`\`\`\n${list}\n\`\`\`` : "Nenhum cupom cadastrado.";
-    await interaction.reply({ content, ephemeral: true });
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
     logExit("handleButton:adminListCoupons", { userId: interaction.user.id, count: couponsDb.coupons.length });
     return;
   }
 
   if (customId === "admin_toggle_coupon" || customId === "admin_coupon_toggle") {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:adminToggleCouponDenied", { userId: interaction.user.id });
       return;
     }
@@ -862,7 +864,7 @@ async function handleButton(interaction) {
 
   if (customId === "admin_delete_coupon" || customId === "admin_coupon_delete") {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:adminDeleteCouponDenied", { userId: interaction.user.id });
       return;
     }
@@ -885,11 +887,11 @@ async function handleButton(interaction) {
 
   if (customId === "admin_post_product1" || customId.startsWith("admin_post_product:")) {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:adminPostDenied", { userId: interaction.user.id });
       return;
     }
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const productId = customId === "admin_post_product1" ? "product1" : customId.split(":")[1];
     if (!productId) {
       await interaction.editReply("Nenhum produto configurado para postagem.");
@@ -924,15 +926,15 @@ async function handleButton(interaction) {
     const cartId = customId.split(":")[1];
     const cart = cartsDb.carts.find((entry) => entry.id === cartId);
     if (!cart) {
-      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Apenas admins podem confirmar compra.", ephemeral: true });
+      await interaction.reply({ content: "Apenas admins podem confirmar compra.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:adminConfirmDenied", { userId: interaction.user.id, cartId });
       return;
     }
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     try {
       const result = await confirmCartPurchaseByAdmin(cart, interaction.user.id);
       if (interaction.channel && result.product && result.variant) {
@@ -982,17 +984,17 @@ async function handleButton(interaction) {
     const cartId = customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
     if (!cart) {
-      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartQtyNotFound", { cartId });
       return;
     }
     if (!canAccessCart(interaction, cart)) {
-      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este carrinho.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartQtyDenied", { cartId, userId: interaction.user.id });
       return;
     }
     if (cart.status !== "open") {
-      await interaction.reply({ content: "Nao e possivel alterar a quantidade neste status.", ephemeral: true });
+      await interaction.reply({ content: "Nao e possivel alterar a quantidade neste status.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1015,17 +1017,17 @@ async function handleButton(interaction) {
     const cartId = customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
     if (!cart) {
-      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartRemoveCouponNotFound", { cartId });
       return;
     }
     if (!canAccessCart(interaction, cart)) {
-      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este carrinho.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartRemoveCouponDenied", { cartId, userId: interaction.user.id });
       return;
     }
     if (cart.status !== "open") {
-      await interaction.reply({ content: "Nao e possivel remover cupom neste status.", ephemeral: true });
+      await interaction.reply({ content: "Nao e possivel remover cupom neste status.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1040,7 +1042,7 @@ async function handleButton(interaction) {
       await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
     }
 
-    await interaction.reply({ content: "Cupom removido.", ephemeral: true });
+    await interaction.reply({ content: "Cupom removido.", flags: MessageFlags.Ephemeral });
     await touchCartActivity(cart.id);
     return;
   }
@@ -1049,17 +1051,17 @@ async function handleButton(interaction) {
     const cartId = customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
     if (!cart) {
-      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartCouponNotFound", { cartId });
       return;
     }
     if (!canAccessCart(interaction, cart)) {
-      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este carrinho.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartCouponDenied", { cartId, userId: interaction.user.id });
       return;
     }
     if (cart.status !== "open") {
-      await interaction.reply({ content: "Nao e possivel adicionar cupom neste status.", ephemeral: true });
+      await interaction.reply({ content: "Nao e possivel adicionar cupom neste status.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1083,35 +1085,35 @@ async function handleButton(interaction) {
     const cartId = customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
     if (!cart) {
-      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartPayNotFound", { cartId });
       return;
     }
     if (!canAccessCart(interaction, cart)) {
-      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este carrinho.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartPayDenied", { cartId, userId: interaction.user.id });
       return;
     }
     if (cart.status === "cancelled") {
-      await interaction.reply({ content: "Carrinho cancelado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho cancelado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartPayCancelled", { cartId });
       return;
     }
     if (cart.status === "paid") {
-      await interaction.reply({ content: "Este carrinho ja foi finalizado.", ephemeral: true });
+      await interaction.reply({ content: "Este carrinho ja foi finalizado.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (cart.status === "expired") {
-      await interaction.reply({ content: "Este carrinho expirou. Abra um novo carrinho para comprar.", ephemeral: true });
+      await interaction.reply({ content: "Este carrinho expirou. Abra um novo carrinho para comprar.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (cart.status === "pending") {
-      await interaction.reply({ content: "Pix ja gerado. Aguarde a confirmacao.", ephemeral: true });
+      await interaction.reply({ content: "Pix ja gerado. Aguarde a confirmacao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartPayPending", { cartId });
       return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const license = getGuildLicense(cart.guildId);
     if (shouldEnforceLicense(cart.guildId) && !license.ok) {
@@ -1164,18 +1166,18 @@ async function handleButton(interaction) {
     const paymentId = customId.split(":")[1];
     const order = ordersDb.orders.find((o) => o.paymentId === paymentId);
     if (!order) {
-      await interaction.reply({ content: "Pagamento nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Pagamento nao encontrado.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (interaction.user?.id !== order.userId && !isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao para este pagamento.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este pagamento.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (!order.pixPayload) {
-      await interaction.reply({ content: "Codigo Pix indisponivel.", ephemeral: true });
+      await interaction.reply({ content: "Codigo Pix indisponivel.", flags: MessageFlags.Ephemeral });
       return;
     }
-    await interaction.reply({ content: `PIX Copia e Cola:\n\`\`\`\n${order.pixPayload}\n\`\`\``, ephemeral: true });
+    await interaction.reply({ content: `PIX Copia e Cola:\n\`\`\`\n${order.pixPayload}\n\`\`\``, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1183,21 +1185,21 @@ async function handleButton(interaction) {
     const paymentId = customId.split(":")[1];
     const order = ordersDb.orders.find((o) => o.paymentId === paymentId);
     if (!order) {
-      await interaction.reply({ content: "Pagamento nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Pagamento nao encontrado.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (interaction.user?.id !== order.userId && !isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao para este pagamento.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este pagamento.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (!order.pixPayload) {
-      await interaction.reply({ content: "QR Code indisponivel.", ephemeral: true });
+      await interaction.reply({ content: "QR Code indisponivel.", flags: MessageFlags.Ephemeral });
       return;
     }
 
     const qrBuffer = await QRCode.toBuffer(order.pixPayload);
     const file = new AttachmentBuilder(qrBuffer, { name: "qrcode.png" });
-    await interaction.reply({ content: "QR Code:", files: [file], ephemeral: true });
+    await interaction.reply({ content: "QR Code:", files: [file], flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1205,15 +1207,15 @@ async function handleButton(interaction) {
     const paymentId = customId.split(":")[1];
     const order = ordersDb.orders.find((o) => o.paymentId === paymentId);
     if (!order) {
-      await interaction.reply({ content: "Pagamento nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Pagamento nao encontrado.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (interaction.user?.id !== order.userId && !isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao para este pagamento.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este pagamento.", flags: MessageFlags.Ephemeral });
       return;
     }
     const terms = String(config.termsText || "").trim();
-    await interaction.reply({ content: terms || "Termos indisponiveis.", ephemeral: true });
+    await interaction.reply({ content: terms || "Termos indisponiveis.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -1221,21 +1223,21 @@ async function handleButton(interaction) {
     const cartId = customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
     if (!cart) {
-      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartCancelNotFound", { cartId });
       return;
     }
     if (!canAccessCart(interaction, cart)) {
-      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este carrinho.", flags: MessageFlags.Ephemeral });
       log("warn", "handleButton:cartCancelDenied", { cartId, userId: interaction.user.id });
       return;
     }
     if (cart.status === "paid") {
-      await interaction.reply({ content: "Este carrinho ja foi finalizado.", ephemeral: true });
+      await interaction.reply({ content: "Este carrinho ja foi finalizado.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (cart.status === "cancelled" || cart.status === "expired") {
-      await interaction.reply({ content: "Este carrinho ja esta finalizado.", ephemeral: true });
+      await interaction.reply({ content: "Este carrinho ja esta finalizado.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1264,11 +1266,11 @@ async function handleButton(interaction) {
       await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
     }
 
-    await interaction.reply({ content: "Carrinho cancelado.", ephemeral: true });
+    await interaction.reply({ content: "Carrinho cancelado.", flags: MessageFlags.Ephemeral });
     await sendSystemEmbed(
       interaction.channel,
       "Carrinho cancelado",
-      "Carrinho cancelado pelo usuário.\nSe precisar, abra um novo carrinho pelo menu do produto.",
+      "Carrinho cancelado pelo usuÃ¡rio.\nSe precisar, abra um novo carrinho pelo menu do produto.",
       "danger"
     );
     await touchCartActivity(cart.id);
@@ -1281,7 +1283,7 @@ async function handleModalSubmit(interaction) {
   logEnter("handleModalSubmit", { userId: interaction.user?.id, customId: interaction.customId });
   if (interaction.customId === "admin_coupon_modal") {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:adminCouponDenied", { userId: interaction.user.id });
       return;
     }
@@ -1291,14 +1293,14 @@ async function handleModalSubmit(interaction) {
     const percent = Number(percentRaw);
 
     if (!code || Number.isNaN(percent) || percent <= 0 || percent >= 100) {
-      await interaction.reply({ content: "Dados invalidos.", ephemeral: true });
+      await interaction.reply({ content: "Dados invalidos.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:adminCouponInvalid", { code, percentRaw });
       return;
     }
 
     const exists = couponsDb.coupons.find((c) => c.code === code);
     if (exists) {
-      await interaction.reply({ content: "Cupom ja existe.", ephemeral: true });
+      await interaction.reply({ content: "Cupom ja existe.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:adminCouponExists", { code });
       return;
     }
@@ -1312,14 +1314,14 @@ async function handleModalSubmit(interaction) {
     });
     saveJson(COUPONS_PATH, couponsDb);
 
-    await interaction.reply({ content: `Cupom ${code} criado.`, ephemeral: true });
+    await interaction.reply({ content: `Cupom ${code} criado.`, flags: MessageFlags.Ephemeral });
     logExit("handleModalSubmit:adminCouponCreated", { code, percent });
     return;
   }
 
   if (interaction.customId === "admin_toggle_coupon_modal") {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:adminToggleDenied", { userId: interaction.user.id });
       return;
     }
@@ -1327,7 +1329,7 @@ async function handleModalSubmit(interaction) {
     const code = interaction.fields.getTextInputValue("code").trim().toUpperCase();
     const coupon = couponsDb.coupons.find((c) => c.code === code);
     if (!coupon) {
-      await interaction.reply({ content: "Cupom nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Cupom nao encontrado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:adminToggleNotFound", { code });
       return;
     }
@@ -1338,7 +1340,7 @@ async function handleModalSubmit(interaction) {
 
     await interaction.reply({
       content: `Cupom ${code} agora esta ${coupon.active === false ? "inativo" : "ativo"}.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     logExit("handleModalSubmit:adminToggleApplied", { code, active: coupon.active });
     return;
@@ -1346,7 +1348,7 @@ async function handleModalSubmit(interaction) {
 
   if (interaction.customId === "admin_delete_coupon_modal") {
     if (!isAdmin(interaction.user.id)) {
-      await interaction.reply({ content: "Sem permissao.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:adminDeleteDenied", { userId: interaction.user.id });
       return;
     }
@@ -1356,13 +1358,13 @@ async function handleModalSubmit(interaction) {
     couponsDb.coupons = couponsDb.coupons.filter((c) => c.code !== code);
     const removed = before - couponsDb.coupons.length;
     if (!removed) {
-      await interaction.reply({ content: "Cupom nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Cupom nao encontrado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:adminDeleteNotFound", { code });
       return;
     }
 
     saveJson(COUPONS_PATH, couponsDb);
-    await interaction.reply({ content: `Cupom ${code} apagado.`, ephemeral: true });
+    await interaction.reply({ content: `Cupom ${code} apagado.`, flags: MessageFlags.Ephemeral });
     logExit("handleModalSubmit:adminDeleteApplied", { code });
     return;
   }
@@ -1371,22 +1373,22 @@ async function handleModalSubmit(interaction) {
     const cartId = interaction.customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
     if (!cart) {
-      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (!canAccessCart(interaction, cart)) {
-      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este carrinho.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (cart.status !== "open") {
-      await interaction.reply({ content: "Nao e possivel alterar a quantidade neste status.", ephemeral: true });
+      await interaction.reply({ content: "Nao e possivel alterar a quantidade neste status.", flags: MessageFlags.Ephemeral });
       return;
     }
 
     const raw = String(interaction.fields.getTextInputValue("quantity") || "").trim().replace(",", ".");
     const qty = Math.floor(Number(raw));
     if (!Number.isFinite(qty) || qty < 1 || qty > 99) {
-      await interaction.reply({ content: "Quantidade invalida. Use um numero entre 1 e 99.", ephemeral: true });
+      await interaction.reply({ content: "Quantidade invalida. Use um numero entre 1 e 99.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1400,7 +1402,7 @@ async function handleModalSubmit(interaction) {
       await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
     }
 
-    await interaction.reply({ content: `Quantidade atualizada para ${qty}.`, ephemeral: true });
+    await interaction.reply({ content: `Quantidade atualizada para ${qty}.`, flags: MessageFlags.Ephemeral });
     await touchCartActivity(cart.id);
     return;
   }
@@ -1409,17 +1411,17 @@ async function handleModalSubmit(interaction) {
     const cartId = interaction.customId.split(":")[1];
     const cart = cartsDb.carts.find((c) => c.id === cartId);
     if (!cart) {
-      await interaction.reply({ content: "Carrinho nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Carrinho nao encontrado.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:cartCouponNotFound", { cartId });
       return;
     }
     if (!canAccessCart(interaction, cart)) {
-      await interaction.reply({ content: "Sem permissao para este carrinho.", ephemeral: true });
+      await interaction.reply({ content: "Sem permissao para este carrinho.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:cartCouponDenied", { cartId, userId: interaction.user.id });
       return;
     }
     if (cart.status !== "open") {
-      await interaction.reply({ content: "Nao e possivel aplicar cupom neste status.", ephemeral: true });
+      await interaction.reply({ content: "Nao e possivel aplicar cupom neste status.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1427,7 +1429,7 @@ async function handleModalSubmit(interaction) {
     const coupon = couponsDb.coupons.find((c) => c.code === code && c.active !== false);
 
     if (!coupon) {
-      await interaction.reply({ content: "Cupom invalido.", ephemeral: true });
+      await interaction.reply({ content: "Cupom invalido.", flags: MessageFlags.Ephemeral });
       log("warn", "handleModalSubmit:cartCouponInvalid", { cartId, code });
       return;
     }
@@ -1443,10 +1445,10 @@ async function handleModalSubmit(interaction) {
       await sendOrUpdateCartMessage(interaction.channel, cart, product, variant);
     }
 
-    await interaction.reply({ content: `Cupom ${code} aplicado.`, ephemeral: true });
+    await interaction.reply({ content: `Cupom ${code} aplicado.`, flags: MessageFlags.Ephemeral });
     const quantity = getCartQuantity(cart);
     const finalPrice = product && variant ? applyDiscount(variant.price * quantity, cart.discountPercent) : null;
-    const priceLine = finalPrice ? `Preço Total: **${formatCurrency(finalPrice)}**` : null;
+    const priceLine = finalPrice ? `PreÃ§o Total: **${formatCurrency(finalPrice)}**` : null;
     await sendSystemEmbed(
       interaction.channel,
       "Cupom aplicado",
@@ -2763,9 +2765,9 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
   const productsLine = `${formatCurrency(unitPrice)} - ${label} (${quantity} unidade${quantity === 1 ? "" : "s"})`;
 
   const embed = new EmbedBuilder()
-    .setTitle("Confirmação de Compra")
+    .setTitle("ConfirmaÃ§Ã£o de Compra")
     .setColor(cartColor)
-    .setDescription("Verifique se os produtos estão corretos e efetue o pagamento.")
+    .setDescription("Verifique se os produtos estÃ£o corretos e efetue o pagamento.")
     .addFields(
       { name: "Produtos:", value: productsLine, inline: false },
       { name: "Valor Total:", value: formatCurrency(finalTotal), inline: false },
@@ -2780,7 +2782,7 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`pix_copy:${payment.paymentId}`)
-      .setLabel("Código Copia e Cola")
+      .setLabel("CÃ³digo Copia e Cola")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`pix_qr:${payment.paymentId}`).setLabel("QR Code").setStyle(ButtonStyle.Secondary)
   );
@@ -2788,7 +2790,7 @@ async function sendPixMessage(channel, cart, product, variant, payment) {
   const row2 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`pix_terms:${payment.paymentId}`)
-      .setLabel("Termos e Condições")
+      .setLabel("Termos e CondiÃ§Ãµes")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`cart_cancel:${cart.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger)
   );
@@ -2985,7 +2987,7 @@ function applyConfigDefaults() {
       systemBanner: "assets/product1/astraprojectbanner.gif",
       cartColor: DEFAULT_CART_COLOR,
       cartFooterText: "Todos os direitos reservados a AstraSystems (c) 2026",
-      termsText: "Termos e Condições: pagamento via Pix, produto digital, entrega automática. Em caso de dúvidas, fale com a equipe.",
+      termsText: "Termos e CondiÃ§Ãµes: pagamento via Pix, produto digital, entrega automÃ¡tica. Em caso de dÃºvidas, fale com a equipe.",
       cartBottomImage: "",
       showAdminConfirmButton: false,
       maxAttachmentBytes: DEFAULT_MAX_ATTACHMENT_BYTES,
@@ -3319,7 +3321,7 @@ async function deliverOrder(order, options = {}) {
   // Credit the seller wallet (Portal) once per order. This is independent from DM success.
   await maybeCreditWalletForOrder(order);
   logExit("deliverOrder", { orderId: order.id, deliveryId: deliveryId });
-  return { ok: true, deliveryId, key };
+  return { ok: true, deliveryId, key: keyBundle };
 }
 
 function takeStockKey(guildId, productId, variantId) {
@@ -3646,7 +3648,7 @@ function buildSystemEmbedPayload(title, description, tone = "info", options = {}
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((line) => (line.startsWith("┃") ? line : `┃ ${line}`));
+      .map((line) => (line.startsWith("â”ƒ") ? line : `â”ƒ ${line}`));
     if (lines.length) embed.setDescription(lines.join("\n"));
   }
 
@@ -3700,11 +3702,11 @@ async function notifyStaffLog(title, details = {}) {
   if (!channel) return;
 
   const lines = [];
-  if (details.userId) lines.push(`Usuário: <@${details.userId}> (${details.userId})`);
+  if (details.userId) lines.push(`UsuÃ¡rio: <@${details.userId}> (${details.userId})`);
   if (details.cartId) lines.push(`Carrinho: ${details.cartId}`);
   if (details.channelId) lines.push(`Canal: <#${details.channelId}>`);
   if (details.productId) lines.push(`Produto: ${details.productId}`);
-  if (details.variantId) lines.push(`Variação: ${details.variantId}`);
+  if (details.variantId) lines.push(`VariaÃ§Ã£o: ${details.variantId}`);
   if (details.code) lines.push(`Cupom: ${details.code}`);
   if (details.percent !== undefined && details.percent !== null) lines.push(`Desconto: ${details.percent}%`);
   if (details.finalPrice) lines.push(`Total: ${details.finalPrice}`);
@@ -3830,10 +3832,3 @@ async function purgeChannelMessages(channel) {
   logExit("purgeChannelMessages", { channelId: channel?.id });
   return { ok: true };
 }
-
-
-
-
-
-
-

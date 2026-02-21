@@ -46,6 +46,18 @@ O projeto agora inclui um portal web (tema AstraSystems) com:
 2. Inicie o bot (`npm start`).
 3. Acesse o portal em: http://127.0.0.1:3100
 
+### Stack profissional (Next.js + Tailwind + shadcn + TypeScript)
+Sem alterar o visual atual, foi adicionada uma base moderna em `site/`:
+- Next.js + TypeScript
+- Tailwind CSS + PostCSS + Autoprefixer
+- Estrutura shadcn/ui (componentes em `site/components/ui`)
+- Rewrites para backend do portal (`/api`, `/auth`, `/webhooks`) via `PORTAL_BACKEND_ORIGIN` (padrao `http://127.0.0.1:3100`)
+
+Comandos:
+- `npm run site:dev` (porta 3200)
+- `npm run site:build`
+- `npm run site:start` (porta 3200)
+
 ## Comandos
 - !produtos -> lista IDs de produtos e quantidade de variacoes
 - !postar <productId> [channelId] [--purge|--no-purge] -> posta qualquer produto

@@ -1,4 +1,7 @@
 node_modules/
+site/.next/
+site/out/
+site/.vercel/
 .env
 *.log
 logs/
