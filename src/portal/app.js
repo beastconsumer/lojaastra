@@ -383,8 +383,6 @@ function Plans({ route, me, toast }) {
     if (!card) return;
     card.style.setProperty("--plan-rx", "0deg");
     card.style.setProperty("--plan-ry", "0deg");
-    card.style.setProperty("--plan-gx", "20%");
-    card.style.setProperty("--plan-gy", "14%");
   };
 
   const onPlanMove = (e) => {
@@ -400,8 +398,6 @@ function Plans({ route, me, toast }) {
 
     card.style.setProperty("--plan-rx", `${rx.toFixed(2)}deg`);
     card.style.setProperty("--plan-ry", `${ry.toFixed(2)}deg`);
-    card.style.setProperty("--plan-gx", `${(x * 100).toFixed(2)}%`);
-    card.style.setProperty("--plan-gy", `${(y * 100).toFixed(2)}%`);
   };
 
   const onPlanLeave = (e) => resetPlanParallax(e.currentTarget);
