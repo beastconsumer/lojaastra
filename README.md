@@ -6,6 +6,14 @@ Cada entrada resume o impacto funcional entregue no commit correspondente.
 
 ## Linha do Tempo
 
+### `9c56eb7` - 2026-02-21
+**Require bot token on instance creation, add dashboard video bg, and dockerize bot/site**
+- Criacao de instancia passou a exigir token do bot do cliente no primeiro passo.
+- Validacao de token integrada ao cadastro para evitar instancias incompletas.
+- Dashboard recebeu video de fundo permanente para reforco visual premium.
+- Layout do painel foi ampliado de forma sutil para melhor leitura em desktop.
+- Publicacao com Docker em dois containers separados (`bot` e `site`) com healthcheck.
+
 ### `aee6950` - 2026-02-21
 **Enhance dashboard micro-interactions and premium motion polish**
 - Refinamento de UX com micro-interacoes premium no dashboard.
@@ -40,8 +48,3 @@ Cada entrada resume o impacto funcional entregue no commit correspondente.
 **Initial push to lojaastra**
 - Publicacao inicial do projeto.
 - Estrutura base de bot, painel e dados persistidos localmente.
-
-## Atualizacao Local em Andamento
-- Fluxo de criacao de instancia ajustado para exigir token do bot ja na criacao.
-- Dashboard com video de fundo permanente (`painel.mp4`) e layout levemente ampliado.
-- Containerizacao separada de bot e site via Docker Compose para operacao online.
