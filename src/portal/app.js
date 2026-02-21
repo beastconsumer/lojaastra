@@ -310,6 +310,13 @@ function Login({ error }) {
 function Plans({ route, me, toast }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState({ mercadoPagoEnabled: true });
+  const allowParallax = useMemo(() => {
+    try {
+      return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch {
+      return true;
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -372,6 +379,33 @@ function Plans({ route, me, toast }) {
     }
   };
 
+  const resetPlanParallax = (card) => {
+    if (!card) return;
+    card.style.setProperty("--plan-rx", "0deg");
+    card.style.setProperty("--plan-ry", "0deg");
+    card.style.setProperty("--plan-gx", "20%");
+    card.style.setProperty("--plan-gy", "14%");
+  };
+
+  const onPlanMove = (e) => {
+    if (!allowParallax) return;
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    const rx = (0.5 - y) * 4.2;
+    const ry = (x - 0.5) * 5.4;
+
+    card.style.setProperty("--plan-rx", `${rx.toFixed(2)}deg`);
+    card.style.setProperty("--plan-ry", `${ry.toFixed(2)}deg`);
+    card.style.setProperty("--plan-gx", `${(x * 100).toFixed(2)}%`);
+    card.style.setProperty("--plan-gy", `${(y * 100).toFixed(2)}%`);
+  };
+
+  const onPlanLeave = (e) => resetPlanParallax(e.currentTarget);
+
   return html`
     <div className="container">
       <div className="hero" style=${{ paddingTop: "24px" }}>
@@ -415,7 +449,7 @@ function Plans({ route, me, toast }) {
         : null}
 
       <div className="grid cols3">
-        <div className="card plan">
+        <div className="card plan parallaxPlan" onMouseMove=${onPlanMove} onMouseLeave=${onPlanLeave} onBlur=${onPlanLeave}>
           <div className="outlineGlow"></div>
           <div className="pill good">Gratuito</div>
           <h3>Trial</h3>
@@ -440,7 +474,7 @@ function Plans({ route, me, toast }) {
           </div>
         </div>
 
-        <div className="card plan recommended">
+        <div className="card plan recommended parallaxPlan" onMouseMove=${onPlanMove} onMouseLeave=${onPlanLeave} onBlur=${onPlanLeave}>
           <div className="outlineGlow"></div>
           <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
             <div className="pill reco">Recomendado</div>
@@ -470,7 +504,7 @@ function Plans({ route, me, toast }) {
           </div>
         </div>
 
-        <div className="card plan">
+        <div className="card plan parallaxPlan" onMouseMove=${onPlanMove} onMouseLeave=${onPlanLeave} onBlur=${onPlanLeave}>
           <div className="outlineGlow"></div>
           <div className="pill soon">Em desenvolvimento</div>
           <h3>Enterprise</h3>
