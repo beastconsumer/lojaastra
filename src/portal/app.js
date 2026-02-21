@@ -8,10 +8,7 @@ import {
   HandCoins,
   LayoutDashboard,
   Link2,
-  Pause,
-  Play,
   Plus,
-  RotateCcw,
   Rocket,
   ShoppingBag
 } from "https://esm.sh/lucide-react@0.468.0?external=react";
@@ -1601,7 +1598,6 @@ function Dashboard({ route, me, refreshMe, toast }) {
                           <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                             <${Button}
                               variant="primary"
-                              icon=${Play}
                               disabled=${actionBusy || !canStart}
                               onClick=${() => onBotRuntimeAction(inst.id, "start")}
                             >
@@ -1609,7 +1605,6 @@ function Dashboard({ route, me, refreshMe, toast }) {
                             </${Button}>
                             <${Button}
                               variant="ghost"
-                              icon=${Pause}
                               disabled=${actionBusy || !canStop}
                               onClick=${() => onBotRuntimeAction(inst.id, "stop")}
                             >
@@ -1617,7 +1612,6 @@ function Dashboard({ route, me, refreshMe, toast }) {
                             </${Button}>
                             <${Button}
                               variant="subtle"
-                              icon=${RotateCcw}
                               disabled=${actionBusy || !canRestart}
                               onClick=${() => onBotRuntimeAction(inst.id, "restart")}
                             >
