@@ -20,12 +20,28 @@
       "productId": "product1",
       "variantId": "1d",
       "quantity": 1,
-      "status": "open",
+      "status": "cancelled",
       "createdAt": "2026-02-21T14:35:01.115Z",
-      "updatedAt": "2026-02-21T14:35:03.865Z",
-      "lastActivityAt": "2026-02-21T14:35:03.865Z",
+      "updatedAt": "2026-02-21T14:36:21.717Z",
+      "lastActivityAt": "2026-02-21T14:36:21.717Z",
       "channelId": "1474776431044071466",
       "messageId": "1474776439097397308"
+    },
+    {
+      "id": "cec06634-c987-49cf-9fe3-1872f817c61f",
+      "userId": "1408232046081478717",
+      "guildId": "1409309357568688138",
+      "productId": "product1",
+      "variantId": "1d",
+      "quantity": 1,
+      "status": "open",
+      "createdAt": "2026-02-21T14:37:12.091Z",
+      "updatedAt": "2026-02-21T14:38:04.691Z",
+      "lastActivityAt": "2026-02-21T14:38:04.691Z",
+      "channelId": "1474776981026635778",
+      "messageId": "1474777000064585892",
+      "couponCode": "4444",
+      "discountPercent": 44
     }
   ]
 }

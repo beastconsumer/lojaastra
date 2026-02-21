@@ -1,4 +1,4 @@
-import fs from "fs";
+﻿import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import axios from "axios";
@@ -762,7 +762,7 @@ async function handleButton(interaction) {
     }
 
     const embed = new EmbedBuilder()
-      .setTitle("ðŸ·ï¸ Menu de Cupons")
+      .setTitle("Menu de Cupons")
       .setDescription("- Escolha uma acao para cupons.")
       .setColor(BRAND_COLOR);
 
@@ -2118,12 +2118,12 @@ async function postProductToChannel(guild, channel, productId) {
 
   let message = null;
   try {
-    const messagePayload = buildProductMessage(product, { includeMedia: true });
+    const messagePayload = buildProductMessage(product, { includeMedia: true, guildId });
     message = await channel.send(messagePayload);
   } catch (err) {
     logError("postProductToChannel:send", err, { productId });
     try {
-      const fallbackPayload = buildProductMessage(product, { includeMedia: false });
+      const fallbackPayload = buildProductMessage(product, { includeMedia: false, guildId });
       message = await channel.send(fallbackPayload);
       await channel.send("Produto postado sem midias. Verifique os arquivos do produto.");
       log("warn", "postProductToChannel:fallbackNoMedia", { productId });
@@ -2166,6 +2166,7 @@ async function sendPreProductGif(channel, product) {
 function buildProductMessage(product, options = {}) {
   logEnter("buildProductMessage", { productId: product?.id, includeMedia: options.includeMedia !== false });
   const includeMedia = options.includeMedia !== false;
+  const guildId = String(options.guildId || "");
   const mode = getProductPostMode();
 
   let embeds = [];
@@ -2204,9 +2205,13 @@ function buildProductMessage(product, options = {}) {
     .setPlaceholder("Escolha uma variacao do produto...")
     .addOptions(
       limitedVariants.map((variant) => {
+        const availableKeys = isInfiniteStock(product)
+          ? "infinite keys"
+          : `${Math.max(0, getAvailableStockCount(guildId, product.id, variant.id))} keys`;
+        const descriptionText = `${formatCurrency(variant.price)} - ${variant.duration} - ${availableKeys}`;
         const option = {
-          label: variant.label || `${product.shortLabel || product.name}`,
-          description: `${formatCurrency(variant.price)} - ${variant.duration}`,
+          label: truncateSelectOptionText(variant.label || `${product.shortLabel || product.name}`),
+          description: truncateSelectOptionText(descriptionText),
           value: `${product.id}|${variant.id}`
         };
         if (variant.emoji) option.emoji = variant.emoji;
@@ -2235,6 +2240,12 @@ function truncateDiscordContent(text, maxLen = 2000) {
   const value = String(text || "");
   if (value.length <= maxLen) return value;
   // Keep a little room for the ellipsis.
+  return value.slice(0, Math.max(0, maxLen - 3)).trimEnd() + "...";
+}
+
+function truncateSelectOptionText(text, maxLen = 100) {
+  const value = String(text || "");
+  if (value.length <= maxLen) return value;
   return value.slice(0, Math.max(0, maxLen - 3)).trimEnd() + "...";
 }
 
@@ -3742,7 +3753,7 @@ function startCartCleanupWatcher() {
 async function cleanupInactiveCarts() {
   const now = Date.now();
   const stale = cartsDb.carts.filter((c) => {
-    if (c.status !== "open" && c.status !== "pending") return false;
+    if (c.status !== "open") return false;
     const last = Date.parse(c.lastActivityAt || c.updatedAt || c.createdAt || 0);
     return last && now - last >= CART_INACTIVE_MS;
   });
@@ -3831,3 +3842,4 @@ async function purgeChannelMessages(channel) {
   logExit("purgeChannelMessages", { channelId: channel?.id });
   return { ok: true };
 }
+

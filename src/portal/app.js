@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "https://esm.sh/react@18.2.0";
 import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
 import htm from "https://esm.sh/htm@3.1.1";
+import {
+  Bot,
+  CircleUserRound,
+  CreditCard,
+  HandCoins,
+  LayoutDashboard,
+  Link2,
+  Plus,
+  Rocket,
+  ShoppingBag
+} from "https://esm.sh/lucide-react@0.468.0?external=react";
 
 const html = htm.bind(React.createElement);
 
@@ -56,8 +67,11 @@ async function apiFetch(url, options = {}) {
   return data;
 }
 
-function Button({ variant = "primary", disabled, onClick, children }) {
-  return html`<button className=${`btn ${variant}`} disabled=${disabled} onClick=${onClick}>${children}</button>`;
+function Button({ variant = "primary", disabled, onClick, children, icon: Icon }) {
+  return html`<button className=${`btn ${variant}`} disabled=${disabled} onClick=${onClick}>
+    ${Icon ? html`<${Icon} className="btnIcon" size=${16} strokeWidth=${1.9} aria-hidden="true" />` : null}
+    <span>${children}</span>
+  </button>`;
 }
 
 function Modal({ open, title, onClose, children }) {
@@ -1241,10 +1255,22 @@ function Dashboard({ route, me, refreshMe, toast }) {
       </div>
 
       <div className="tabs" style=${{ marginTop: "12px" }}>
-        <button className=${`tab ${tab === "overview" ? "active" : ""}`} onClick=${() => setTab("overview")}>Painel</button>
-        <button className=${`tab ${tab === "instances" ? "active" : ""}`} onClick=${() => setTab("instances")}>Instancias</button>
-        <button className=${`tab ${tab === "store" ? "active" : ""}`} onClick=${() => setTab("store")}>Loja</button>
-        <button className=${`tab ${tab === "account" ? "active" : ""}`} onClick=${() => setTab("account")}>Conta</button>
+        <button className=${`tab ${tab === "overview" ? "active" : ""}`} onClick=${() => setTab("overview")}>
+          <${LayoutDashboard} size=${15} strokeWidth=${1.9} aria-hidden="true" />
+          <span>Painel</span>
+        </button>
+        <button className=${`tab ${tab === "instances" ? "active" : ""}`} onClick=${() => setTab("instances")}>
+          <${Bot} size=${15} strokeWidth=${1.9} aria-hidden="true" />
+          <span>Instancias</span>
+        </button>
+        <button className=${`tab ${tab === "store" ? "active" : ""}`} onClick=${() => setTab("store")}>
+          <${ShoppingBag} size=${15} strokeWidth=${1.9} aria-hidden="true" />
+          <span>Loja</span>
+        </button>
+        <button className=${`tab ${tab === "account" ? "active" : ""}`} onClick=${() => setTab("account")}>
+          <${CircleUserRound} size=${15} strokeWidth=${1.9} aria-hidden="true" />
+          <span>Conta</span>
+        </button>
       </div>
 
       ${tab === "overview" ? html`
@@ -1272,8 +1298,10 @@ function Dashboard({ route, me, refreshMe, toast }) {
             <div className="hint">Trial 24h ou Start R$ 5,97/m. Reembolso em ate 7 dias (condicoes nos termos).</div>
             <div style=${{ marginTop: "10px" }}>
               <div className="row grow" style=${{ gap: "10px" }}>
-                <${Button} variant="ghost" disabled=${busy} onClick=${() => route.navigate("/plans")}>Gerenciar plano</${Button}>
-                ${me?.planActive ? null : html`<${Button} variant="subtle" disabled=${busy} onClick=${onClaimTrial}>Ativar trial</${Button}>`}
+                <${Button} variant="ghost" icon=${CreditCard} disabled=${busy} onClick=${() => route.navigate("/plans")}>Gerenciar plano</${Button}>
+                ${me?.planActive
+                  ? null
+                  : html`<${Button} variant="subtle" icon=${Rocket} disabled=${busy} onClick=${onClaimTrial}>Ativar trial</${Button}>`}
               </div>
             </div>
           </div>
@@ -1284,6 +1312,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
             <div style=${{ marginTop: "10px" }}>
               <${Button}
                 variant="subtle"
+                icon=${Link2}
                 onClick=${() => {
                   if (!firstInstance) return toast("Crie uma instancia", "Crie sua instancia com token antes do invite.", "bad");
                   onInvite(firstInstance.discordGuildId || "", firstInstance.id);
@@ -1300,6 +1329,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
             <div style=${{ marginTop: "10px" }}>
              <${Button}
                 variant="primary"
+                icon=${Plus}
                 disabled=${busy}
                 onClick=${() => {
                   if (!me?.planActive) return route.navigate("/plans");
@@ -1332,7 +1362,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
                 onInput=${(e) => setWithdrawAmount(e.target.value)}
                 placeholder="50,00"
               />
-              <${Button} variant="primary" disabled=${busy} onClick=${onRequestWithdrawal}>
+              <${Button} variant="primary" icon=${HandCoins} disabled=${busy} onClick=${onRequestWithdrawal}>
                 Solicitar saque
               </${Button}>
             </div>
@@ -1361,7 +1391,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
             ${me?.plan?.expiresAt ? html`Expira em: <b>${String(me.plan.expiresAt).slice(0, 10)}</b>` : html`Sem expiracao`}
           </div>
           <div style=${{ marginTop: "12px" }}>
-            <${Button} variant="ghost" onClick=${() => route.navigate("/plans")}>Ver planos</${Button}>
+            <${Button} variant="ghost" icon=${CreditCard} onClick=${() => route.navigate("/plans")}>Ver planos</${Button}>
           </div>
         </div>
         <div className="kpi">
@@ -1371,6 +1401,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
           <div style=${{ marginTop: "12px" }}>
             <${Button}
               variant="subtle"
+              icon=${Link2}
               onClick=${() => {
                 if (!firstInstance) return toast("Crie uma instancia", "Crie sua instancia com token antes do invite.", "bad");
                 onInvite(firstInstance.discordGuildId || "", firstInstance.id);
@@ -1390,6 +1421,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
             <h3 className="sectionTitle" style=${{ margin: 0 }}>Instancias</h3>
             <${Button}
               variant="primary"
+              icon=${Plus}
               disabled=${busy || (me?.planActive && (instances?.length || 0) >= 1)}
               onClick=${() => {
                 if (!me?.planActive) return route.navigate("/plans");
@@ -1420,6 +1452,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
                   />
                   <${Button}
                     variant="primary"
+                    icon=${Bot}
                     disabled=${busy || !me?.planActive || (instances?.length || 0) >= 1}
                     onClick=${onCreateInstance}
                   >
