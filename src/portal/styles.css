@@ -680,6 +680,204 @@ select.input {
   line-height: 1.45;
 }
 
+/* ─── Plan Expiry Banner ─────────────────────────────────────── */
+.expiryBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(245,158,11,0.32);
+  background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.04));
+  backdrop-filter: blur(12px);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.expiryBannerLeft { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 220px; }
+.expiryBannerIcon { font-size: 22px; flex-shrink: 0; }
+.expiryBannerTitle { font-weight: 900; font-size: 14px; color: rgba(253,230,138,0.95); }
+.expiryBannerDesc { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+.expiryBannerDismiss {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.7);
+  border-radius: 8px;
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  font-size: 18px; font-weight: 300;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.expiryBannerDismiss:hover { background: rgba(255,255,255,0.1); color: var(--ink); }
+
+/* ─── Dashboard Welcome Empty State ─────────────────────────── */
+.dashWelcome {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+  padding: 40px 20px;
+  margin-top: 14px;
+  border-radius: var(--radius);
+  border: 1px dashed rgba(255,255,255,0.1);
+  background: radial-gradient(ellipse at 50% 30%, rgb(var(--accent-rgb) / 0.07), transparent 60%);
+}
+.dashWelcomeInner { text-align: center; max-width: 420px; }
+.dashWelcomeIcon {
+  width: 72px; height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgb(var(--accent-rgb) / 0.22), rgb(var(--accent2-rgb) / 0.14));
+  border: 1px solid rgb(var(--accent-rgb) / 0.28);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px;
+  color: var(--accent2);
+  box-shadow: 0 0 32px rgb(var(--accent-rgb) / 0.18);
+}
+.dashWelcomeTitle {
+  margin: 0 0 10px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+.dashWelcomeDesc {
+  color: var(--muted2);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+
+/* ─── Trial Page ─────────────────────────────────────────────── */
+.trialGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 760px) { .trialGrid { grid-template-columns: 1fr; } }
+
+.trialCard {
+  background:
+    radial-gradient(ellipse at 18% 12%, rgb(var(--accent-rgb) / 0.1), transparent 55%),
+    linear-gradient(160deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02)) !important;
+}
+.trialIconBox {
+  width: 46px; height: 46px;
+  border-radius: 14px;
+  background: rgb(var(--accent-rgb) / 0.16);
+  border: 1px solid rgb(var(--accent-rgb) / 0.28);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.trialPrice {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(42px, 8vw, 64px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.trialFeatures { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.trialFeatureRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.8);
+}
+.trialCheck {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(16,185,129,0.14);
+  border: 1px solid rgba(16,185,129,0.28);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 900;
+  color: var(--good);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.trialNote {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.2);
+  background: rgb(var(--accent-rgb) / 0.07);
+  font-size: 13px;
+  color: rgba(255,255,255,0.62);
+  line-height: 1.5;
+}
+
+.trialStatusCard { position: sticky; top: 90px; }
+.trialStatusBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 10px 0 4px;
+  gap: 10px;
+}
+.trialStatusIcon {
+  width: 62px; height: 62px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+.trialStatusIconGood {
+  background: rgba(16,185,129,0.14);
+  border: 2px solid rgba(16,185,129,0.32);
+  color: var(--good);
+}
+.trialStatusIconWarn {
+  background: rgba(245,158,11,0.12);
+  border: 2px solid rgba(245,158,11,0.28);
+  color: var(--warn);
+}
+.trialStatusIconLoading {
+  background: rgb(var(--accent-rgb) / 0.12);
+  border: 2px solid rgb(var(--accent-rgb) / 0.28);
+  color: var(--accent2);
+}
+.trialStatusTitle {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+.trialStatusDesc { font-size: 14px; color: var(--muted2); line-height: 1.5; max-width: 280px; }
+.trialChecks {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(16,185,129,0.07);
+  border: 1px solid rgba(16,185,129,0.18);
+  display: flex; flex-direction: column; gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+.trialCheckLine {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: rgba(255,255,255,0.72); font-weight: 700;
+}
+.trialLoadingBox {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgb(var(--accent-rgb) / 0.08);
+  border: 1px solid rgb(var(--accent-rgb) / 0.18);
+  width: 100%;
+  margin-top: 4px;
+}
+.trialDetailsGrid { display: flex; flex-direction: column; gap: 10px; }
+.trialDetailRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  padding: 2px 0;
+}
+
 /* Guild icon */
 .guildIcon { flex-shrink: 0; width: 40px; height: 40px; }
 .guildIconImg {

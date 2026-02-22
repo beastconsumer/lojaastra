@@ -658,6 +658,191 @@ function Plans({ route, me, toast }) {
   `;
 }
 
+function TrialPage({ route, me, refreshMe, toast }) {
+  const [phase, setPhase] = useState("idle"); // idle | loading | done
+
+  const alreadyHasPlan = me?.planActive;
+  const alreadyUsedTrial = me?.trialClaimedAt;
+
+  const features = [
+    "Vendas via PIX (Mercado Pago)",
+    "Loja embutida no Discord",
+    "Estoque e entrega automática",
+    "Logs e moderação integrados",
+    "Proteção anti-fraude",
+    "Personalização completa do bot",
+    "Suporte via Discord"
+  ];
+
+  const onActivate = async () => {
+    setPhase("loading");
+    try {
+      await apiFetch("/api/plans/trial", { method: "POST", body: "{}" });
+      await refreshMe();
+      setPhase("done");
+      setTimeout(() => route.navigate("/dashboard"), 1800);
+    } catch (err) {
+      setPhase("idle");
+      const msg = err?.message || "Erro interno";
+      if (msg === "trial ja utilizado") {
+        toast("Trial já utilizado", "Você já usou o trial gratuito.", "bad");
+      } else if (msg === "voce ja tem um plano ativo") {
+        toast("Plano ativo", "Você já tem um plano ativo.", "bad");
+      } else {
+        toast("Falha ao ativar", msg, "bad");
+      }
+    }
+  };
+
+  return html`
+    <div className="container">
+      <div style=${{ textAlign: "center", padding: "32px 0 24px" }}>
+        <div className="pill reco" style=${{ margin: "0 auto 12px", width: "fit-content" }}>
+          <span>Trial Gratuito</span>
+        </div>
+        <h2 style=${{ margin: 0, fontFamily: '"Space Grotesk", sans-serif', fontSize: "clamp(24px,4vw,36px)", letterSpacing: "-0.03em" }}>
+          Teste a <span style=${{ color: "var(--accent2)" }}>AstraSystems</span> sem custo
+        </h2>
+        <p className="muted" style=${{ marginTop: "8px", fontSize: "15px" }}>
+          Confirme para receber 24 horas de acesso completo — grátis.
+        </p>
+      </div>
+
+      <div className="trialGrid">
+
+        <!-- LEFT: Trial details card -->
+        <div className="card pad trialCard">
+          <div style=${{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+            <div className="trialIconBox">🎁</div>
+            <div>
+              <div style=${{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "18px" }}>Trial Gratuito</div>
+              <div className="pill good" style=${{ marginTop: "5px", fontSize: "11px", padding: "3px 9px" }}>24 Horas Grátis</div>
+            </div>
+          </div>
+          <div className="muted" style=${{ marginBottom: "16px", fontSize: "14px" }}>
+            Teste todas as funcionalidades do bot por 24 horas sem custo algum.
+          </div>
+
+          <div className="trialPrice">GRÁTIS</div>
+          <div style=${{ color: "var(--good)", fontWeight: 800, fontSize: "14px", marginBottom: "20px" }}>
+            Acesso completo por 24 horas
+          </div>
+
+          <div style=${{ fontWeight: 800, fontSize: "13px", marginBottom: "10px" }}>Funções incluídas:</div>
+          <div className="trialFeatures">
+            ${features.map((f) => html`
+              <div className="trialFeatureRow">
+                <span className="trialCheck">✓</span>
+                <span>${f}</span>
+              </div>
+            `)}
+          </div>
+
+          <div className="trialNote">
+            <b>Importante:</b> Após 24 horas, o plano expira automaticamente.
+            Para continuar, adquira um dos nossos planos a partir de R$ 5,97/mês.
+          </div>
+        </div>
+
+        <!-- RIGHT: Status panel -->
+        <div className="card pad trialStatusCard">
+          <div style=${{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "18px", marginBottom: "20px" }}>
+            Status do Trial
+          </div>
+
+          ${phase === "idle" ? html`
+            <div className="trialStatusBody">
+              ${alreadyHasPlan ? html`
+                <div className="trialStatusIcon trialStatusIconWarn">⚡</div>
+                <div className="trialStatusTitle">Plano já ativo</div>
+                <div className="trialStatusDesc">Você já possui um plano ativo. Gerencie seu plano ou acesse a dashboard.</div>
+              ` : alreadyUsedTrial ? html`
+                <div className="trialStatusIcon trialStatusIconWarn">⚠️</div>
+                <div className="trialStatusTitle">Trial já utilizado</div>
+                <div className="trialStatusDesc">Você já usou o trial gratuito. Escolha um plano para continuar.</div>
+              ` : html`
+                <div className="trialStatusIcon trialStatusIconGood">✓</div>
+                <div className="trialStatusTitle">Você está elegível!</div>
+                <div className="trialStatusDesc">Sua conta está apta para receber o trial gratuito. Clique no botão abaixo para ativar.</div>
+              `}
+
+              ${!alreadyHasPlan && !alreadyUsedTrial ? html`
+                <div className="trialChecks">
+                  <div className="trialCheckLine">
+                    <span style=${{ color: "var(--good)" }}>✓</span>
+                    Primeira vez usando o trial
+                  </div>
+                  <div className="trialCheckLine">
+                    <span style=${{ color: "var(--good)" }}>✓</span>
+                    Conta verificada
+                  </div>
+                </div>
+              ` : null}
+            </div>
+
+            <div style=${{ marginTop: "20px" }}>
+              ${alreadyHasPlan || alreadyUsedTrial ? html`
+                <${Button} variant="primary" icon=${Rocket} onClick=${() => route.navigate("/dashboard")}>
+                  Ir para a Dashboard
+                </${Button}>
+              ` : html`
+                <${Button} variant="primary" icon=${Rocket} onClick=${onActivate}>
+                  Ativar Trial Gratuito
+                </${Button}>
+              `}
+              <div style=${{ margin: "12px 0" }}>
+                <${Button} variant="ghost" onClick=${() => route.navigate("/plans")}>Ver todos os planos</${Button}>
+              </div>
+            </div>
+          ` : phase === "loading" ? html`
+            <div className="trialStatusBody">
+              <div className="trialStatusIcon trialStatusIconLoading">
+                <span className="spin" style=${{ fontSize: "22px" }}>⟳</span>
+              </div>
+              <div className="trialStatusTitle">Preparando seu bot...</div>
+              <div className="trialStatusDesc">Estamos configurando sua conta trial. Isso pode levar alguns instantes.</div>
+              <div className="trialLoadingBox">
+                <span style=${{ opacity: 0.6, fontSize: "13px" }}>⏳</span>
+                <div>
+                  <div style=${{ fontWeight: 800, fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>Aguarde...</div>
+                  <div style=${{ fontSize: "12px", color: "var(--muted2)", marginTop: "2px" }}>O trial será ativado automaticamente</div>
+                </div>
+              </div>
+            </div>
+          ` : html`
+            <div className="trialStatusBody">
+              <div className="trialStatusIcon trialStatusIconGood">✓</div>
+              <div className="trialStatusTitle">Trial ativado!</div>
+              <div className="trialStatusDesc">Tudo pronto. Redirecionando para a dashboard...</div>
+            </div>
+          `}
+
+          <div className="hr" style=${{ margin: "20px 0 16px" }}></div>
+          <div className="trialDetailsGrid">
+            <div className="trialDetailRow">
+              <span className="muted2">Duração:</span>
+              <span style=${{ fontWeight: 800 }}>24 horas</span>
+            </div>
+            <div className="trialDetailRow">
+              <span className="muted2">Preço:</span>
+              <span style=${{ fontWeight: 900, color: "var(--good)" }}>GRÁTIS</span>
+            </div>
+            <div className="trialDetailRow">
+              <span className="muted2">Renovação:</span>
+              <span style=${{ fontWeight: 700 }}>Manual</span>
+            </div>
+            <div className="trialDetailRow">
+              <span className="muted2">Taxa por venda:</span>
+              <span style=${{ fontWeight: 700 }}>6%</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
 function Dashboard({ route, me, refreshMe, toast }) {
   const [instances, setInstances] = useState([]);
   const [guilds, setGuilds] = useState([]);
@@ -1415,8 +1600,39 @@ function Dashboard({ route, me, refreshMe, toast }) {
   const displayName = me?.discordUsername || me?.displayName || (me?.email ? me.email.split("@")[0] : "Usuário");
   const initials = displayName.slice(0, 1).toUpperCase();
 
+  // Plan expiry warning
+  const [expiryDismissed, setExpiryDismissed] = useState(false);
+  const expiryWarning = (() => {
+    if (expiryDismissed || !me?.plan?.expiresAt) return null;
+    const msLeft = Date.parse(me.plan.expiresAt) - Date.now();
+    const daysLeft = msLeft / (1000 * 60 * 60 * 24);
+    if (daysLeft <= 0) return null;
+    if (daysLeft > 3) return null;
+    const hoursLeft = msLeft / (1000 * 60 * 60);
+    const label = hoursLeft < 24
+      ? `${Math.max(1, Math.ceil(hoursLeft))} hora${Math.ceil(hoursLeft) > 1 ? "s" : ""}`
+      : `${Math.ceil(daysLeft)} dia${Math.ceil(daysLeft) > 1 ? "s" : ""}`;
+    return label;
+  })();
+
   return html`
     <div className="container">
+
+      ${expiryWarning ? html`
+        <div className="expiryBanner">
+          <div className="expiryBannerLeft">
+            <span className="expiryBannerIcon">🔔</span>
+            <div>
+              <div className="expiryBannerTitle">Plano expirando em breve!</div>
+              <div className="expiryBannerDesc">Seu plano expira em <b>${expiryWarning}</b>. Renove agora para não perder acesso.</div>
+            </div>
+          </div>
+          <div style=${{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+            <${Button} variant="primary" onClick=${() => route.navigate("/plans")}>Renovar Agora</${Button}>
+            <button className="expiryBannerDismiss" onClick=${() => setExpiryDismissed(true)} aria-label="Fechar">×</button>
+          </div>
+        </div>
+      ` : null}
 
       <div className="userHero">
         <div className="userAvatarWrap">
@@ -1490,6 +1706,29 @@ function Dashboard({ route, me, refreshMe, toast }) {
         </button>
       </div>
 
+      ${tab === "overview" && !me?.planActive && !(instances?.length > 0) ? html`
+      <div className="dashWelcome">
+        <div className="dashWelcomeInner">
+          <div className="dashWelcomeIcon">
+            <${Rocket} size=${32} strokeWidth=${1.6} />
+          </div>
+          <h2 className="dashWelcomeTitle">Configure seu <span style=${{ color: "var(--accent2)" }}>Bot</span>!</h2>
+          <p className="dashWelcomeDesc">
+            Você ainda não tem nenhum bot configurado.<br/>
+            Ative o trial gratuito ou escolha um plano para começar.
+          </p>
+          <div style=${{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "8px" }}>
+            <${Button} variant="primary" icon=${Rocket} onClick=${() => route.navigate("/trial")}>
+              Ativar Trial Grátis
+            </${Button}>
+            <${Button} variant="ghost" icon=${CreditCard} onClick=${() => route.navigate("/plans")}>
+              Ver Planos
+            </${Button}>
+          </div>
+        </div>
+      </div>
+      ` : null}
+
       ${tab === "overview" ? html`
       <div className="card pad" style=${{ marginTop: "14px" }}>
         <div className="cardHead">
@@ -1518,7 +1757,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
                 <${Button} variant="ghost" icon=${CreditCard} disabled=${busy} onClick=${() => route.navigate("/plans")}>Gerenciar plano</${Button}>
                 ${me?.planActive
                   ? null
-                  : html`<${Button} variant="subtle" icon=${Rocket} disabled=${busy} onClick=${onClaimTrial}>Ativar trial</${Button}>`}
+                  : html`<${Button} variant="subtle" icon=${Rocket} disabled=${busy} onClick=${() => route.navigate("/trial")}>Ativar trial</${Button}>`}
               </div>
             </div>
           </div>
@@ -2857,6 +3096,7 @@ function App() {
   let page = null;
   if (route.path === "/login") page = html`<${Login} error=${loginError} />`;
   else if (route.path === "/plans") page = html`<${Plans} route=${route} me=${me} toast=${showToast} />`;
+  else if (route.path === "/trial") page = html`<${TrialPage} route=${route} me=${me} refreshMe=${refreshMe} toast=${showToast} />`;
   else if (route.path === "/dashboard") page = html`<${Dashboard} route=${route} me=${me} refreshMe=${refreshMe} toast=${showToast} />`;
   else if (route.path === "/tutorials") page = html`<${Tutorials} />`;
   else if (route.path === "/terms") page = html`<${Terms} />`;
