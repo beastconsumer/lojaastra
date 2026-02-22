@@ -156,37 +156,164 @@ function TopBar({ route, me, onLogout }) {
 }
 
 function Home({ route }) {
+  const [calcRaw, setCalcRaw] = useState("");
+
+  const calcCents = (() => {
+    const v = parseFloat(String(calcRaw).replace(",", ".").replace(/[^\d.]/g, ""));
+    return Number.isFinite(v) && v > 0 ? Math.round(v * 100) : 0;
+  })();
+
+  function fmtBRL(cents) {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+  }
+
+  const competitors = [
+    { name: "AstraSystems", tag: "Menor taxa", rate: 0.06, release: "Na hora", highlight: true },
+    { name: "Outras plataformas", rate: 0.13, release: "Até 7 dias", highlight: false },
+    { name: "Mercado Livre / Outros", rate: 0.19, release: "Até 1 mês", highlight: false }
+  ];
+
+  const features = [
+    {
+      icon: "⚡",
+      iconBg: "rgba(230,33,42,0.18)",
+      title: "Taxa imbatível: apenas 6%",
+      desc: html`A menor taxa do mercado. Concorrentes cobram até <b style=${{ color: "var(--accent2)" }}>19%</b>. Você fica com mais do que vendeu.`
+    },
+    {
+      icon: "💸",
+      iconBg: "rgba(16,185,129,0.15)",
+      title: "PIX cai na hora",
+      desc: "Aprovação do pagamento confirmada em segundos. Zero espera, zero burocracia."
+    },
+    {
+      icon: "🤖",
+      iconBg: "rgba(99,102,241,0.18)",
+      title: "Bot 100% seu",
+      desc: "Use o token do seu próprio bot Discord. Nome, avatar e identidade são seus."
+    },
+    {
+      icon: "🏪",
+      iconBg: "rgba(245,158,11,0.15)",
+      title: "Loja embutida no Discord",
+      desc: "Produtos com variações, estoque, embed rico e botão de compra — tudo dentro do servidor."
+    },
+    {
+      icon: "🔒",
+      iconBg: "rgba(239,68,68,0.15)",
+      title: "Proteção anti-fraude",
+      desc: "Entrega automática só após confirmação do pagamento. Stock zerado nunca entrega."
+    },
+    {
+      icon: "🎁",
+      iconBg: "rgba(168,85,247,0.18)",
+      title: "Plano cresce com suas vendas",
+      desc: html`A cada <b style=${{ color: "var(--good)" }}>R$ 20 em vendas</b>, seu plano ganha <b style=${{ color: "var(--good)" }}>+1 dia</b> automático.`
+    }
+  ];
+
   return html`
     <div className="container">
       <div className="hero">
-        <div className="pill reco" style=${{ margin: "0 auto 12px", width: "fit-content" }}>
-          <span>Seu futuro Bot esta aqui</span>
+        <div className="pill reco" style=${{ margin: "0 auto 14px", width: "fit-content" }}>
+          <span>Venda no Discord como nunca antes</span>
         </div>
         <h1>Astra<span className="accent">Systems</span></h1>
         <p>
-          Transforme seu servidor no Discord em uma plataforma de vendas completa com painel, automacao e pagamentos.
-          Tudo com o tema e a pegada da AstraSystems.
+          Transforme seu servidor Discord em uma plataforma de vendas completa.
+          Bot próprio, estoque automático, PIX na hora e taxa de só 6%.
         </p>
         <div className="cta">
-          <${Button} variant="primary" onClick=${() => route.navigate("/dashboard")}>Ir para a Dashboard</${Button}>
+          <${Button} variant="primary" onClick=${() => route.navigate("/dashboard")}>Começar agora</${Button}>
           <${Button} variant="ghost" onClick=${() => route.navigate("/plans")}>Ver Planos</${Button}>
         </div>
       </div>
 
-      <div className="grid cols3">
-        <div className="card pad">
-          <h3 className="sectionTitle">Onboarding rápido</h3>
-          <div className="muted">Login com Discord ou email, escolha um plano, crie sua instância, conecte seu servidor e publique seus produtos em minutos.</div>
-        </div>
-        <div className="card pad">
-          <h3 className="sectionTitle">Saldo e saques</h3>
-          <div className="muted">
-            Acompanhe suas vendas em tempo real e solicite saque via Pix direto pela dashboard — sem burocracia.
+      <div className="homeGrid">
+        <div className="homeFeaturesCol">
+          <div className="homeSectionLabel">Por que usar a AstraSystems?</div>
+          <div className="featureList">
+            ${features.map((f) => html`
+              <div className="featureItem">
+                <div className="featureIcon" style=${{ background: f.iconBg }}>${f.icon}</div>
+                <div className="featureText">
+                  <div className="featureTitle">${f.title}</div>
+                  <div className="featureDesc">${f.desc}</div>
+                </div>
+              </div>
+            `)}
+          </div>
+
+          <div className="bonusBox">
+            <span style=${{ fontSize: "18px" }}>✨</span>
+            <div>
+              <div style=${{ fontWeight: 800, fontSize: "14px" }}>
+                Como a AstraSystems pode te deixar no lucro
+              </div>
+              <div style=${{ fontSize: "13px", color: "rgba(255,255,255,0.65)", marginTop: "4px", lineHeight: "1.5" }}>
+                A cada <b style=${{ color: "var(--good)" }}>R$ 20 em vendas</b>, você ganha <b style=${{ color: "var(--good)" }}>+1 dia</b> no seu bot.
+                Vendendo R$ 20 por dia, você não precisa renovar — o plano se paga sozinho.
+              </div>
+            </div>
           </div>
         </div>
-        <div className="card pad">
-          <h3 className="sectionTitle">Tema AstraSystems</h3>
-          <div className="muted">Interface dark premium, acentos vermelhos e UX focada em conversão. Cada tela tem propósito.</div>
+
+        <div className="homeCalcCol">
+          <div className="homeSectionLabel">Calculadora de Taxas</div>
+          <div className="feeCalc card pad">
+            <div className="label" style=${{ marginBottom: "8px" }}>Valor do produto</div>
+            <div className="feeInput">
+              <span className="feeInputPrefix">R$</span>
+              <input
+                className="input"
+                style=${{ paddingLeft: "42px" }}
+                value=${calcRaw}
+                onInput=${(e) => setCalcRaw(e.target.value)}
+                placeholder="0,00"
+                inputMode="decimal"
+              />
+            </div>
+
+            <div className="feeRows" style=${{ marginTop: "16px" }}>
+              ${competitors.map((c) => {
+                const fee = Math.round(calcCents * c.rate);
+                const receive = calcCents - fee;
+                return html`
+                  <div className=${`feeRow ${c.highlight ? "feeRowHighlight" : ""}`}>
+                    <div className="feeRowHead">
+                      <span className="feeRowName">${c.name}</span>
+                      ${c.tag ? html`<span className="feeRowTag">${c.tag}</span>` : null}
+                      <span className="feeRowRate" style=${{ color: c.highlight ? "var(--good)" : "var(--warn)" }}>
+                        ${Math.round(c.rate * 100)}%
+                      </span>
+                    </div>
+                    <div className="feeRowDetails">
+                      <div className="feeRowLine">
+                        <span>Taxa:</span>
+                        <span style=${{ color: "var(--bad)" }}>-${fmtBRL(fee)}</span>
+                      </div>
+                      <div className="feeRowLine">
+                        <span>Você recebe:</span>
+                        <span style=${{ color: c.highlight ? "var(--good)" : "var(--ink)", fontWeight: 900 }}>${fmtBRL(receive)}</span>
+                      </div>
+                      <div className="feeRowLine">
+                        <span>Liberação:</span>
+                        <span style=${{ color: c.highlight ? "var(--good)" : "var(--warn)" }}>${c.release}</span>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              })}
+            </div>
+
+            ${calcCents > 0 ? html`
+              <div className="feeSaving">
+                💰 Você economiza <b style=${{ color: "var(--good)" }}>
+                  ${fmtBRL(Math.round(calcCents * 0.19) - Math.round(calcCents * 0.06))}
+                </b> por venda vs. a maior taxa do mercado.
+              </div>
+            ` : null}
+          </div>
         </div>
       </div>
     </div>

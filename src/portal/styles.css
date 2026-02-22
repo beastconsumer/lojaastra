@@ -554,6 +554,132 @@ select.input {
 /* Compact action row in tables */
 .actionsRow { display: flex; gap: 6px; flex-wrap: wrap; }
 
+/* ─── Home Page: Features + Fee Calculator ──────────────────── */
+.homeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-top: 14px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .homeGrid { grid-template-columns: 1fr; }
+}
+
+.homeSectionLabel {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  margin-bottom: 18px;
+}
+
+/* Feature list */
+.featureList { display: flex; flex-direction: column; gap: 10px; }
+.featureItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.024);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+.featureItem:hover {
+  border-color: rgba(255,255,255,0.11);
+  background: rgba(255,255,255,0.036);
+}
+.featureIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.featureText { flex: 1; }
+.featureTitle { font-weight: 800; font-size: 14px; margin-bottom: 3px; }
+.featureDesc { font-size: 13px; color: rgba(255,255,255,0.58); line-height: 1.45; }
+
+/* Bonus box */
+.bonusBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(16,185,129,0.22);
+  background: rgba(16,185,129,0.07);
+}
+
+/* Fee calculator */
+.feeCalc { position: sticky; top: 90px; }
+.feeInput { position: relative; }
+.feeInputPrefix {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255,255,255,0.45);
+  font-weight: 700;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 1;
+}
+.feeRows { display: flex; flex-direction: column; gap: 10px; }
+.feeRow {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.022);
+}
+.feeRowHighlight {
+  border-color: rgba(16,185,129,0.28);
+  background: rgba(16,185,129,0.07);
+}
+.feeRowHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.feeRowName { font-weight: 800; font-size: 14px; flex: 1; min-width: 100px; }
+.feeRowTag {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(16,185,129,0.14);
+  color: rgba(167,243,208,0.9);
+  border: 1px solid rgba(16,185,129,0.22);
+}
+.feeRowRate { font-size: 15px; font-weight: 900; font-family: "Space Grotesk", sans-serif; margin-left: auto; }
+.feeRowDetails { display: flex; flex-direction: column; gap: 4px; }
+.feeRowLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+}
+.feeRowLine span:last-child { font-weight: 700; color: rgba(255,255,255,0.85); }
+.feeSaving {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.2);
+  font-size: 13px;
+  color: rgba(255,255,255,0.75);
+  line-height: 1.45;
+}
+
 /* Guild icon */
 .guildIcon { flex-shrink: 0; width: 40px; height: 40px; }
 .guildIconImg {
