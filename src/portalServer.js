@@ -610,7 +610,8 @@ export function startPortalServer(options = {}) {
 
   function getInstanceContainerName(instance) {
     const owner = sanitizeContainerSegment(instance?.ownerDiscordUserId, "owner");
-    return `bot_${owner}`;
+    const instId = sanitizeContainerSegment(instance?.id, "inst");
+    return `bot_${owner}_${instId}`;
   }
 
   function getInstanceBotToken(instance) {
@@ -1343,8 +1344,9 @@ export function startPortalServer(options = {}) {
     const tokenHash = hashToken(token);
     const apiKey = crypto.randomBytes(24).toString("base64url");
     const now = nowIso();
+    const instanceId = randomId("inst");
     const instance = {
-      id: randomId("inst"),
+      id: instanceId,
       ownerDiscordUserId: req.portalUser.discordUserId,
       name,
       createdAt: now,
@@ -1378,7 +1380,7 @@ export function startPortalServer(options = {}) {
       },
       runtime: {
         status: "configurado",
-        containerName: getInstanceContainerName({ ownerDiscordUserId: req.portalUser.discordUserId }),
+        containerName: getInstanceContainerName({ ownerDiscordUserId: req.portalUser.discordUserId, id: instanceId }),
         containerId: "",
         startedAt: "",
         finishedAt: "",
@@ -2261,8 +2263,23 @@ export function startPortalServer(options = {}) {
         if (user.trialClaimedAt) throw new Error("trial_used");
         if (isPlanActive(user.plan)) throw new Error("plan_active");
 
-        user.trialClaimedAt = nowIso();
+        const now = nowIso();
+        user.trialClaimedAt = now;
         user.plan = { tier: "trial", status: "active", expiresAt: addHoursIso(24) };
+
+        if (!Array.isArray(data.transactions)) data.transactions = [];
+        data.transactions.push({
+          id: randomId("tx"),
+          ownerDiscordUserId: req.portalUser.discordUserId,
+          type: "trial_activated",
+          amountCents: 0,
+          status: "paid",
+          provider: "internal",
+          providerPaymentId: "",
+          createdAt: now,
+          updatedAt: now
+        });
+
         store.save(data);
       })
       .catch((err) => {
@@ -2501,6 +2518,129 @@ export function startPortalServer(options = {}) {
 
     if (res.headersSent) return;
     res.json({ ok: true });
+  });
+
+  // ── Admin: complete withdrawal (mark as paid/sent) ───────────────
+  function isPortalAdmin(discordUserId) {
+    const ids = asString(process.env.ADMIN_IDS).split(",").map((s) => s.trim()).filter(Boolean);
+    return ids.includes(asString(discordUserId));
+  }
+
+  app.post("/api/admin/withdrawals/:id/complete", requireUser, async (req, res) => {
+    if (!isPortalAdmin(req.portalUser.discordUserId)) return res.status(403).json({ error: "forbidden" });
+    const wid = asString(req.params.id);
+    if (!wid) return res.status(400).json({ error: "withdrawal_id_obrigatorio" });
+
+    await store
+      .runExclusive(async () => {
+        const data = store.load();
+        const wd = (data.withdrawals || []).find((w) => w.id === wid);
+        if (!wd) throw new Error("not_found");
+        if (wd.status !== "requested") throw new Error("cannot_complete");
+
+        const now = nowIso();
+        wd.status = "completed";
+        wd.updatedAt = now;
+        wd.completedAt = now;
+
+        if (!Array.isArray(data.transactions)) data.transactions = [];
+        data.transactions.push({
+          id: randomId("tx"),
+          ownerDiscordUserId: wd.ownerDiscordUserId,
+          type: "withdrawal_completed",
+          amountCents: 0,
+          status: "paid",
+          provider: "internal",
+          providerPaymentId: "",
+          createdAt: now,
+          updatedAt: now,
+          metadata: { withdrawalId: wid }
+        });
+
+        store.save(data);
+      })
+      .catch((err) => {
+        const code = asString(err?.message);
+        if (code === "not_found") return res.status(404).json({ error: "saque_nao_encontrado" });
+        if (code === "cannot_complete") return res.status(409).json({ error: "saque_nao_esta_pendente" });
+        if (logError) logError("portal:admin:withdraw:complete", err);
+        return res.status(500).json({ error: "erro interno" });
+      });
+
+    if (res.headersSent) return;
+    res.json({ ok: true });
+  });
+
+  app.post("/api/admin/withdrawals/:id/reject", requireUser, async (req, res) => {
+    if (!isPortalAdmin(req.portalUser.discordUserId)) return res.status(403).json({ error: "forbidden" });
+    const wid = asString(req.params.id);
+    if (!wid) return res.status(400).json({ error: "withdrawal_id_obrigatorio" });
+
+    await store
+      .runExclusive(async () => {
+        const data = store.load();
+        const wd = (data.withdrawals || []).find((w) => w.id === wid);
+        if (!wd) throw new Error("not_found");
+        if (wd.status !== "requested") throw new Error("cannot_reject");
+
+        const now = nowIso();
+        wd.status = "rejected";
+        wd.updatedAt = now;
+
+        // Refund wallet
+        const user = store.getUserByDiscordId(data, wd.ownerDiscordUserId);
+        const refund = Math.floor(Number(wd.amountCents || 0));
+        if (user && refund > 0) {
+          user.walletCents = Math.floor(Number(user.walletCents || 0)) + refund;
+        }
+
+        if (!Array.isArray(data.transactions)) data.transactions = [];
+        data.transactions.push({
+          id: randomId("tx"),
+          ownerDiscordUserId: wd.ownerDiscordUserId,
+          type: "withdrawal_cancelled",
+          amountCents: refund,
+          status: "paid",
+          provider: "internal",
+          providerPaymentId: "",
+          createdAt: now,
+          updatedAt: now,
+          metadata: { withdrawalId: wid }
+        });
+
+        store.save(data);
+      })
+      .catch((err) => {
+        const code = asString(err?.message);
+        if (code === "not_found") return res.status(404).json({ error: "saque_nao_encontrado" });
+        if (code === "cannot_reject") return res.status(409).json({ error: "saque_nao_esta_pendente" });
+        if (logError) logError("portal:admin:withdraw:reject", err);
+        return res.status(500).json({ error: "erro interno" });
+      });
+
+    if (res.headersSent) return;
+    res.json({ ok: true });
+  });
+
+  // ── Admin: list all pending withdrawals ──────────────────────────
+  app.get("/api/admin/withdrawals", requireUser, (req, res) => {
+    if (!isPortalAdmin(req.portalUser.discordUserId)) return res.status(403).json({ error: "forbidden" });
+    const data = store.load();
+    const list = (data.withdrawals || [])
+      .filter((w) => w.status === "requested")
+      .sort((a, b) => Date.parse(a.createdAt || 0) - Date.parse(b.createdAt || 0))
+      .map((w) => ({
+        id: asString(w.id),
+        ownerDiscordUserId: asString(w.ownerDiscordUserId),
+        amountCents: Number(w.amountCents || 0),
+        amountFormatted: formatBRL(w.amountCents || 0),
+        status: asString(w.status),
+        method: asString(w.method || "pix"),
+        pixKey: asString(w.pixKey),
+        pixKeyType: asString(w.pixKeyType),
+        createdAt: asString(w.createdAt)
+      }));
+    res.json({ ok: true, withdrawals: list });
   });
 
   app.post("/webhooks/mercadopago", async (req, res) => {

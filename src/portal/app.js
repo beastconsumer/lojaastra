@@ -97,7 +97,7 @@ function Modal({ open, title, onClose, children }) {
       <div className="modal">
         <div className="modalHeader">
           <h3 className="modalTitle">${title || "Modal"}</h3>
-          <button className="modalClose" onClick=${onClose}>Fechar</button>
+          <button className="modalClose" onClick=${onClose} aria-label="Fechar">×</button>
         </div>
         <div className="hr"></div>
         ${children}
@@ -132,12 +132,21 @@ function TopBar({ route, me, onLogout }) {
               >${item.label}</a
             >`
         )}
-        <a href="https://discord.com" target="_blank" rel="noreferrer">Discord</a>
+        <a href="https://discord.gg/5H7xhCptbX" target="_blank" rel="noreferrer">Discord</a>
       </div>
       <div className="right">
         ${me
           ? html`
               <${Button} variant="subtle" onClick=${() => route.navigate("/dashboard")}>Dashboard</${Button}>
+              ${me.discordAvatarUrl
+                ? html`<img
+                    src=${me.discordAvatarUrl}
+                    alt=${me.discordUsername || "avatar"}
+                    className="topbarAvatar"
+                    onClick=${() => route.navigate("/dashboard")}
+                    title=${me.discordUsername || "Dashboard"}
+                  />`
+                : null}
               <${Button} variant="ghost" onClick=${onLogout}>Sair</${Button}>
             `
           : html`<${Button} variant="primary" onClick=${() => route.navigate("/login")}>Entrar</${Button}>`}
@@ -166,18 +175,18 @@ function Home({ route }) {
 
       <div className="grid cols3">
         <div className="card pad">
-          <h3 className="sectionTitle">Onboarding rapido</h3>
-          <div className="muted">Login com Discord ou Email, escolha um plano, crie sua instancia, conecte seu servidor e publique seus produtos.</div>
+          <h3 className="sectionTitle">Onboarding rápido</h3>
+          <div className="muted">Login com Discord ou email, escolha um plano, crie sua instância, conecte seu servidor e publique seus produtos em minutos.</div>
         </div>
         <div className="card pad">
           <h3 className="sectionTitle">Saldo e saques</h3>
           <div className="muted">
-            Acompanhe suas vendas e solicite saque via Pix direto na dashboard.
+            Acompanhe suas vendas em tempo real e solicite saque via Pix direto pela dashboard — sem burocracia.
           </div>
         </div>
         <div className="card pad">
           <h3 className="sectionTitle">Tema AstraSystems</h3>
-          <div className="muted">Interface dark, acentos vermelhos e UX focada em conversao. Sem pagina sem proposito.</div>
+          <div className="muted">Interface dark premium, acentos vermelhos e UX focada em conversão. Cada tela tem propósito.</div>
         </div>
       </div>
     </div>
@@ -1275,16 +1284,67 @@ function Dashboard({ route, me, refreshMe, toast }) {
     }
   };
 
+  const avatarUrl = me?.discordAvatarUrl || null;
+  const displayName = me?.discordUsername || me?.displayName || (me?.email ? me.email.split("@")[0] : "Usuário");
+  const initials = displayName.slice(0, 1).toUpperCase();
+
   return html`
     <div className="container">
-      <div className="dashHeader">
-        <h2>Dashboard</h2>
-        <div className="muted">
-          Conectado como <b>${me?.discordUsername}</b>${me?.email ? html` <span className="muted2">(${me.email})</span>` : null}
+
+      <div className="userHero">
+        <div className="userAvatarWrap">
+          ${avatarUrl ? html`
+            <img
+              className="userAvatar"
+              src=${avatarUrl}
+              alt=${displayName}
+              onError=${(e) => {
+                e.currentTarget.style.display = "none";
+                const fb = e.currentTarget.parentElement?.querySelector(".userAvatarFallback");
+                if (fb) fb.style.display = "flex";
+              }}
+            />
+          ` : null}
+          <div className="userAvatarFallback" style=${{ display: avatarUrl ? "none" : "flex" }}>
+            ${initials}
+          </div>
+          <div className="userOnlineDot" title="Online"></div>
+        </div>
+
+        <div className="userInfo">
+          <div className="userName">${displayName}</div>
+          ${me?.email ? html`<div className="userEmail">${me.email}</div>` : null}
+          <div className="userMeta">
+            <div className=${`pill ${me?.planActive ? "good" : "soon"}`} style=${{ fontSize: "11px", padding: "4px 9px" }}>
+              ${me?.planActive ? planText : "Sem plano"}
+            </div>
+            ${me?.discordUserId ? html`
+              <div className="pill" style=${{ fontSize: "11px", padding: "4px 9px" }}>
+                Discord
+              </div>
+            ` : null}
+          </div>
+        </div>
+
+        <div className="userStats">
+          <div className="userStat">
+            <div className="userStatVal">${formatBRLFromCents(me?.walletCents || 0)}</div>
+            <div className="userStatLabel">Saldo</div>
+          </div>
+          <div className="userStatDivider"></div>
+          <div className="userStat">
+            <div className="userStatVal">${formatBRLFromCents(me?.salesCentsTotal || 0)}</div>
+            <div className="userStatLabel">Total vendido</div>
+          </div>
+          <div className="userStatDivider"></div>
+          <div className="userStat">
+            <div className="userStatVal">${instances?.length || 0}</div>
+            <div className="userStatLabel">Instâncias</div>
+          </div>
         </div>
       </div>
 
-      <div className="tabs" style=${{ marginTop: "12px" }}>
+      <div className="tabs" style=${{ marginTop: "16px" }}>
         <button className=${`tab ${tab === "overview" ? "active" : ""}`} onClick=${() => setTab("overview")}>
           <${LayoutDashboard} size=${15} strokeWidth=${1.9} aria-hidden="true" />
           <span>Painel</span>
@@ -1305,29 +1365,29 @@ function Dashboard({ route, me, refreshMe, toast }) {
 
       ${tab === "overview" ? html`
       <div className="card pad" style=${{ marginTop: "14px" }}>
-        <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
-          <h3 className="sectionTitle" style=${{ margin: 0 }}>Onboarding</h3>
-          <div className="pill ${botStatus?.botReady ? "good" : "soon"}">
-            Bot: ${botStatus?.botReady ? "online" : "offline"}
+        <div className="cardHead">
+          <h3>Onboarding</h3>
+          <div className=${`pill ${botStatus?.botReady ? "good" : "soon"}`}>
+            <span className=${`dot ${botStatus?.botReady ? "on" : "off"}`} style=${{ marginRight: "5px" }}></span>
+            ${botStatus?.botReady ? "Bot online" : "Bot offline"}
           </div>
         </div>
-        <div className="muted" style=${{ marginTop: "10px" }}>
-          Fluxo recomendado: <b>Plano</b> -> <b>Instancia</b> -> <b>Vincular servidor</b> -> <b>Invite</b> -> <b>Loja</b> -> <b>Testar compra</b>.
+        <div className="muted" style=${{ marginBottom: "14px" }}>
+          Fluxo: <b>Plano</b> → <b>Instância</b> → <b>Vincular servidor</b> → <b>Invite</b> → <b>Loja</b> → <b>Testar compra</b>
         </div>
         ${me?.planActive && !(instances?.length > 0)
-          ? html`
-              <div className="pill reco" style=${{ marginTop: "10px" }}>
-                Proximo passo obrigatorio: criar sua instancia com o token do bot para liberar operacao.
-              </div>
-            `
+          ? html`<div className="pill reco" style=${{ marginBottom: "14px" }}>Próximo passo: criar sua instância com o token do bot.</div>`
           : null}
-        <div className="grid cols3" style=${{ marginTop: "14px" }}>
+        <div className="grid cols3">
           <div className="kpi">
-            <div className="label">1) Plano</div>
+            <div style=${{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "8px" }}>
+              <span className="stepBadge">1</span>
+              <div className="label" style=${{ margin: 0 }}>Plano</div>
+            </div>
             <div className="value">${me?.planActive ? "Ativo" : "Inativo"}</div>
-            <div className="hint">Trial 24h ou Start R$ 5,97/m. Reembolso em ate 7 dias (condicoes nos termos).</div>
+            <div className="hint">Trial 24h ou Start R$ 5,97/m. Reembolso em até 7 dias.</div>
             <div style=${{ marginTop: "10px" }}>
-              <div className="row grow" style=${{ gap: "10px" }}>
+              <div className="row grow" style=${{ gap: "8px" }}>
                 <${Button} variant="ghost" icon=${CreditCard} disabled=${busy} onClick=${() => route.navigate("/plans")}>Gerenciar plano</${Button}>
                 ${me?.planActive
                   ? null
@@ -1336,28 +1396,14 @@ function Dashboard({ route, me, refreshMe, toast }) {
             </div>
           </div>
           <div className="kpi">
-            <div className="label">2) Invite</div>
-            <div className="value">Adicionar bot</div>
-            <div className="hint">Convide o bot da sua instancia (token do cliente) para o servidor correto.</div>
+            <div style=${{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "8px" }}>
+              <span className="stepBadge">2</span>
+              <div className="label" style=${{ margin: 0 }}>Instância</div>
+            </div>
+            <div className="value">${(instances?.length || 0) > 0 ? "Criada" : "Pendente"}</div>
+            <div className="hint">Crie sua instância com o token do bot para começar a operar no Discord.</div>
             <div style=${{ marginTop: "10px" }}>
               <${Button}
-                variant="subtle"
-                icon=${Link2}
-                onClick=${() => {
-                  if (!firstInstance) return toast("Crie uma instancia", "Crie sua instancia com token antes do invite.", "bad");
-                  onInvite(firstInstance.discordGuildId || "", firstInstance.id);
-                }}
-              >
-                Gerar invite da instancia
-              </${Button}>
-            </div>
-          </div>
-          <div className="kpi">
-            <div className="label">3) Vincular</div>
-            <div className="value">Servidor</div>
-            <div className="hint">Edite sua instancia e informe o <b>Guild ID</b> (ou selecione da lista com Discord).</div>
-            <div style=${{ marginTop: "10px" }}>
-             <${Button}
                 variant="primary"
                 icon=${Plus}
                 disabled=${busy}
@@ -1367,7 +1413,27 @@ function Dashboard({ route, me, refreshMe, toast }) {
                   setCreating(true);
                 }}
               >
-                Criar instancia
+                Criar instância
+              </${Button}>
+            </div>
+          </div>
+          <div className="kpi">
+            <div style=${{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "8px" }}>
+              <span className="stepBadge">3</span>
+              <div className="label" style=${{ margin: 0 }}>Invite</div>
+            </div>
+            <div className="value">Adicionar bot</div>
+            <div className="hint">Gere o link de convite e adicione o bot ao seu servidor Discord.</div>
+            <div style=${{ marginTop: "10px" }}>
+              <${Button}
+                variant="subtle"
+                icon=${Link2}
+                onClick=${() => {
+                  if (!firstInstance) return toast("Crie uma instância", "Crie sua instância com token antes do invite.", "bad");
+                  onInvite(firstInstance.discordGuildId || "", firstInstance.id);
+                }}
+              >
+                Gerar invite
               </${Button}>
             </div>
           </div>
@@ -1380,66 +1446,70 @@ function Dashboard({ route, me, refreshMe, toast }) {
         <div className="kpi">
           <div className="label">Saldo de vendas</div>
           <div className="value">${formatBRLFromCents(me?.walletCents || 0)}</div>
-          <div className="hint">
-            Saldo liquido das suas vendas. Total vendido: <b>${formatBRLFromCents(me?.salesCentsTotal || 0)}</b>.
-          </div>
-          <div className="stack" style=${{ marginTop: "12px" }}>
-            <div className="row grow" style=${{ gap: "10px" }}>
-              <input
-                className="input"
-                value=${withdrawAmount}
-                disabled=${busy}
-                onInput=${(e) => setWithdrawAmount(e.target.value)}
-                placeholder="50,00"
-              />
-              <${Button} variant="primary" icon=${HandCoins} disabled=${busy} onClick=${onRequestWithdrawal}>
-                Solicitar saque
-              </${Button}>
-            </div>
-            <input
-              className="input mono"
-              value=${pixKey}
-              disabled=${busy}
-              onInput=${(e) => setPixKey(e.target.value)}
-              placeholder="Chave Pix (CPF / email / telefone / aleatoria)"
-            />
-            <select className="input" value=${pixKeyType} disabled=${busy} onChange=${(e) => setPixKeyType(e.target.value)}>
-              <option value="">Tipo (opcional)</option>
-              <option value="cpf">CPF</option>
-              <option value="cnpj">CNPJ</option>
-              <option value="email">Email</option>
-              <option value="phone">Telefone</option>
-              <option value="random">Aleatoria</option>
-            </select>
-            <div className="help">Saque minimo: <b>R$ 10,00</b>. Ao solicitar, o valor sai do saldo e fica pendente.</div>
-          </div>
+          <div className="hint">Total vendido: <b>${formatBRLFromCents(me?.salesCentsTotal || 0)}</b></div>
         </div>
         <div className="kpi">
           <div className="label">Plano</div>
           <div className="value">${planText}</div>
           <div className="hint">
-            ${me?.plan?.expiresAt ? html`Expira em: <b>${String(me.plan.expiresAt).slice(0, 10)}</b>` : html`Sem expiracao`}
+            ${me?.plan?.expiresAt ? html`Expira em: <b>${String(me.plan.expiresAt).slice(0, 10)}</b>` : html`Sem expiração`}
           </div>
           <div style=${{ marginTop: "12px" }}>
             <${Button} variant="ghost" icon=${CreditCard} onClick=${() => route.navigate("/plans")}>Ver planos</${Button}>
           </div>
         </div>
         <div className="kpi">
-          <div className="label">Bot</div>
-          <div className="value">Onboarding</div>
-          <div className="hint">Cada plano ativo libera 1 bot. Configure token e convide essa instancia.</div>
+          <div className="label">Instâncias ativas</div>
+          <div className="value">${instances?.length || 0}</div>
+          <div className="hint">Cada plano ativo libera 1 instância. Configure token e convide o bot.</div>
           <div style=${{ marginTop: "12px" }}>
             <${Button}
               variant="subtle"
               icon=${Link2}
               onClick=${() => {
-                if (!firstInstance) return toast("Crie uma instancia", "Crie sua instancia com token antes do invite.", "bad");
+                if (!firstInstance) return toast("Crie uma instância", "Crie sua instância com token antes do invite.", "bad");
                 onInvite(firstInstance.discordGuildId || "", firstInstance.id);
               }}
             >
-              Gerar invite da instancia
+              Gerar invite
             </${Button}>
           </div>
+        </div>
+      </div>
+
+      <div className="card pad" style=${{ marginTop: "14px" }}>
+        <div className="cardHead">
+          <h3>Solicitar saque</h3>
+        </div>
+        <div className="stack">
+          <div className="row grow" style=${{ gap: "10px" }}>
+            <input
+              className="input"
+              value=${withdrawAmount}
+              disabled=${busy}
+              onInput=${(e) => setWithdrawAmount(e.target.value)}
+              placeholder="Valor (ex: 50,00)"
+            />
+            <${Button} variant="primary" icon=${HandCoins} disabled=${busy} onClick=${onRequestWithdrawal}>
+              Solicitar saque
+            </${Button}>
+          </div>
+          <input
+            className="input mono"
+            value=${pixKey}
+            disabled=${busy}
+            onInput=${(e) => setPixKey(e.target.value)}
+            placeholder="Chave Pix (CPF / email / telefone / aleatória)"
+          />
+          <select className="input" value=${pixKeyType} disabled=${busy} onChange=${(e) => setPixKeyType(e.target.value)}>
+            <option value="">Tipo da chave (opcional)</option>
+            <option value="cpf">CPF</option>
+            <option value="cnpj">CNPJ</option>
+            <option value="email">Email</option>
+            <option value="phone">Telefone</option>
+            <option value="random">Aleatória</option>
+          </select>
+          <div className="help">Saque mínimo: <b>R$ 10,00</b>. Ao solicitar, o valor sai do saldo e fica pendente até processamento.</div>
         </div>
       </div>
       ` : null}
@@ -1447,8 +1517,8 @@ function Dashboard({ route, me, refreshMe, toast }) {
       ${tab === "instances" ? html`
       <div className="grid cols2" style=${{ marginTop: "18px" }}>
         <div className="card pad">
-          <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
-            <h3 className="sectionTitle" style=${{ margin: 0 }}>Instancias</h3>
+          <div className="cardHead">
+            <h3>Instâncias</h3>
             <${Button}
               variant="primary"
               icon=${Plus}
@@ -1458,25 +1528,25 @@ function Dashboard({ route, me, refreshMe, toast }) {
                 setCreating((v) => !v);
               }}
             >
-              ${creating ? "Fechar" : (instances?.length || 0) >= 1 ? "Limite atingido" : "Criar instancia"}
+              ${creating ? "Fechar" : (instances?.length || 0) >= 1 ? "Limite atingido" : "Criar instância"}
             </${Button}>
           </div>
 
           ${me?.planActive
             ? null
-            : html`<div className="muted2" style=${{ marginTop: "10px" }}>Ative um plano para criar instancias e liberar o bot no seu servidor.</div>`}
+            : html`<div className="muted2" style=${{ marginTop: "10px", marginBottom: "4px" }}>Ative um plano para criar instâncias e liberar o bot no seu servidor.</div>`}
           ${me?.planActive && (instances?.length || 0) >= 1
-            ? html`<div className="muted2" style=${{ marginTop: "10px" }}>Seu plano atual permite 1 bot por assinatura. Exclua a instancia atual para criar outra.</div>`
+            ? html`<div className="muted2" style=${{ marginTop: "10px", marginBottom: "4px" }}>Seu plano permite 1 instância por assinatura. Exclua a instância atual para criar outra.</div>`
             : null}
 
           ${creating
             ? html`
                 <div className="stack" style=${{ marginTop: "12px" }}>
-                  <input className="input" placeholder="Nome da sua loja/bot" value=${newName} onInput=${(e) => setNewName(e.target.value)} />
+                  <input className="input" placeholder="Nome da sua loja / bot" value=${newName} onInput=${(e) => setNewName(e.target.value)} />
                   <input
                     className="input mono"
                     type="password"
-                    placeholder="Token do bot criado no Discord Developer"
+                    placeholder="Token do bot (Discord Developer Portal)"
                     value=${newBotToken}
                     onInput=${(e) => setNewBotToken(e.target.value)}
                   />
@@ -1486,11 +1556,9 @@ function Dashboard({ route, me, refreshMe, toast }) {
                     disabled=${busy || !me?.planActive || (instances?.length || 0) >= 1}
                     onClick=${onCreateInstance}
                   >
-                    Criar com token
+                    ${busy ? "Validando..." : "Criar instância"}
                   </${Button}>
-                  <div className="muted2" style=${{ fontSize: "12px" }}>
-                    Cada assinatura libera 1 instancia/bot. O token e validado no momento da criacao.
-                  </div>
+                  <div className="help">Cada assinatura libera 1 instância. O token é validado na hora.</div>
                 </div>
               `
             : null}
@@ -1501,38 +1569,43 @@ function Dashboard({ route, me, refreshMe, toast }) {
                   ${instances.map(
                     (inst) => html`
                       <div className="kpi">
-                        <div style=${{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-                          <div style=${{ flex: 2, minWidth: "240px" }}>
-                            <div style=${{ fontWeight: 900, fontSize: "16px" }}>${inst.name || "Instancia"}</div>
-                            <div className="muted2 mono" style=${{ fontSize: "12px" }}>${inst.id}</div>
+                        <div style=${{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+                          <div>
+                            <div style=${{ fontWeight: 900, fontSize: "16px", lineHeight: "1.2" }}>${inst.name || "Instância"}</div>
+                            <div className="mono muted2" style=${{ fontSize: "11px", marginTop: "3px" }}>${inst.id}</div>
                           </div>
                           <div className=${`pill ${inst.discordGuildId ? "good" : "soon"}`}>
-                            ${inst.discordGuildId ? "Servidor vinculado" : "Nao vinculado"}
+                            <span className=${`dot ${inst.discordGuildId ? "on" : "off"}`} style=${{ marginRight: "5px" }}></span>
+                            ${inst.discordGuildId ? "Servidor vinculado" : "Sem servidor"}
                           </div>
                         </div>
 
                         <div className="hr"></div>
 
-                        <div className="stack" style=${{ gap: "6px" }}>
-                          <div className="muted2">
-                            Guild ID: <b className="mono">${inst.discordGuildId ? inst.discordGuildId : "-"}</b>
+                        <div className="stack" style=${{ gap: "2px" }}>
+                          <div className="infoItem">
+                            <span className="iKey">Guild ID</span>
+                            <span className="iVal mono">${inst.discordGuildId || "—"}</span>
                           </div>
-                          <div className="muted2">
-                            Bot: <b>${inst?.botProfile?.username ? `${inst.botProfile.username}${inst.botProfile?.discriminator ? `#${inst.botProfile.discriminator}` : ""}` : "-"}</b>
+                          <div className="infoItem">
+                            <span className="iKey">Bot</span>
+                            <span className="iVal">${inst?.botProfile?.username ? `@${inst.botProfile.username}` : "—"}</span>
                           </div>
-                          <div className="muted2">
-                            Token: <b>${inst?.hasBotToken ? "Configurado" : "Pendente"}</b>
+                          <div className="infoItem">
+                            <span className="iKey">Token</span>
+                            <span className="iVal">${inst?.hasBotToken ? "✓ Configurado" : "Pendente"}</span>
                           </div>
-                          <div className="muted2">
-                            Integracao API: <b className="mono">${inst.apiKeyLast4 ? `****${inst.apiKeyLast4}` : "-"}</b>
+                          <div className="infoItem">
+                            <span className="iKey">API Key</span>
+                            <span className="iVal mono">${inst.apiKeyLast4 ? `****${inst.apiKeyLast4}` : "—"}</span>
                           </div>
                         </div>
 
-                        <div className="stack" style=${{ marginTop: "10px", gap: "8px" }}>
+                        <div className="stack" style=${{ marginTop: "12px", gap: "8px" }}>
                           <input
                             className="input mono"
                             type="password"
-                            placeholder=${inst?.hasBotToken ? "Atualizar token do bot" : "Cole o token do bot do cliente"}
+                            placeholder=${inst?.hasBotToken ? "Atualizar token do bot" : "Colar token do bot"}
                             value=${asString(tokenDraftByInstance?.[asString(inst.id)] || "")}
                             onInput=${(e) =>
                               setTokenDraftByInstance((prev) => ({ ...prev, [asString(inst.id)]: asString(e.target.value) }))
@@ -1556,8 +1629,10 @@ function Dashboard({ route, me, refreshMe, toast }) {
                           </div>
                         </div>
 
-                        <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
-                          <${Button} variant="ghost" disabled=${busy} onClick=${() => openEditInstance(inst)}>Editar/Vincular</${Button}>
+                        <div className="hr"></div>
+
+                        <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <${Button} variant="ghost" disabled=${busy} onClick=${() => openEditInstance(inst)}>Editar / Vincular</${Button}>
                           <${Button}
                             variant="subtle"
                             disabled=${busy}
@@ -1566,49 +1641,63 @@ function Dashboard({ route, me, refreshMe, toast }) {
                               else openEditInstance(inst);
                             }}
                           >
-                            Invite desta instancia
+                            Gerar invite
                           </${Button}>
                           <${Button} variant="danger" disabled=${busy} onClick=${() => onDeleteInstance(inst.id)}>Excluir</${Button}>
-                        </div>
-
-                        <div className="help" style=${{ marginTop: "10px" }}>
-                          Vincule o servidor em <b>Editar/Vincular</b>, mantenha token valido e gere o invite desta instancia.
                         </div>
                       </div>
                     `
                   )}
                 </div>
               `
-            : html`<div className="muted" style=${{ marginTop: "12px" }}>Nenhuma instancia criada ainda.</div>`}
+            : html`
+                <div className="emptyState">
+                  <div className="eTitle">Nenhuma instância criada</div>
+                  <div className="eDesc">Crie sua primeira instância com o token do bot para começar a operar.</div>
+                </div>
+              `}
         </div>
 
         <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>Servidores (Discord)</h3>
-          <div className="muted">
-            Aqui aparecem os servidores onde voce tem permissao de gerenciar. Use para gerar um invite ja selecionando o servidor.
+          <div className="cardHead">
+            <h3>Servidores Discord</h3>
           </div>
-          <div className="stack" style=${{ marginTop: "12px" }}>
+          <div className="muted" style=${{ marginBottom: "12px" }}>
+            Servidores onde você tem permissão de administrar. Use para gerar o invite já selecionando o servidor.
+          </div>
+          <div className="stack">
             ${guilds?.length
               ? guilds.slice(0, 12).map(
                   (g) => html`
-                    <div className="row" style=${{ alignItems: "center" }}>
-                      <div style=${{ flex: 2, minWidth: "220px" }}>
-                        <b>${g.name}</b>
-                        <div className="muted2" style=${{ fontSize: "12px" }}>${g.id}</div>
+                    <div className="row" style=${{ alignItems: "center", gap: "12px" }}>
+                      <div className="guildIcon">
+                        ${g.iconUrl
+                          ? html`<img src=${g.iconUrl} alt=${g.name} className="guildIconImg" />`
+                          : html`<div className="guildIconFallback">${(g.name || "?").slice(0, 1).toUpperCase()}</div>`
+                        }
+                      </div>
+                      <div style=${{ flex: 2, minWidth: "140px" }}>
+                        <div style=${{ fontWeight: 700 }}>${g.name}</div>
+                        <div className="muted2 mono" style=${{ fontSize: "11px" }}>${g.id}</div>
                       </div>
                       <${Button}
                         variant="ghost"
                         onClick=${() => {
-                          if (!firstInstance) return toast("Instancia ausente", "Crie sua instancia antes de convidar o bot.", "bad");
+                          if (!firstInstance) return toast("Instância ausente", "Crie sua instância antes de convidar o bot.", "bad");
                           onInvite(g.id, firstInstance.id);
                         }}
                       >
-                        Convidar bot da instancia
+                        Convidar bot
                       </${Button}>
                     </div>
                   `
                 )
-              : html`<div className="muted2">Para listar servidores aqui, entre com Discord. (Por email, essa lista nao aparece.)</div>`}
+              : html`
+                  <div className="emptyState">
+                    <div className="eTitle">Nenhum servidor</div>
+                    <div className="eDesc">Para listar seus servidores aqui, entre com Discord. Login por email não acessa essa lista.</div>
+                  </div>
+                `}
           </div>
         </div>
       </div>
@@ -1616,77 +1705,81 @@ function Dashboard({ route, me, refreshMe, toast }) {
 
       ${tab === "store" ? html`
       <div className="card pad" style=${{ marginTop: "18px" }}>
-        <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>Produtos e Estoque</h3>
+        <div className="cardHead">
+          <h3>Produtos e Estoque</h3>
           <div className="row" style=${{ alignItems: "center", gap: "10px" }}>
             <select
               className="input"
-              style=${{ width: "min(360px, 100%)" }}
+              style=${{ width: "min(280px, 100%)" }}
               value=${storeInstanceId}
               onChange=${(e) => setStoreInstanceId(e.target.value)}
               disabled=${storeProducts.loading || !instances?.length}
             >
-              ${instances?.length ? null : html`<option value="">Nenhuma instancia</option>`}
+              ${instances?.length ? null : html`<option value="">Nenhuma instância</option>`}
               ${(instances || []).map((inst) => html`<option value=${inst.id}>${inst.name || inst.id}</option>`)}
             </select>
             <${Button} variant="primary" disabled=${storeProducts.loading || !storeInstanceId} onClick=${openCreateProduct}>Criar produto</${Button}>
           </div>
         </div>
-        <div className="help">
-          Crie produtos, adicione estoque (keys) e poste no canal certo.
+        <div className="help" style=${{ marginBottom: "14px" }}>
           ${currentInstance?.discordGuildId
-            ? html`<br />Servidor vinculado: <span className="mono"><b>${currentInstance.discordGuildId}</b></span>`
-            : html`<br /><b>Importante:</b> para postar no Discord, vincule um servidor na sua instancia e convide o bot.`}
+            ? html`Servidor: <span className="mono"><b>${currentInstance.discordGuildId}</b></span> · Crie produtos, adicione estoque e poste nos canais.`
+            : html`<b>Atenção:</b> vincule um servidor na instância e convide o bot para conseguir postar produtos no Discord.`}
         </div>
 
         ${storeProducts.loading
-          ? html`<div className="muted" style=${{ marginTop: "12px" }}>Carregando produtos...</div>`
+          ? html`<div className="muted" style=${{ padding: "16px 0" }}>Carregando produtos...</div>`
           : storeProducts.products?.length
             ? html`
-                <div style=${{ marginTop: "12px" }}>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Nome</th>
-                        <th>Variacoes</th>
-                        <th>Estoque</th>
-                        <th>Acoes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${storeProducts.products.map((p) => {
-                        const pid = asString(p?.id);
-                        const variants = Array.isArray(p?.variants) ? p.variants.length : 0;
-                        const stock = Number(storeProducts.stockCounts?.[pid] || 0);
-                        return html`
-                          <tr>
-                            <td className="mono"><b>${pid}</b></td>
-                            <td>${p?.name || pid}</td>
-                            <td>${variants}</td>
-                            <td><b>${stock}</b></td>
-                            <td>
-                              <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                                <${Button} variant="ghost" disabled=${false} onClick=${() => openEditProduct(p)}>Editar</${Button}>
-                                <${Button} variant="subtle" disabled=${false} onClick=${() => openStock(p)}>Estoque</${Button}>
-                                <${Button} variant="subtle" disabled=${!currentInstance?.discordGuildId} onClick=${() => openPost(p)}>Postar</${Button}>
-                                <${Button} variant="danger" disabled=${false} onClick=${() => deleteProduct(p)}>Excluir</${Button}>
-                              </div>
-                            </td>
-                          </tr>
-                        `;
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Nome</th>
+                      <th>Variações</th>
+                      <th>Estoque</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${storeProducts.products.map((p) => {
+                      const pid = asString(p?.id);
+                      const variants = Array.isArray(p?.variants) ? p.variants.length : 0;
+                      const stock = Number(storeProducts.stockCounts?.[pid] || 0);
+                      return html`
+                        <tr>
+                          <td className="mono" style=${{ fontSize: "12px" }}><b>${pid}</b></td>
+                          <td style=${{ fontWeight: 600 }}>${p?.name || pid}</td>
+                          <td>${variants}</td>
+                          <td><b style=${{ color: stock > 0 ? "var(--good)" : "var(--muted2)" }}>${stock}</b></td>
+                          <td>
+                            <div className="actionsRow">
+                              <${Button} variant="ghost" disabled=${false} onClick=${() => openEditProduct(p)}>Editar</${Button}>
+                              <${Button} variant="subtle" disabled=${false} onClick=${() => openStock(p)}>Estoque</${Button}>
+                              <${Button} variant="subtle" disabled=${!currentInstance?.discordGuildId} onClick=${() => openPost(p)}>Postar</${Button}>
+                              <${Button} variant="danger" disabled=${false} onClick=${() => deleteProduct(p)}>Excluir</${Button}>
+                            </div>
+                          </td>
+                        </tr>
+                      `;
+                    })}
+                  </tbody>
+                </table>
               `
-            : html`<div className="muted" style=${{ marginTop: "12px" }}>Nenhum produto cadastrado nessa instancia.</div>`}
+            : html`
+                <div className="emptyState">
+                  <div className="eTitle">Nenhum produto cadastrado</div>
+                  <div className="eDesc">Crie seu primeiro produto para começar a vender na sua instância.</div>
+                </div>
+              `}
       </div>
       ` : null}
 
       ${tab === "overview" ? html`
       <div className="card pad" style=${{ marginTop: "18px" }}>
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>Transacoes recentes</h3>
+        <div className="cardHead">
+          <h3>Transações recentes</h3>
+        </div>
         ${txs?.length
           ? html`
               <table className="table">
@@ -1702,7 +1795,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
                   ${txs.map(
                     (t) => html`
                       <tr>
-                        <td>${
+                        <td style=${{ fontWeight: 600 }}>${
                           t.type === "sale_credit"
                             ? "Venda"
                             : t.type === "plan_purchase"
@@ -1714,19 +1807,26 @@ function Dashboard({ route, me, refreshMe, toast }) {
                                   : t.type
                         }</td>
                         <td><b>${t.amountFormatted}</b></td>
-                        <td>${t.status}</td>
-                        <td>${String(t.createdAt || "").slice(0, 19).replace("T", " ")}</td>
+                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${t.status}</span></td>
+                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${String(t.createdAt || "").slice(0, 19).replace("T", " ")}</span></td>
                       </tr>
                     `
                   )}
                 </tbody>
               </table>
             `
-          : html`<div className="muted">Nenhuma transacao ainda.</div>`}
+          : html`
+              <div className="emptyState">
+                <div className="eTitle">Sem transações</div>
+                <div className="eDesc">Suas vendas e movimentações aparecerão aqui.</div>
+              </div>
+            `}
       </div>
 
-      <div className="card pad" style=${{ marginTop: "16px" }}>
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>Saques</h3>
+      <div className="card pad" style=${{ marginTop: "14px" }}>
+        <div className="cardHead">
+          <h3>Saques solicitados</h3>
+        </div>
         ${withdrawals?.length
           ? html`
               <table className="table">
@@ -1734,9 +1834,9 @@ function Dashboard({ route, me, refreshMe, toast }) {
                   <tr>
                     <th>Valor</th>
                     <th>Status</th>
-                    <th>Pix</th>
+                    <th>Chave Pix</th>
                     <th>Data</th>
-                    <th>Acoes</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1744,56 +1844,92 @@ function Dashboard({ route, me, refreshMe, toast }) {
                     (w) => html`
                       <tr>
                         <td><b>${w.amountFormatted}</b></td>
-                        <td>${w.status}</td>
-                        <td className="mono">${asString(w.pixKey).slice(0, 3)}...${asString(w.pixKey).slice(-3)}</td>
-                        <td>${String(w.createdAt || "").slice(0, 19).replace("T", " ")}</td>
+                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${w.status}</span></td>
+                        <td className="mono" style=${{ fontSize: "12px" }}>${asString(w.pixKey).slice(0, 3)}...${asString(w.pixKey).slice(-3)}</td>
+                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${String(w.createdAt || "").slice(0, 19).replace("T", " ")}</span></td>
                         <td>
                           ${asString(w.status).toLowerCase() === "requested"
                             ? html`<${Button} variant="danger" disabled=${busy} onClick=${() => onCancelWithdrawal(w.id)}>Cancelar</${Button}>`
-                            : html`<span className="muted2">-</span>`}
+                            : html`<span className="muted2">—</span>`}
                         </td>
                       </tr>
                     `
                   )}
                 </tbody>
               </table>
-              <div className="help" style=${{ marginTop: "10px" }}>
-                Dica: mantenha sua chave Pix correta. Saques sao processados em fila (manual/automacao dependendo da operacao).
-              </div>
+              <div className="help" style=${{ marginTop: "10px" }}>Saques são processados em fila. Mantenha sua chave Pix correta.</div>
             `
-          : html`<div className="muted">Nenhum saque solicitado ainda.</div>`}
+          : html`
+              <div className="emptyState">
+                <div className="eTitle">Sem saques</div>
+                <div className="eDesc">Solicite um saque quando tiver saldo disponível.</div>
+              </div>
+            `}
       </div>
       ` : null}
 
       ${tab === "account" ? html`
       <div className="grid cols2" style=${{ marginTop: "18px" }}>
         <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>Conta</h3>
-          <div className="stack">
-            <div className="muted2">
-              ID: <span className="mono"><b>${me?.discordUserId}</b></span>
+          <div className="cardHead">
+            <h3>Conta</h3>
+          </div>
+
+          ${avatarUrl ? html`
+            <div style=${{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 0 16px" }}>
+              <img
+                src=${avatarUrl}
+                alt=${displayName}
+                style=${{ width: "54px", height: "54px", borderRadius: "50%", objectFit: "cover",
+                          border: "2px solid rgba(255,255,255,0.14)", boxShadow: "0 0 0 3px rgb(var(--accent-rgb) / 0.22)" }}
+              />
+              <div>
+                <div style=${{ fontWeight: 900, fontSize: "17px", fontFamily: '"Space Grotesk", sans-serif', letterSpacing: "-0.02em" }}>${displayName}</div>
+                ${me?.email ? html`<div className="muted2" style=${{ fontSize: "12px", marginTop: "2px" }}>${me.email}</div>` : null}
+              </div>
             </div>
-            <div className="muted2">
-              Login: <b>${me?.authProvider === "local" ? "Email" : "Discord"}</b>
+            <div className="hr"></div>
+          ` : null}
+
+          <div className="stack">
+            <div className="infoItem">
+              <span className="iKey">Discord ID</span>
+              <span className="iVal mono">${me?.discordUserId || "—"}</span>
+            </div>
+            <div className="infoItem">
+              <span className="iKey">Login</span>
+              <span className="iVal">${me?.authProvider === "local" ? "Email / senha" : "Discord OAuth"}</span>
+            </div>
+            <div className="infoItem">
+              <span className="iKey">Plano</span>
+              <span className="iVal">${planText}</span>
+            </div>
+            <div className="infoItem">
+              <span className="iKey">Saldo</span>
+              <span className="iVal">${formatBRLFromCents(me?.walletCents || 0)}</span>
             </div>
 
-            <div className="label">Nome de exibicao</div>
+            <div className="hr"></div>
+
+            <div className="label">Nome de exibição</div>
             <input className="input" value=${profileName} onInput=${(e) => setProfileName(e.target.value)} placeholder="Seu nome" />
-            <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <div>
               <${Button} variant="subtle" disabled=${busy} onClick=${onUpdateProfile}>Salvar nome</${Button}>
             </div>
             <div className="help">
-              Esse nome aparece na Dashboard. Se voce usa Discord, seu username pode ser atualizado no proximo login.
+              Nome exibido na dashboard. Se usar Discord, atualiza no próximo login.
             </div>
           </div>
         </div>
 
         <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>Seguranca</h3>
+          <div className="cardHead">
+            <h3>Segurança</h3>
+          </div>
           ${me?.authProvider === "local"
             ? html`
                 <div className="stack">
-                  <div className="muted">Alterar senha</div>
+                  <div className="muted" style=${{ marginBottom: "4px" }}>Alterar senha</div>
                   <input
                     className="input"
                     type="password"
@@ -1806,7 +1942,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
                     type="password"
                     value=${pwNew}
                     onInput=${(e) => setPwNew(e.target.value)}
-                    placeholder="Nova senha (min 6)"
+                    placeholder="Nova senha (mínimo 6 caracteres)"
                   />
                   <input
                     className="input"
@@ -1815,27 +1951,27 @@ function Dashboard({ route, me, refreshMe, toast }) {
                     onInput=${(e) => setPwNew2(e.target.value)}
                     placeholder="Confirmar nova senha"
                   />
-                  <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <div>
                     <${Button} variant="subtle" disabled=${busy} onClick=${onChangePassword}>Salvar nova senha</${Button}>
                   </div>
                   <div className="help">
-                    Nunca compartilhe sua senha nem o token do seu bot. Se suspeitar de acesso indevido, troque as credenciais imediatamente.
+                    Nunca compartilhe sua senha ou o token do bot. Em caso de acesso suspeito, troque as credenciais imediatamente.
                   </div>
                 </div>
               `
             : html`
                 <div className="muted">
-                  Sua conta esta conectada pelo Discord. Para reforcar a seguranca, ative 2FA na sua conta do Discord e mantenha seu servidor protegido.
+                  Conta conectada via Discord OAuth. Para reforçar a segurança, ative 2FA na sua conta Discord e mantenha seu servidor protegido.
                 </div>
               `}
         </div>
       </div>
       ` : null}
 
-      <${Modal} open=${edit.open} title="Editar instancia" onClose=${closeEditInstance}>
+      <${Modal} open=${edit.open} title="Editar instância" onClose=${closeEditInstance}>
         <div className="formGrid">
-          <div className="label">Nome</div>
-          <input className="input" value=${edit.name} onInput=${(e) => setEdit((s) => ({ ...s, name: e.target.value }))} />
+          <div className="label">Nome da instância</div>
+          <input className="input" value=${edit.name} onInput=${(e) => setEdit((s) => ({ ...s, name: e.target.value }))} placeholder="Ex: Minha Loja" />
 
           <div className="label">Servidor (Guild ID)</div>
           <input
@@ -1865,23 +2001,23 @@ function Dashboard({ route, me, refreshMe, toast }) {
             className="input"
             value=${edit.brandName}
             onInput=${(e) => setEdit((s) => ({ ...s, brandName: e.target.value }))}
-            placeholder="Nome da marca"
+            placeholder="Nome da marca (ex: AstraSystems)"
           />
           <input
             className="input mono"
             value=${edit.accent}
             onInput=${(e) => setEdit((s) => ({ ...s, accent: e.target.value }))}
-            placeholder="#E6212A"
+            placeholder="Cor de destaque (ex: #E6212A)"
           />
           <input
             className="input"
             value=${edit.logoUrl}
             onInput=${(e) => setEdit((s) => ({ ...s, logoUrl: e.target.value }))}
-            placeholder="Logo URL (opcional)"
+            placeholder="URL do logo (opcional)"
           />
-           <div className="help">
-             Dica: para vincular, selecione um servidor da lista (requer login com Discord) ou informe o Guild ID.
-           </div>
+          <div className="help">
+            Para vincular um servidor, selecione da lista abaixo (requer login Discord) ou cole o Guild ID manualmente.
+          </div>
 
            <div className="hr"></div>
 
@@ -1969,16 +2105,16 @@ function Dashboard({ route, me, refreshMe, toast }) {
            <div className="help">Apos a entrega, o bot manda uma DM pedindo para avaliar nesse canal.</div>
         </div>
 
-        <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-          <${Button} variant="primary" disabled=${busy} onClick=${onSaveInstance}>Salvar</${Button}>
+        <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
+          <${Button} variant="primary" disabled=${busy} onClick=${onSaveInstance}>${busy ? "Salvando..." : "Salvar alterações"}</${Button}>
           <${Button}
             variant="subtle"
             disabled=${busy || !asString(edit.guildId).trim()}
             onClick=${() => onInvite(asString(edit.guildId).trim(), asString(edit.id).trim())}
           >
-            Convidar bot
+            Gerar invite
           </${Button}>
-          <${Button} variant="danger" disabled=${busy} onClick=${() => onDeleteInstance(edit.id)}>Excluir</${Button}>
+          <${Button} variant="danger" disabled=${busy} onClick=${() => onDeleteInstance(edit.id)}>Excluir instância</${Button}>
         </div>
       </${Modal}>
 
@@ -2244,9 +2380,9 @@ function Dashboard({ route, me, refreshMe, toast }) {
                 </div>
               </div>
 
-              <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
+              <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
                 <${Button} variant="primary" disabled=${productEditor.saving} onClick=${saveProductEditor}>
-                  ${productEditor.saving ? "Salvando..." : "Salvar produto"}
+                  ${productEditor.saving ? "Salvando..." : productEditor.mode === "create" ? "Criar produto" : "Salvar produto"}
                 </${Button}>
                 <${Button} variant="ghost" disabled=${productEditor.saving} onClick=${closeProductEditor}>Cancelar</${Button}>
               </div>
@@ -2519,9 +2655,13 @@ function Privacy() {
 }
 
 function Toast({ toast }) {
+  const dotColor = toast?.type === "good" ? "var(--good)" : toast?.type === "bad" ? "var(--bad)" : "var(--muted2)";
   return html`
     <div className=${`toast ${toast?.type || ""} ${toast?.show ? "show" : ""}`}>
-      <div className="t">${toast?.title || ""}</div>
+      <div className="t" style=${{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <span style=${{ width: "7px", height: "7px", borderRadius: "50%", background: dotColor, flexShrink: 0, display: "inline-block" }}></span>
+        ${toast?.title || ""}
+      </div>
       <div className="d">${toast?.desc || ""}</div>
     </div>
   `;
@@ -2599,7 +2739,11 @@ function App() {
   return html`
     <div className="shell">
       <${TopBar} route=${route} me=${me} onLogout=${onLogout} />
-      ${loading ? html`<div className="container"><div className="muted">Carregando...</div></div>` : page}
+      ${loading
+        ? html`<div className="container" style=${{ paddingTop: "60px", textAlign: "center" }}>
+            <div className="muted2" style=${{ fontSize: "13px", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 700 }}>Carregando...</div>
+          </div>`
+        : page}
       <${Toast} toast=${toastState} />
     </div>
   `;
