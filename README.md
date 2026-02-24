@@ -116,6 +116,9 @@ Volumes: `./data` e `./logs`.
 ## Documentacao complementar
 - Changelog tecnico: [docs/CHANGELOG.md](./docs/CHANGELOG.md)
 - Texto pronto para LinkedIn: [docs/LINKEDIN_POST.md](./docs/LINKEDIN_POST.md)
+- Arquitetura tecnica: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- Referencia de API: [docs/API_REFERENCE.md](./docs/API_REFERENCE.md)
+- Checklist de deploy/producao: [docs/DEPLOY_CHECKLIST.md](./docs/DEPLOY_CHECKLIST.md)
 
 ## Status atual
 Projeto ativo e orientado a evolucao continua para operacao SaaS de vendas no Discord.
