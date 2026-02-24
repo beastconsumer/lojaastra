@@ -119,6 +119,14 @@ Volumes: `./data` e `./logs`.
 - Arquitetura tecnica: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - Referencia de API: [docs/API_REFERENCE.md](./docs/API_REFERENCE.md)
 - Checklist de deploy/producao: [docs/DEPLOY_CHECKLIST.md](./docs/DEPLOY_CHECKLIST.md)
+- Galeria de telas: [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md)
+
+## Capturas de tela
+### Home
+![Home](./docs/screenshots/01-home.png)
+
+### Dashboard
+![Dashboard](./docs/screenshots/03-dashboard.png)
 
 ## Status atual
 Projeto ativo e orientado a evolucao continua para operacao SaaS de vendas no Discord.
