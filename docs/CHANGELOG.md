@@ -1,0 +1,59 @@
+# AstraSystems - Update Log
+
+## Visao Geral
+Este arquivo registra a evolucao do produto em formato de changelog executivo.
+Cada entrada resume o impacto funcional entregue no commit correspondente.
+
+## Linha do Tempo
+
+### 2026-02-21
+**Unificacao do portal na 3100 + fluxo 1 bot por assinatura**
+- Portal oficial consolidado na porta `3100` com desligamento da stack paralela da `3200`.
+- Dashboard principal mantida no visual original e com onboarding focado em token de bot.
+- Criacao de instancia passou a exigir token valido do bot no primeiro passo.
+- Fluxo comercial alinhado para `1 instancia/bot` por assinatura ativa.
+- Fundo em video (`painel.mp4`) aplicado no portal principal para consistencia visual.
+- Docker ajustado para operar apenas o container oficial do bot/portal na `3100`.
+
+### `9c56eb7` - 2026-02-21
+**Require bot token on instance creation, add dashboard video bg, and dockerize bot/site**
+- Criacao de instancia passou a exigir token do bot do cliente no primeiro passo.
+- Validacao de token integrada ao cadastro para evitar instancias incompletas.
+- Dashboard recebeu video de fundo permanente para reforco visual premium.
+- Layout do painel foi ampliado de forma sutil para melhor leitura em desktop.
+- Publicacao com Docker em dois containers separados (`bot` e `site`) com healthcheck.
+
+### `aee6950` - 2026-02-21
+**Enhance dashboard micro-interactions and premium motion polish**
+- Refinamento de UX com micro-interacoes premium no dashboard.
+- Melhorias de hover, press, feedback visual e animacoes sutis de status.
+- Polimento de leitura e resposta da interface sem alterar identidade visual.
+
+### `d3fcce8` - 2026-02-21
+**Redesign post-login dashboard and add per-instance bot token flow**
+- Redesenho completo da experiencia pos-login para operacao profissional.
+- Introducao do fluxo por instancia com token proprio do bot do cliente.
+- Validacao e armazenamento seguro do token com perfil de bot associado.
+
+### `486767d` - 2026-02-21
+**Harden bot runtime and add Next.js+Tailwind+shadcn site scaffold**
+- Correcao de pontos criticos de runtime do bot.
+- Base web moderna adicionada com Next.js, Tailwind, shadcn/ui e TypeScript.
+- Estrutura preparada para evolucao de painel e escalabilidade de frontend.
+
+### `366e36d` - 2026-02-14
+**feat(wallet): platform Mercado Pago + withdrawals**
+- Implantacao de carteira financeira com operacao de saques.
+- Fluxo de transacoes e governanca financeira para operacao de plataforma.
+- Base para conciliacao e historico de movimentacoes.
+
+### `d20e618` - 2026-02-14
+**feat(portal): AstraSystems dashboard + multi-tenant store**
+- Entrega do portal SaaS com dashboard principal.
+- Estrutura multi-tenant para separar operacao por cliente/instancia.
+- Fundacao do fluxo de assinatura, acesso e gestao operacional.
+
+### `016cdbe` - 2026-02-06
+**Initial push to lojaastra**
+- Publicacao inicial do projeto.
+- Estrutura base de bot, painel e dados persistidos localmente.

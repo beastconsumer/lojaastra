@@ -1,59 +1,121 @@
-# AstraSystems - Update Log
+# AstraSystems | Discord Commerce SaaS
 
-## Visao Geral
-Este arquivo registra a evolucao do produto em formato de changelog executivo.
-Cada entrada resume o impacto funcional entregue no commit correspondente.
+Sistema completo de vendas para Discord com bot, portal SaaS, painel admin, carteira financeira e runtime por instancia.
 
-## Linha do Tempo
+![Preview do projeto](./bemvindo.gif)
 
-### 2026-02-21
-**Unificacao do portal na 3100 + fluxo 1 bot por assinatura**
-- Portal oficial consolidado na porta `3100` com desligamento da stack paralela da `3200`.
-- Dashboard principal mantida no visual original e com onboarding focado em token de bot.
-- Criacao de instancia passou a exigir token valido do bot no primeiro passo.
-- Fluxo comercial alinhado para `1 instancia/bot` por assinatura ativa.
-- Fundo em video (`painel.mp4`) aplicado no portal principal para consistencia visual.
-- Docker ajustado para operar apenas o container oficial do bot/portal na `3100`.
+## Sobre o projeto
+O AstraSystems foi construido para resolver um problema real: vender produtos digitais no Discord com operacao profissional, onboarding simples e controle financeiro centralizado.
 
-### `9c56eb7` - 2026-02-21
-**Require bot token on instance creation, add dashboard video bg, and dockerize bot/site**
-- Criacao de instancia passou a exigir token do bot do cliente no primeiro passo.
-- Validacao de token integrada ao cadastro para evitar instancias incompletas.
-- Dashboard recebeu video de fundo permanente para reforco visual premium.
-- Layout do painel foi ampliado de forma sutil para melhor leitura em desktop.
-- Publicacao com Docker em dois containers separados (`bot` e `site`) com healthcheck.
+Em uma unica base, o projeto entrega:
+- Bot de vendas com fluxo de carrinho, pagamento e entrega.
+- Portal SaaS para clientes criarem e gerenciarem suas proprias instancias.
+- Painel admin para operacao, monitoramento e diagnostico.
+- Runtime por instancia com Docker para isolamento e escalabilidade.
 
-### `aee6950` - 2026-02-21
-**Enhance dashboard micro-interactions and premium motion polish**
-- Refinamento de UX com micro-interacoes premium no dashboard.
-- Melhorias de hover, press, feedback visual e animacoes sutis de status.
-- Polimento de leitura e resposta da interface sem alterar identidade visual.
+## Destaques de portfolio
+- Arquitetura multi-tenant: cada cliente opera sua propria instancia, com dados separados.
+- Runtime dedicado por instancia: start/stop/restart do bot com monitoramento continuo.
+- Integracao com pagamentos e wallet interna: planos, creditos de venda e saques.
+- Observabilidade operacional: fila de solicitacoes, logs recentes, visao de negocio e auditoria.
+- Persistencia local com escrita atomica em JSON (foco em simplicidade operacional).
 
-### `d3fcce8` - 2026-02-21
-**Redesign post-login dashboard and add per-instance bot token flow**
-- Redesenho completo da experiencia pos-login para operacao profissional.
-- Introducao do fluxo por instancia com token proprio do bot do cliente.
-- Validacao e armazenamento seguro do token com perfil de bot associado.
+## Stack tecnica
+- Backend: Node.js, Express, discord.js, axios, dotenv.
+- Frontend: React 18 via CDN (portal e admin SPA).
+- Pagamentos: Mercado Pago (checkout e webhook), suporte operacional para Asaas.
+- Infra: Docker Compose, healthcheck, volumes para `data/` e `logs/`.
+- Persistencia: arquivos JSON (`data/*.json` + `data/instances/*`).
 
-### `486767d` - 2026-02-21
-**Harden bot runtime and add Next.js+Tailwind+shadcn site scaffold**
-- Correcao de pontos criticos de runtime do bot.
-- Base web moderna adicionada com Next.js, Tailwind, shadcn/ui e TypeScript.
-- Estrutura preparada para evolucao de painel e escalabilidade de frontend.
+## Arquitetura
+```text
+Usuario/Cliente
+   |
+   +--> Portal SaaS (3100) -------------------+
+   |        |                                  |
+   |        +--> gestao de instancias          |
+   |        +--> planos e checkout             |
+   |        +--> wallet e saques               |
+   |                                           v
+   +--> Discord Bot Runtime (src/index.js) <-> data/portal.json
+            |
+            +--> carrinho, pedidos, entrega
+            +--> posts de produto no Discord
+            +--> creditos de venda na wallet
+            |
+            +--> Painel Admin (3000)
+                    +--> operacao/monitoramento
+                    +--> catalogo/estoque/cupons
+                    +--> auditoria e diagnosticos
+```
 
-### `366e36d` - 2026-02-14
-**feat(wallet): platform Mercado Pago + withdrawals**
-- Implantacao de carteira financeira com operacao de saques.
-- Fluxo de transacoes e governanca financeira para operacao de plataforma.
-- Base para conciliacao e historico de movimentacoes.
+## Funcionalidades principais
+- Carrinho com expiracao por inatividade e confirmacao de compra.
+- Postagem e repostagem de produtos em canais do Discord.
+- Entrega automatica (DM/canal) com fallback e notificacoes operacionais.
+- Catalogo de produtos com variacoes, templates de DM e gestao de estoque.
+- Trial + plano pago com renovacao via Mercado Pago.
+- Wallet por cliente com solicitacao/cancelamento de saque e fila admin.
+- Vinculo de instancia ao servidor Discord via API key.
+- Controle de runtime por instancia (`start`, `stop`, `restart`) e leitura de status.
 
-### `d20e618` - 2026-02-14
-**feat(portal): AstraSystems dashboard + multi-tenant store**
-- Entrega do portal SaaS com dashboard principal.
-- Estrutura multi-tenant para separar operacao por cliente/instancia.
-- Fundacao do fluxo de assinatura, acesso e gestao operacional.
+## Estrutura do repositorio
+```text
+src/
+  index.js            # runtime principal do bot
+  portalServer.js     # API + SPA do portal (porta 3100)
+  adminServer.js      # API + SPA admin (porta 3000)
+  portal/             # frontend portal
+  admin/              # frontend admin
+data/                 # base JSON local (estado da aplicacao)
+scripts/              # scripts auxiliares PowerShell (start/stop bot)
+docker-compose.yml    # ambiente containerizado
+```
 
-### `016cdbe` - 2026-02-06
-**Initial push to lojaastra**
-- Publicacao inicial do projeto.
-- Estrutura base de bot, painel e dados persistidos localmente.
+## Como rodar localmente
+### 1) Requisitos
+- Node.js 20+
+- npm 10+
+- Docker (opcional, para execucao em container)
+
+### 2) Instalacao
+```powershell
+npm install
+Copy-Item .env.example .env
+```
+
+### 3) Variaveis essenciais
+Configure no `.env`:
+- `DISCORD_TOKEN`
+- `PORTAL_SESSION_SECRET`
+- `DISCORD_OAUTH_CLIENT_ID`
+- `DISCORD_OAUTH_CLIENT_SECRET`
+- `DISCORD_OAUTH_REDIRECT_URI`
+- `MERCADOPAGO_ACCESS_TOKEN` (quando usar checkout/webhook)
+- `ADMIN_PANEL_TOKEN` (recomendado para proteger `/admin`)
+
+### 4) Execucao
+```powershell
+npm start
+```
+
+URLs padrao:
+- Portal: `http://127.0.0.1:3100`
+- Admin: `http://127.0.0.1:3000/admin`
+- Health do portal: `http://127.0.0.1:3100/health`
+- Status admin: `http://127.0.0.1:3000/api/status`
+
+### 5) Docker Compose
+```powershell
+docker compose up -d --build
+```
+
+Portas expostas: `3000` (admin) e `3100` (portal).  
+Volumes: `./data` e `./logs`.
+
+## Documentacao complementar
+- Changelog tecnico: [docs/CHANGELOG.md](./docs/CHANGELOG.md)
+- Texto pronto para LinkedIn: [docs/LINKEDIN_POST.md](./docs/LINKEDIN_POST.md)
+
+## Status atual
+Projeto ativo e orientado a evolucao continua para operacao SaaS de vendas no Discord.
