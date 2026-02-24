@@ -4,6 +4,18 @@ Sistema completo de vendas para Discord com bot, portal SaaS, painel admin, cart
 
 ![Preview do projeto](./bemvindo.gif)
 
+## Sumario
+- [Visao do projeto](#sobre-o-projeto)
+- [Destaques de portfolio](#destaques-de-portfolio)
+- [Stack tecnica](#stack-tecnica)
+- [Fluxo ponta a ponta](#fluxo-ponta-a-ponta)
+- [Arquitetura](#arquitetura)
+- [Funcionalidades principais](#funcionalidades-principais)
+- [Estrutura do repositorio](#estrutura-do-repositorio)
+- [Como rodar localmente](#como-rodar-localmente)
+- [Documentacao complementar](#documentacao-complementar)
+- [Capturas de tela](#capturas-de-tela)
+
 ## Sobre o projeto
 O AstraSystems foi construido para resolver um problema real: vender produtos digitais no Discord com operacao profissional, onboarding simples e controle financeiro centralizado.
 
@@ -26,6 +38,16 @@ Em uma unica base, o projeto entrega:
 - Pagamentos: Mercado Pago (checkout e webhook), suporte operacional para Asaas.
 - Infra: Docker Compose, healthcheck, volumes para `data/` e `logs/`.
 - Persistencia: arquivos JSON (`data/*.json` + `data/instances/*`).
+
+## Fluxo ponta a ponta
+1. Cliente entra no portal e cria conta (local/OAuth Discord).
+2. Ativa trial ou plano pago.
+3. Cria instancia e configura token do bot.
+4. Vincula a instancia ao servidor Discord.
+5. Publica produtos no canal.
+6. Comprador abre carrinho, paga e recebe entrega automatica.
+7. Receita cai na wallet do dono da instancia.
+8. Dono solicita saque; admin acompanha e finaliza.
 
 ## Arquitetura
 ```text
@@ -114,19 +136,31 @@ Portas expostas: `3000` (admin) e `3100` (portal).
 Volumes: `./data` e `./logs`.
 
 ## Documentacao complementar
+- Documentacao central: [docs/INDEX.md](./docs/INDEX.md)
 - Changelog tecnico: [docs/CHANGELOG.md](./docs/CHANGELOG.md)
 - Texto pronto para LinkedIn: [docs/LINKEDIN_POST.md](./docs/LINKEDIN_POST.md)
 - Arquitetura tecnica: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- Configuracao de ambiente: [docs/CONFIGURATION.md](./docs/CONFIGURATION.md)
 - Referencia de API: [docs/API_REFERENCE.md](./docs/API_REFERENCE.md)
+- Seguranca: [docs/SECURITY.md](./docs/SECURITY.md)
+- Runbook de operacao: [docs/OPERATIONS_RUNBOOK.md](./docs/OPERATIONS_RUNBOOK.md)
 - Checklist de deploy/producao: [docs/DEPLOY_CHECKLIST.md](./docs/DEPLOY_CHECKLIST.md)
+- Troubleshooting: [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)
+- Case de portfolio: [docs/PORTFOLIO_CASE_STUDY.md](./docs/PORTFOLIO_CASE_STUDY.md)
 - Galeria de telas: [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md)
 
 ## Capturas de tela
 ### Home
-![Home](./docs/screenshots/01-home.png)
+![Home](./docs/screenshots/01-home-desktop.png)
 
 ### Dashboard
-![Dashboard](./docs/screenshots/03-dashboard.png)
+![Dashboard](./docs/screenshots/07-dashboard-overview-desktop.png)
+
+### Admin
+![Admin](./docs/screenshots/13-admin-resumo-desktop.png)
+
+### Mobile
+![Mobile](./docs/screenshots/19-home-mobile.png)
 
 ## Status atual
 Projeto ativo e orientado a evolucao continua para operacao SaaS de vendas no Discord.

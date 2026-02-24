@@ -107,3 +107,39 @@
 - Para exemplos de payload, use as chamadas reais feitas pelos frontends:
   - `src/portal/app.js`
   - `src/admin/app.js`
+
+## Exemplos rapidos (PowerShell)
+### Health do portal
+```powershell
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:3100/health
+```
+
+### Status do admin
+```powershell
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:3000/api/status
+```
+
+### Criar instancia (portal, autenticado)
+```powershell
+$body = @{ name = "Minha Instancia"; token = "SEU_DISCORD_BOT_TOKEN" } | ConvertTo-Json
+Invoke-WebRequest `
+  -UseBasicParsing `
+  -Uri http://127.0.0.1:3100/api/instances `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $body `
+  -WebSession $session
+```
+
+### Criar cupom (admin, quando token habilitado)
+```powershell
+$headers = @{ Authorization = "Bearer SEU_ADMIN_PANEL_TOKEN" }
+$body = @{ code = "OFF10"; percent = 10; active = $true } | ConvertTo-Json
+Invoke-WebRequest `
+  -UseBasicParsing `
+  -Uri http://127.0.0.1:3000/api/coupons `
+  -Method POST `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body $body
+```
