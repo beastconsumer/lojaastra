@@ -14,7 +14,6 @@ const BROWSER_CANDIDATES = [
 ];
 
 const DESKTOP_VIEWPORT = { width: 1920, height: 1080 };
-const MOBILE_VIEWPORT = { width: 430, height: 932 };
 
 async function findBrowserExecutable() {
   for (const candidate of BROWSER_CANDIDATES) {
@@ -148,31 +147,6 @@ async function captureAdminDesktop(browser, outFiles) {
   await context.close();
 }
 
-async function capturePortalMobile(browser, outFiles) {
-  const context = await browser.newContext({
-    viewport: MOBILE_VIEWPORT,
-    isMobile: true,
-    hasTouch: true,
-    deviceScaleFactor: 2
-  });
-  const page = await context.newPage();
-
-  await page.goto(PORTAL_BASE, { waitUntil: "networkidle" });
-  await waitForUi(page, 1700);
-  outFiles.push(await shoot(page, "19-home-mobile.png", { fullPage: true }));
-
-  await page.goto(`${PORTAL_BASE}/plans`, { waitUntil: "networkidle" });
-  await waitForUi(page, 1700);
-  outFiles.push(await shoot(page, "20-plans-mobile.png", { fullPage: true }));
-
-  await registerAndSeedPlan(context, "mobile");
-  await page.goto(`${PORTAL_BASE}/dashboard`, { waitUntil: "networkidle" });
-  await waitForUi(page, 1900);
-  outFiles.push(await shoot(page, "21-dashboard-mobile.png", { fullPage: true }));
-
-  await context.close();
-}
-
 async function capture() {
   await cleanOutputDir();
   const executablePath = await findBrowserExecutable();
@@ -185,7 +159,6 @@ async function capture() {
   const outFiles = [];
   await capturePortalDesktop(browser, outFiles);
   await captureAdminDesktop(browser, outFiles);
-  await capturePortalMobile(browser, outFiles);
 
   await browser.close();
 

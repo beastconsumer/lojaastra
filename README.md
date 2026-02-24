@@ -151,16 +151,16 @@ Volumes: `./data` e `./logs`.
 
 ## Capturas de tela
 ### Home
+Tela inicial com proposta de valor, comparativo de margem e CTA para onboarding.
 ![Home](./docs/screenshots/01-home-desktop.png)
 
 ### Dashboard
+Visao autenticada do cliente com status de plano, instancias, wallet e operacao diaria.
 ![Dashboard](./docs/screenshots/07-dashboard-overview-desktop.png)
 
 ### Admin
+Painel operacional com monitoramento comercial, financeiro e auditoria tecnica.
 ![Admin](./docs/screenshots/13-admin-resumo-desktop.png)
-
-### Mobile
-![Mobile](./docs/screenshots/19-home-mobile.png)
 
 ## Status atual
 Projeto ativo e orientado a evolucao continua para operacao SaaS de vendas no Discord.
