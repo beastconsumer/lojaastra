@@ -78,14 +78,20 @@ Guia rapido para os problemas mais comuns do projeto.
 ## Checkout nao funciona
 ### Sintoma
 - Erro `mercadopago_not_configured`.
+- Erro `invalid_notification_url` / `notificaction_url attribute must be a valid url`.
 
 ### Causa comum
 - `MERCADOPAGO_ACCESS_TOKEN` ausente.
+- `PORTAL_BASE_URL` local/insegura (ex.: `http://127.0.0.1:3100`) sendo usada como `notification_url`.
 
 ### Acao
 1. Configurar token no `.env`.
-2. Reiniciar processo.
-3. Repetir checkout.
+2. Em producao, definir `PORTAL_BASE_URL` com dominio publico em `https://`.
+3. Reiniciar processo.
+4. Repetir checkout.
+
+Nota:
+- Em ambiente local (`http://127.0.0.1`), o sistema ignora `notification_url` automaticamente e usa reconciliacao de pagamento ao carregar `/api/me`.
 
 ## Webhook Mercado Pago rejeitado
 ### Sintoma

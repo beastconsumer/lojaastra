@@ -4593,7 +4593,15 @@ function App() {
       setLoading(false);
 
       const mp = new URLSearchParams(window.location.search).get("mp");
-      if (mp === "success") showToast("Pagamento aprovado", "Assim que o webhook confirmar, sua carteira sera atualizada.", "good");
+      if (mp === "success") {
+        showToast("Pagamento aprovado", "Validando pagamento e liberando o plano. Isso pode levar alguns segundos.", "good");
+        setTimeout(() => {
+          refreshMe().catch(() => null);
+        }, 2000);
+        setTimeout(() => {
+          refreshMe().catch(() => null);
+        }, 7000);
+      }
       if (mp === "failure") showToast("Pagamento falhou", "Tente novamente ou use outro metodo.", "bad");
       if (mp === "pending") showToast("Pagamento pendente", "Aguardando confirmacao do Mercado Pago.", "good");
 

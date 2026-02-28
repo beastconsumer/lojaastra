@@ -587,6 +587,33 @@ function getMercadoPagoAccessToken() {
   return token;
 }
 
+function isPrivateIpv4Host(hostname) {
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) return false;
+  const parts = hostname.split(".").map((chunk) => Number(chunk));
+  if (parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  const [a, b] = parts;
+  if (a === 10 || a === 127 || a === 0) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+function canUseMercadoPagoNotificationUrl(value) {
+  const raw = asString(value);
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:") return false;
+    const host = asString(parsed.hostname).toLowerCase();
+    if (!host || host === "localhost" || host === "::1") return false;
+    if (isPrivateIpv4Host(host)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function mpRequestWithToken(method, pathName, payload, token, extraHeaders = {}) {
   const tok = asString(token);
   if (!tok) throw new Error("mercadopago_not_configured");
@@ -704,6 +731,8 @@ export function startPortalServer(options = {}) {
   const monitorIntervalMs = Math.max(10_000, Number(process.env.INSTANCE_MONITOR_INTERVAL_MS || 30_000) || 30_000);
   const crashThreshold = Math.max(2, Number(process.env.INSTANCE_CRASH_THRESHOLD || 3) || 3);
   const instanceStartProbeMs = Math.max(1_500, Number(process.env.INSTANCE_START_PROBE_MS || 4_500) || 4_500);
+  const planReconcileLastCheckMs = new Map();
+  const planReconcileCooldownMs = Math.max(5_000, Number(process.env.PLAN_RECONCILE_COOLDOWN_MS || 15_000) || 15_000);
 
   function sanitizeContainerSegment(value, fallback = "bot") {
     const raw = asString(value)
@@ -1264,6 +1293,117 @@ export function startPortalServer(options = {}) {
     next();
   }
 
+  function applyMercadoPagoPaymentToTransaction(data, tx, payment) {
+    if (!tx || !payment) return false;
+    const paymentStatus = asString(payment?.status).toLowerCase();
+    const paymentId = asString(payment?.id);
+    const previousStatus = asString(tx.status).toLowerCase() || "pending";
+    let nextStatus = "pending";
+    if (paymentStatus === "approved") nextStatus = "paid";
+    else if (paymentStatus === "rejected" || paymentStatus === "cancelled") nextStatus = "failed";
+
+    let changed = false;
+    if (paymentId && tx.providerPaymentId !== paymentId) {
+      tx.providerPaymentId = paymentId;
+      changed = true;
+    }
+    if (previousStatus !== nextStatus) {
+      tx.status = nextStatus;
+      changed = true;
+    }
+
+    if (nextStatus === "paid" && previousStatus !== "paid") {
+      const user = store.getUserByDiscordId(data, tx.ownerDiscordUserId);
+      if (user && tx.type === "plan_purchase") {
+        const catalog = getPlanCatalog();
+        const plan = catalog[asString(tx.planId)] || null;
+        if (plan) {
+          user.plan = {
+            tier: plan.tier,
+            status: "active",
+            expiresAt: extendPlanExpiry(user.plan, plan.durationDays)
+          };
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) tx.updatedAt = nowIso();
+    return changed;
+  }
+
+  async function fetchMercadoPagoPaymentForTransaction(tx, token) {
+    const providerPaymentId = asString(tx?.providerPaymentId);
+    if (providerPaymentId) {
+      try {
+        return await mpRequestWithToken("get", `/v1/payments/${encodeURIComponent(providerPaymentId)}`, null, token);
+      } catch (err) {
+        if (Number(err?.status || 0) !== 404) throw err;
+      }
+    }
+
+    const searchPath =
+      `/v1/payments/search?sort=date_created&criteria=desc&limit=5&external_reference=${encodeURIComponent(tx.id)}`;
+    const result = await mpRequestWithToken("get", searchPath, null, token);
+    const list = Array.isArray(result?.results) ? result.results : [];
+    return list.find((entry) => asString(entry?.external_reference) === asString(tx.id)) || list[0] || null;
+  }
+
+  async function reconcilePendingPlanTransactionsForUser(discordUserId, options = {}) {
+    const userId = asString(discordUserId);
+    if (!userId) return { checked: 0, updated: 0, skipped: "missing_user" };
+    const token = getMercadoPagoAccessToken();
+    if (!token) return { checked: 0, updated: 0, skipped: "mercadopago_not_configured" };
+
+    const now = Date.now();
+    const force = toBool(options.force);
+    if (!force) {
+      const lastCheck = Number(planReconcileLastCheckMs.get(userId) || 0);
+      if (now - lastCheck < planReconcileCooldownMs) {
+        return { checked: 0, updated: 0, skipped: "throttled" };
+      }
+    }
+    planReconcileLastCheckMs.set(userId, now);
+
+    const snapshot = store.load();
+    const pending = (snapshot.transactions || [])
+      .filter((tx) => asString(tx?.ownerDiscordUserId) === userId && asString(tx?.type) === "plan_purchase" && asString(tx?.status) === "pending")
+      .slice(-6)
+      .reverse();
+
+    if (!pending.length) return { checked: 0, updated: 0, skipped: "no_pending" };
+
+    const resolutions = [];
+    for (const tx of pending) {
+      try {
+        const payment = await fetchMercadoPagoPaymentForTransaction(tx, token);
+        if (payment) resolutions.push({ txId: tx.id, payment });
+      } catch (err) {
+        if (logError) logError("portal:plan:reconcile:fetch", err, { txId: tx.id, userId });
+      }
+    }
+
+    if (!resolutions.length) return { checked: pending.length, updated: 0, skipped: "no_payments" };
+
+    let changed = false;
+    let updated = 0;
+    await store.runExclusive(async () => {
+      const data = store.load();
+      for (const item of resolutions) {
+        const tx = data.transactions.find((entry) => entry.id === item.txId) || null;
+        if (!tx || asString(tx.type) !== "plan_purchase") continue;
+        const didUpdate = applyMercadoPagoPaymentToTransaction(data, tx, item.payment);
+        if (didUpdate) {
+          updated += 1;
+          changed = true;
+        }
+      }
+      if (changed) store.save(data);
+    });
+
+    return { checked: pending.length, updated, skipped: "" };
+  }
+
   async function getDiscordAccessToken(user) {
     const packed = user?.discordToken?.packed;
     if (!packed) return null;
@@ -1516,8 +1656,15 @@ export function startPortalServer(options = {}) {
     res.json({ ok: true });
   });
 
-  app.get("/api/me", requireUser, (req, res) => {
-    const user = req.portalUser;
+  app.get("/api/me", requireUser, async (req, res) => {
+    try {
+      await reconcilePendingPlanTransactionsForUser(req.portalUser.discordUserId);
+    } catch (err) {
+      if (logError) logError("portal:me:reconcile", err, { userId: req.portalUser.discordUserId });
+    }
+
+    const data = store.load();
+    const user = store.getUserByDiscordId(data, req.portalUser.discordUserId) || req.portalUser;
     const plan = user.plan || { tier: "free", status: "inactive", expiresAt: "" };
     const admin = isPortalAdmin(user.discordUserId);
     const trialClaimedAt = asString(user?.trialClaimedAt);
@@ -2806,28 +2953,44 @@ export function startPortalServer(options = {}) {
     });
 
     try {
+      const checkoutBackUrls = {
+        success: `${baseUrl}/dashboard?mp=success`,
+        pending: `${baseUrl}/dashboard?mp=pending`,
+        failure: `${baseUrl}/dashboard?mp=failure`
+      };
+      const checkoutNotificationUrl = `${baseUrl}/webhooks/mercadopago`;
+      const fallbackEmail = `discord+${asString(req.portalUser.discordUserId)}@example.com`;
+      const payerEmail = normalizeEmail(req.portalUser?.email) || fallbackEmail;
+
+      const preferencePayload = {
+        items: [
+          {
+            title: plan.title,
+            quantity: 1,
+            unit_price: Number((plan.amountCents / 100).toFixed(2)),
+            currency_id: "BRL"
+          }
+        ],
+        external_reference: tx.id,
+        metadata: { tx_id: tx.id, discord_user_id: req.portalUser.discordUserId, plan_id: planId },
+        back_urls: checkoutBackUrls,
+        payer: { email: payerEmail },
+        ...(baseUrl.startsWith("https://") ? { auto_return: "approved" } : {})
+      };
+
+      if (canUseMercadoPagoNotificationUrl(checkoutNotificationUrl)) {
+        preferencePayload.notification_url = checkoutNotificationUrl;
+      } else if (log) {
+        log("warn", "portal:plan:checkout:webhook_url_skipped", {
+          reason: "notification_url_requires_public_https",
+          checkoutNotificationUrl
+        });
+      }
+
       const preference = await mpRequestWithToken(
         "post",
         "/checkout/preferences",
-        {
-          items: [
-            {
-              title: plan.title,
-              quantity: 1,
-              unit_price: Number((plan.amountCents / 100).toFixed(2)),
-              currency_id: "BRL"
-            }
-          ],
-          external_reference: tx.id,
-          metadata: { tx_id: tx.id, discord_user_id: req.portalUser.discordUserId, plan_id: planId },
-          back_urls: {
-            success: `${baseUrl}/dashboard?mp=success`,
-            pending: `${baseUrl}/dashboard?mp=pending`,
-            failure: `${baseUrl}/dashboard?mp=failure`
-          },
-          ...(baseUrl.startsWith("https://") ? { auto_return: "approved" } : {}),
-          notification_url: `${baseUrl}/webhooks/mercadopago`
-        },
+        preferencePayload,
         mpToken,
         { "X-Idempotency-Key": tx.id }
       );
@@ -2844,7 +3007,13 @@ export function startPortalServer(options = {}) {
     }
   });
 
-  app.get("/api/wallet/transactions", requireUser, (req, res) => {
+  app.get("/api/wallet/transactions", requireUser, async (req, res) => {
+    try {
+      await reconcilePendingPlanTransactionsForUser(req.portalUser.discordUserId);
+    } catch (err) {
+      if (logError) logError("portal:wallet:transactions:reconcile", err, { userId: req.portalUser.discordUserId });
+    }
+
     const data = store.load();
     const list = (data.transactions || [])
       .filter((t) => String(t.ownerDiscordUserId) === String(req.portalUser.discordUserId))
@@ -3161,7 +3330,6 @@ export function startPortalServer(options = {}) {
       const envToken = getMercadoPagoAccessToken();
       if (!envToken) return res.json({ ok: true });
       const payment = await mpRequestWithToken("get", `/v1/payments/${encodeURIComponent(dataId)}`, null, envToken);
-      const status = asString(payment?.status);
       const externalRef = asString(payment?.external_reference);
 
       if (!externalRef) return res.json({ ok: true });
@@ -3170,34 +3338,8 @@ export function startPortalServer(options = {}) {
         const data = store.load();
         const tx = data.transactions.find((t) => t.id === externalRef) || null;
         if (!tx) return;
-        if (tx.status === "paid") return;
-
-        tx.providerPaymentId = asString(payment?.id);
-        tx.updatedAt = nowIso();
-
-        if (status === "approved") {
-          tx.status = "paid";
-          const user = store.getUserByDiscordId(data, tx.ownerDiscordUserId);
-          if (user) {
-            if (tx.type === "plan_purchase") {
-              const catalog = getPlanCatalog();
-              const plan = catalog[asString(tx.planId)] || null;
-              if (plan) {
-                user.plan = {
-                  tier: plan.tier,
-                  status: "active",
-                  expiresAt: extendPlanExpiry(user.plan, plan.durationDays)
-                };
-              }
-            }
-          }
-        } else if (status === "rejected" || status === "cancelled") {
-          tx.status = "failed";
-        } else {
-          tx.status = "pending";
-        }
-
-        store.save(data);
+        const changed = applyMercadoPagoPaymentToTransaction(data, tx, payment);
+        if (changed) store.save(data);
       });
 
       res.json({ ok: true });

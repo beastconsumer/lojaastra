@@ -37,7 +37,7 @@ Sem estas variaveis o fluxo principal nao funciona.
 |---|---|---|
 | `PORTAL_HOST` | `127.0.0.1` | Host de bind do portal. |
 | `PORTAL_PORT` | `3100` | Porta do portal. |
-| `PORTAL_BASE_URL` | `http://127.0.0.1:3100` | URL publica usada em links internos/webhook. |
+| `PORTAL_BASE_URL` | `http://127.0.0.1:3100` | URL base do portal. Em producao use dominio publico com `https://` para webhook Mercado Pago. |
 | `ADMIN_PANEL_HOST` | `127.0.0.1` | Host de bind do admin. |
 | `ADMIN_PANEL_PORT` | `3000` | Porta do admin. |
 | `ADMIN_PANEL_MODE` | `monitor` | `monitor` bloqueia edicao de catalogo/config; `full` libera edicao. |
@@ -54,6 +54,7 @@ Sem estas variaveis o fluxo principal nao funciona.
 | `INSTANCE_DOCKER_ENABLED` | `true` | Habilita operacao de container por instancia. |
 | `INSTANCE_BOT_IMAGE` | `botdc-bot:latest` | Imagem usada para containers de instancia. |
 | `INSTANCE_MONITOR_INTERVAL_MS` | `30000` | Intervalo de monitoramento de runtime. |
+| `PLAN_RECONCILE_COOLDOWN_MS` | `15000` | Intervalo minimo para reconciliar pagamentos pendentes de plano via API Mercado Pago. |
 | `INSTANCE_CRASH_THRESHOLD` | `3` | Threshold para marcar crash repetido/suspensao. |
 | `INSTANCE_START_PROBE_MS` | `4500` | Espera minima apos start para probe de status. |
 | `INSTANCE_PARENT_CONTAINER` | auto | Nome do container pai (modo docker-in-docker). |
