@@ -304,6 +304,17 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function isValidHttpUrl(value) {
+  const raw = asString(value);
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function hashPassword(password) {
   const salt = crypto.randomBytes(16);
   const hash = crypto.scryptSync(String(password || ""), salt, 64);
@@ -333,6 +344,28 @@ function isPlanActive(plan) {
   const ts = Date.parse(expiresAt);
   if (!Number.isFinite(ts)) return false;
   return ts > Date.now();
+}
+
+function getAccountStatus(user) {
+  const raw = asString(user?.accountStatus).toLowerCase();
+  return raw === "blocked" ? "blocked" : "active";
+}
+
+function isUserBlocked(user) {
+  return getAccountStatus(user) === "blocked";
+}
+
+function getPortalAdminIds() {
+  return asString(process.env.ADMIN_IDS)
+    .split(",")
+    .map((entry) => asString(entry))
+    .filter(Boolean);
+}
+
+function isPortalAdmin(discordUserId) {
+  const id = asString(discordUserId);
+  if (!id) return false;
+  return getPortalAdminIds().includes(id);
 }
 
 function getPlanCatalog() {
@@ -443,6 +476,54 @@ async function discordBotApiGet(url, botToken) {
   return data;
 }
 
+const DISCORD_APP_FLAG_GATEWAY_GUILD_MEMBERS = 1 << 14;
+const DISCORD_APP_FLAG_GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
+const DISCORD_APP_FLAG_GATEWAY_MESSAGE_CONTENT = 1 << 18;
+const DISCORD_APP_FLAG_GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19;
+
+function hasDiscordAppFlag(flagsValue, flagBit) {
+  const flags = Number(flagsValue || 0);
+  if (!Number.isFinite(flags) || !Number.isFinite(flagBit)) return false;
+  return (flags & flagBit) === flagBit;
+}
+
+function resolveDiscordBotIntentFlags(flagsValue) {
+  const flags = Number(flagsValue || 0);
+  const normalizedFlags = Number.isFinite(flags) ? flags : 0;
+  const messageContentEnabled =
+    hasDiscordAppFlag(normalizedFlags, DISCORD_APP_FLAG_GATEWAY_MESSAGE_CONTENT) ||
+    hasDiscordAppFlag(normalizedFlags, DISCORD_APP_FLAG_GATEWAY_MESSAGE_CONTENT_LIMITED);
+  const guildMembersEnabled =
+    hasDiscordAppFlag(normalizedFlags, DISCORD_APP_FLAG_GATEWAY_GUILD_MEMBERS) ||
+    hasDiscordAppFlag(normalizedFlags, DISCORD_APP_FLAG_GATEWAY_GUILD_MEMBERS_LIMITED);
+  return {
+    flags: normalizedFlags,
+    messageContentEnabled,
+    guildMembersEnabled
+  };
+}
+
+function buildInstanceBotProfile(profile, options = {}) {
+  const source = profile && typeof profile === "object" ? profile : {};
+  const intents = source.intents && typeof source.intents === "object" ? source.intents : {};
+  const updatedAt = asString(options.updatedAt || source.updatedAt || nowIso());
+  return {
+    applicationId: asString(source.applicationId),
+    botUserId: asString(source.botUserId),
+    username: asString(source.username),
+    discriminator: asString(source.discriminator),
+    avatar: asString(source.avatar),
+    avatarUrl: asString(source.avatarUrl),
+    verified: source.verified === undefined ? true : !!source.verified,
+    intents: {
+      flags: Number.isFinite(Number(intents.flags)) ? Number(intents.flags) : 0,
+      messageContentEnabled: toBool(intents.messageContentEnabled),
+      guildMembersEnabled: toBool(intents.guildMembersEnabled)
+    },
+    updatedAt
+  };
+}
+
 async function validateDiscordBotToken(botToken) {
   const token = asString(botToken);
   if (!token || token.length < 30) throw new Error("bot_token_invalido");
@@ -466,6 +547,7 @@ async function validateDiscordBotToken(botToken) {
 
   const applicationId = asString(app?.id || me?.id);
   if (!applicationId) throw new Error("bot_token_invalido");
+  const intentFlags = resolveDiscordBotIntentFlags(app?.flags);
 
   return {
     applicationId,
@@ -474,7 +556,12 @@ async function validateDiscordBotToken(botToken) {
     discriminator: asString(me.discriminator),
     avatar: asString(me.avatar),
     avatarUrl: getDiscordAvatarUrl(me.id, me.avatar),
-    verified: app?.bot_public !== undefined ? app.bot_public !== false : true
+    verified: app?.bot_public !== undefined ? app.bot_public !== false : true,
+    intents: {
+      flags: intentFlags.flags,
+      messageContentEnabled: intentFlags.messageContentEnabled,
+      guildMembersEnabled: intentFlags.guildMembersEnabled
+    }
   };
 }
 
@@ -504,17 +591,30 @@ async function mpRequestWithToken(method, pathName, payload, token, extraHeaders
   const tok = asString(token);
   if (!tok) throw new Error("mercadopago_not_configured");
   const url = `https://api.mercadopago.com${pathName}`;
-  const { data } = await axios({
-    method,
-    url,
-    data: payload,
-    headers: {
-      Authorization: `Bearer ${tok}`,
-      "Content-Type": "application/json",
-      ...extraHeaders
-    }
-  });
-  return data;
+  try {
+    const { data } = await axios({
+      method,
+      url,
+      data: payload,
+      headers: {
+        Authorization: `Bearer ${tok}`,
+        "Content-Type": "application/json",
+        "User-Agent": "astrasystems-portal",
+        ...extraHeaders
+      },
+      timeout: 30000
+    });
+    return data;
+  } catch (err) {
+    const status = err?.response?.status;
+    const mpError = err?.response?.data;
+    const errorMsg = mpError?.message || mpError?.error || err?.message || "Erro desconhecido";
+    const errorCause = mpError?.cause?.[0]?.description || "";
+    const fullError = new Error(`MP API Error: ${status} - ${errorMsg}${errorCause ? ` (${errorCause})` : ""}`);
+    fullError.status = status;
+    fullError.mpError = mpError;
+    throw fullError;
+  }
 }
 
 async function mpRequest(method, pathName, payload) {
@@ -597,8 +697,13 @@ export function startPortalServer(options = {}) {
     asString(process.env.INSTANCE_DOCKER_ENABLED || "true").toLowerCase()
   );
   const instanceBotImage = asString(process.env.INSTANCE_BOT_IMAGE || "botdc-bot:latest").trim();
+  const instanceParentContainer = asString(
+    process.env.INSTANCE_PARENT_CONTAINER || (fs.existsSync("/.dockerenv") ? process.env.HOSTNAME : "")
+  ).trim();
+  const instanceSharedMountTargets = new Set(["/app/data", "/app/logs", "/var/run/docker.sock"]);
   const monitorIntervalMs = Math.max(10_000, Number(process.env.INSTANCE_MONITOR_INTERVAL_MS || 30_000) || 30_000);
   const crashThreshold = Math.max(2, Number(process.env.INSTANCE_CRASH_THRESHOLD || 3) || 3);
+  const instanceStartProbeMs = Math.max(1_500, Number(process.env.INSTANCE_START_PROBE_MS || 4_500) || 4_500);
 
   function sanitizeContainerSegment(value, fallback = "bot") {
     const raw = asString(value)
@@ -609,9 +714,28 @@ export function startPortalServer(options = {}) {
   }
 
   function getInstanceContainerName(instance) {
+    const client = sanitizeContainerSegment(instance?.name || instance?.botProfile?.username, "cliente").slice(0, 24);
+    const owner = sanitizeContainerSegment(instance?.ownerDiscordUserId, "owner").slice(0, 24);
+    const instId = sanitizeContainerSegment(instance?.id, "inst").slice(0, 56);
+    return `bot_${client}_${owner}_${instId}`;
+  }
+
+  function getLegacyInstanceContainerName(instance) {
     const owner = sanitizeContainerSegment(instance?.ownerDiscordUserId, "owner");
     const instId = sanitizeContainerSegment(instance?.id, "inst");
     return `bot_${owner}_${instId}`;
+  }
+
+  function getInstanceContainerCandidates(instance) {
+    const names = [];
+    const runtimeName = asString(instance?.runtime?.containerName).trim();
+    const canonical = getInstanceContainerName(instance);
+    const legacy = getLegacyInstanceContainerName(instance);
+
+    if (runtimeName) names.push(runtimeName);
+    if (canonical) names.push(canonical);
+    if (legacy) names.push(legacy);
+    return [...new Set(names.filter(Boolean))];
   }
 
   function getInstanceBotToken(instance) {
@@ -623,6 +747,20 @@ export function startPortalServer(options = {}) {
     } catch {
       return "";
     }
+  }
+
+  function resolveInstanceRuntimeIntentEnv(instance) {
+    const profile = instance?.botProfile && typeof instance.botProfile === "object" ? instance.botProfile : {};
+    const intents = profile.intents && typeof profile.intents === "object" ? profile.intents : {};
+    const messageContentValue =
+      intents.messageContentEnabled !== undefined ? intents.messageContentEnabled : profile.messageContentEnabled;
+    const guildMembersValue = intents.guildMembersEnabled !== undefined ? intents.guildMembersEnabled : profile.guildMembersEnabled;
+    const messageContentEnabled = toBool(messageContentValue);
+    const guildMembersEnabled = toBool(guildMembersValue);
+    return {
+      INSTANCE_ENABLE_MESSAGE_CONTENT: messageContentEnabled ? "1" : "0",
+      INSTANCE_ENABLE_GUILD_MEMBERS: guildMembersEnabled ? "1" : "0"
+    };
   }
 
   function instanceTokenMatchesHash(instance, tokenHash) {
@@ -664,6 +802,10 @@ export function startPortalServer(options = {}) {
     if (full.includes("permission denied")) return "docker_permission_denied";
     if (full.includes("pull access denied") || full.includes("unable to find image")) return "docker_image_missing";
     return fallback;
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms || 0))));
   }
 
   async function dockerExec(args, options = {}) {
@@ -731,37 +873,109 @@ export function startPortalServer(options = {}) {
     }
   }
 
+  async function dockerStopContainers(names = [], options = {}) {
+    const strict = options.strict === true;
+    let stoppedAny = false;
+    for (const name of [...new Set((names || []).map((n) => asString(n).trim()).filter(Boolean))]) {
+      let stopped = false;
+      try {
+        stopped = await dockerStopContainer(name);
+      } catch (err) {
+        if (strict) throw err;
+      }
+      if (stopped) stoppedAny = true;
+    }
+    return stoppedAny;
+  }
+
+  async function dockerRemoveContainers(names = [], options = {}) {
+    const strict = options.strict === true;
+    let removedAny = false;
+    for (const name of [...new Set((names || []).map((n) => asString(n).trim()).filter(Boolean))]) {
+      let removed = false;
+      try {
+        removed = await dockerRemoveContainer(name);
+      } catch (err) {
+        if (strict) throw err;
+      }
+      if (removed) removedAny = true;
+    }
+    return removedAny;
+  }
+
   async function dockerStartInstanceContainer(instance, token) {
     const containerName = getInstanceContainerName(instance);
-    await dockerRemoveContainer(containerName);
+    const candidates = getInstanceContainerCandidates(instance);
+    const instanceIntentEnv = resolveInstanceRuntimeIntentEnv(instance);
+    await dockerStopContainers(candidates).catch(() => null);
+    await dockerRemoveContainers(candidates).catch(() => null);
+    const runArgs = [
+      "run",
+      "-d",
+      "--name",
+      containerName,
+      "--restart",
+      "unless-stopped",
+      "-e",
+      "DISCORD_TOKEN",
+      "-e",
+      "LOG_LEVEL",
+      "-e",
+      "LICENSE_MODE=off",
+      "-e",
+      "PORTAL_SESSION_SECRET=",
+      "-e",
+      "INSTANCE_RUNTIME=1",
+      "-e",
+      "INSTANCE_ID",
+      "-e",
+      "INSTANCE_OWNER_DISCORD_USER_ID",
+      "-e",
+      "INSTANCE_ENABLE_MESSAGE_CONTENT",
+      "-e",
+      "INSTANCE_ENABLE_GUILD_MEMBERS",
+      "-e",
+      "MERCADOPAGO_ACCESS_TOKEN",
+      "-e",
+      "PLATFORM_FEE_PERCENT",
+      "--label",
+      `astra.instance.id=${asString(instance?.id)}`,
+      "--label",
+      `astra.instance.owner=${asString(instance?.ownerDiscordUserId)}`,
+      "--label",
+      `astra.instance.name=${sanitizeContainerSegment(instance?.name || instance?.botProfile?.username, "cliente")}`
+    ];
+    const parentInfo = instanceParentContainer ? await dockerInspectContainer(instanceParentContainer).catch(() => null) : null;
+    const parentMounts = Array.isArray(parentInfo?.Mounts) ? parentInfo.Mounts : [];
+    let mappedSharedMounts = 0;
+    for (const mount of parentMounts) {
+      const destination = asString(mount?.Destination).trim();
+      const source = asString(mount?.Source).trim();
+      if (!destination || !source) continue;
+      if (!instanceSharedMountTargets.has(destination)) continue;
+      const mode = mount?.RW === false ? ":ro" : "";
+      runArgs.push("-v", `${source}:${destination}${mode}`);
+      mappedSharedMounts += 1;
+    }
+    if (!mappedSharedMounts && instanceParentContainer) {
+      runArgs.push("--volumes-from", instanceParentContainer);
+    }
+    runArgs.push(instanceBotImage);
     try {
-      await dockerExec(
-        [
-          "run",
-          "-d",
-          "--name",
-          containerName,
-          "--restart",
-          "unless-stopped",
-          "-e",
-          "DISCORD_TOKEN",
-          "-e",
-          "LOG_LEVEL",
-          "-e",
-          "LICENSE_MODE=off",
-          "-e",
-          "PORTAL_SESSION_SECRET=",
-          instanceBotImage
-        ],
-        {
-          timeoutMs: 60_000,
-          env: {
-            ...process.env,
-            DISCORD_TOKEN: String(token || ""),
-            LOG_LEVEL: "warn"
-          }
+      await dockerExec(runArgs, {
+        timeoutMs: 60_000,
+        env: {
+          ...process.env,
+          DISCORD_TOKEN: String(token || ""),
+          LOG_LEVEL: "warn",
+          INSTANCE_ID: asString(instance?.id),
+          INSTANCE_OWNER_DISCORD_USER_ID: asString(instance?.ownerDiscordUserId),
+          INSTANCE_ENABLE_MESSAGE_CONTENT: instanceIntentEnv.INSTANCE_ENABLE_MESSAGE_CONTENT,
+          INSTANCE_ENABLE_GUILD_MEMBERS: instanceIntentEnv.INSTANCE_ENABLE_GUILD_MEMBERS,
+          MERCADOPAGO_ACCESS_TOKEN: asString(process.env.MERCADOPAGO_ACCESS_TOKEN),
+          PLATFORM_FEE_PERCENT: asString(process.env.PLATFORM_FEE_PERCENT)
         }
-      );
+      });
     } catch (err) {
       const code = normalizeDockerError(err);
       const wrapped = new Error(code);
@@ -776,52 +990,102 @@ export function startPortalServer(options = {}) {
     const allowSuspendActions = options.allowSuspendActions !== false;
     const hasToken = Boolean(asString(instance?.botToken?.packed));
     const planActive = isPlanActive(owner?.plan);
-    const containerName = asString(runtime.containerName) || getInstanceContainerName(instance);
-    runtime.containerName = containerName;
+    const canonicalContainerName = getInstanceContainerName(instance);
+    const containerCandidates = getInstanceContainerCandidates(instance);
+    runtime.containerName = canonicalContainerName;
 
     if (!planActive) {
       runtime.status = "suspenso";
       runtime.lastError = "plano_inativo";
       runtime.updatedAt = nowIso();
       if (allowSuspendActions && instanceDockerEnabled) {
-        await dockerStopContainer(containerName).catch(() => null);
-        await dockerRemoveContainer(containerName).catch(() => null);
+        await dockerStopContainers(containerCandidates).catch(() => null);
+        await dockerRemoveContainers(containerCandidates).catch(() => null);
       }
       return runtime;
     }
 
     if (!instanceDockerEnabled) {
       runtime.status = hasToken ? "configurado" : "nao_configurado";
+      runtime.lastError = "";
       runtime.updatedAt = nowIso();
       return runtime;
     }
 
     try {
-      const info = await dockerInspectContainer(containerName);
+      let info = null;
+      for (const candidate of containerCandidates) {
+        info = await dockerInspectContainer(candidate).catch((err) => {
+          throw err;
+        });
+        if (info) break;
+      }
       if (!info) {
-        runtime.status = hasToken ? "configurado" : "nao_configurado";
+        if (!hasToken) {
+          runtime.status = "nao_configurado";
+          runtime.lastError = "";
+        } else {
+          const currentStatus = asString(runtime.status).toLowerCase();
+          const currentError = asString(runtime.lastError).toLowerCase();
+          const isDockerError = currentError.startsWith("docker_");
+          if (isDockerError) {
+            runtime.status = "erro";
+          } else if (currentStatus === "online" || currentStatus === "offline" || currentStatus === "erro") {
+            runtime.status = "offline";
+            runtime.lastError = "";
+          } else {
+            runtime.status = "configurado";
+            runtime.lastError = "";
+          }
+        }
         runtime.updatedAt = nowIso();
-        runtime.lastError = "";
         return runtime;
       }
 
       const state = info?.State && typeof info.State === "object" ? info.State : {};
       runtime.containerId = asString(info?.Id);
-      runtime.containerName = asString(info?.Name).replace(/^\//, "") || containerName;
+      runtime.containerName = asString(info?.Name).replace(/^\//, "") || canonicalContainerName;
       runtime.startedAt = asString(state?.StartedAt || runtime.startedAt);
       runtime.finishedAt = asString(state?.FinishedAt || runtime.finishedAt);
       runtime.exitCode = Number.isFinite(Number(state?.ExitCode)) ? Number(state.ExitCode) : null;
       runtime.restartCount = Number.isFinite(Number(info?.RestartCount)) ? Number(info.RestartCount) : 0;
       runtime.updatedAt = nowIso();
 
-      if (state?.Running) {
+      const isRunning = Boolean(state?.Running) && !Boolean(state?.Restarting);
+      if (isRunning) {
         runtime.status = "online";
         runtime.lastError = "";
+        runtime.stoppedAt = "";
       } else {
+        const stoppedAtMs = Date.parse(asString(runtime.stoppedAt || ""));
+        const startedAtMs = Date.parse(asString(runtime.startedAt || state?.StartedAt || ""));
+        const manuallyStopped =
+          Number.isFinite(stoppedAtMs) && stoppedAtMs > 0 && (!Number.isFinite(startedAtMs) || stoppedAtMs >= startedAtMs);
+        if (manuallyStopped) {
+          runtime.status = hasToken ? "offline" : "nao_configurado";
+          runtime.lastError = "";
+          return runtime;
+        }
         const exitCode = Number(runtime.exitCode || 0);
-        if (exitCode !== 0 && Number(runtime.restartCount || 0) >= crashThreshold) {
+        const hasRepeatedRestart = Number(runtime.restartCount || 0) >= crashThreshold;
+        if (exitCode !== 0) {
           runtime.status = "erro";
-          runtime.lastError = `crash_repetido_exit_${exitCode}`;
+          runtime.lastError = hasRepeatedRestart ? `crash_repetido_exit_${exitCode}` : `crash_exit_${exitCode}`;
+          if (allowSuspendActions && hasRepeatedRestart) {
+            await dockerStopContainers(containerCandidates).catch(() => null);
+            await dockerRemoveContainers(containerCandidates).catch(() => null);
+            runtime.containerId = "";
+            runtime.containerName = canonicalContainerName;
+          }
+        } else if (hasRepeatedRestart) {
+          runtime.status = "erro";
+          runtime.lastError = "crash_repetido_exit_0";
+          if (allowSuspendActions) {
+            await dockerStopContainers(containerCandidates).catch(() => null);
+            await dockerRemoveContainers(containerCandidates).catch(() => null);
+            runtime.containerId = "";
+            runtime.containerName = canonicalContainerName;
+          }
         } else {
           runtime.status = "offline";
           runtime.lastError = "";
@@ -839,6 +1103,7 @@ export function startPortalServer(options = {}) {
   function toClientInstance(instance, extra = {}) {
     const source = instance && typeof instance === "object" ? instance : {};
     const botProfileRaw = source.botProfile && typeof source.botProfile === "object" ? source.botProfile : {};
+    const botIntentsRaw = botProfileRaw.intents && typeof botProfileRaw.intents === "object" ? botProfileRaw.intents : {};
     const botProfile = {
       applicationId: asString(botProfileRaw.applicationId),
       botUserId: asString(botProfileRaw.botUserId),
@@ -847,6 +1112,11 @@ export function startPortalServer(options = {}) {
       avatar: asString(botProfileRaw.avatar),
       avatarUrl: asString(botProfileRaw.avatarUrl),
       verified: botProfileRaw.verified === undefined ? false : !!botProfileRaw.verified,
+      intents: {
+        flags: Number.isFinite(Number(botIntentsRaw.flags)) ? Number(botIntentsRaw.flags) : 0,
+        messageContentEnabled: toBool(botIntentsRaw.messageContentEnabled),
+        guildMembersEnabled: toBool(botIntentsRaw.guildMembersEnabled)
+      },
       updatedAt: asString(botProfileRaw.updatedAt)
     };
     const hasBotToken = Boolean(asString(source?.botToken?.packed));
@@ -981,6 +1251,13 @@ export function startPortalServer(options = {}) {
     const data = store.load();
     const user = store.getUserByDiscordId(data, session.discordUserId);
     if (!user) return res.status(401).json({ error: "unauthorized" });
+    if (isUserBlocked(user)) {
+      return res.status(403).json({
+        error: "account_blocked",
+        blockedAt: asString(user?.blockedAt),
+        blockedReason: asString(user?.blockedReason)
+      });
+    }
 
     req.portalUser = user;
     req.portalData = data;
@@ -1072,17 +1349,24 @@ export function startPortalServer(options = {}) {
         expiresAt: Date.now() + Number(token.expires_in || 0) * 1000
       });
 
+      let blockedAfterLogin = false;
       await store.runExclusive(async () => {
         const data = store.load();
-        store.ensureUser(data, {
+        const ensured = store.ensureUser(data, {
           discordUserId: String(me.id),
           discordUsername: String(me.username),
           discordAvatar: String(me.avatar || ""),
           email: String(me.email || ""),
           discordToken: { packed }
         });
+        blockedAfterLogin = isUserBlocked(ensured);
         store.save(data);
       });
+
+      if (blockedAfterLogin) {
+        clearCookie(res, "nm_session");
+        return res.redirect("/login?error=account_blocked");
+      }
 
       const session = issueSession(me.id);
       setCookie(res, "nm_session", session, {
@@ -1168,6 +1452,7 @@ export function startPortalServer(options = {}) {
     const data = store.load();
     const user = data.users.find((u) => normalizeEmail(u?.localAuth?.email || u?.email) === email) || null;
     if (!user?.localAuth?.hash) return res.status(401).json({ error: "email ou senha invalidos" });
+    if (isUserBlocked(user)) return res.status(403).json({ error: "conta_bloqueada" });
 
     const ok = verifyPassword(password, user.localAuth);
     if (!ok) return res.status(401).json({ error: "email ou senha invalidos" });
@@ -1234,14 +1519,24 @@ export function startPortalServer(options = {}) {
   app.get("/api/me", requireUser, (req, res) => {
     const user = req.portalUser;
     const plan = user.plan || { tier: "free", status: "inactive", expiresAt: "" };
+    const admin = isPortalAdmin(user.discordUserId);
+    const trialClaimedAt = asString(user?.trialClaimedAt);
+    const trialAlreadyUsed = !!trialClaimedAt;
+    const planActive = isPlanActive(plan);
+    const accountStatus = getAccountStatus(user);
+    const trialEligible = !trialAlreadyUsed && !planActive;
+    const trialIneligibleReason = trialAlreadyUsed ? "already_used" : planActive ? "active_plan" : "";
 
     const mercadoPagoConfigured = Boolean(getMercadoPagoAccessToken());
+    const discordAvatarUrl = getDiscordAvatarUrl(user.discordUserId, user.discordAvatar);
+    const profileAvatarUrl = asString(user?.profileAvatarUrl) || discordAvatarUrl;
     res.json({
       ok: true,
       user: {
         discordUserId: user.discordUserId,
         discordUsername: user.discordUsername,
-        discordAvatarUrl: getDiscordAvatarUrl(user.discordUserId, user.discordAvatar),
+        discordAvatarUrl,
+        profileAvatarUrl,
         email: user.email || "",
         walletCents: Number(user.walletCents || 0),
         walletFormatted: formatBRL(user.walletCents || 0),
@@ -1250,8 +1545,15 @@ export function startPortalServer(options = {}) {
           pixKey: asString(user?.payout?.pixKey),
           pixKeyType: asString(user?.payout?.pixKeyType)
         },
+        isPortalAdmin: admin,
+        trialClaimedAt,
+        trialEligible,
+        trialIneligibleReason,
+        accountStatus,
+        blockedAt: asString(user?.blockedAt),
+        blockedReason: asString(user?.blockedReason),
         plan,
-        planActive: isPlanActive(plan),
+        planActive,
         authProvider: user?.isLocal ? "local" : "discord",
         mercadoPagoConfigured
       }
@@ -1260,8 +1562,16 @@ export function startPortalServer(options = {}) {
 
   app.put("/api/me/profile", requireUser, async (req, res) => {
     const name = asString(req.body?.name).trim();
+    const hasAvatarUpdate = Object.prototype.hasOwnProperty.call(req.body || {}, "avatarUrl");
+    const avatarUrl = asString(req.body?.avatarUrl).trim();
     if (!name) return res.status(400).json({ error: "nome obrigatorio" });
     if (name.length > 32) return res.status(400).json({ error: "nome muito grande (max 32)" });
+    if (hasAvatarUpdate && avatarUrl && !isValidHttpUrl(avatarUrl)) {
+      return res.status(400).json({ error: "avatar_url_invalida" });
+    }
+    if (hasAvatarUpdate && avatarUrl.length > 500) {
+      return res.status(400).json({ error: "avatar_url_muito_grande" });
+    }
 
     await store
       .runExclusive(async () => {
@@ -1269,6 +1579,9 @@ export function startPortalServer(options = {}) {
         const user = store.getUserByDiscordId(data, req.portalUser.discordUserId);
         if (!user) throw new Error("not_found");
         user.discordUsername = name;
+        if (hasAvatarUpdate) {
+          user.profileAvatarUrl = avatarUrl;
+        }
         store.save(data);
       })
       .catch((err) => {
@@ -1279,6 +1592,51 @@ export function startPortalServer(options = {}) {
 
     if (res.headersSent) return;
     res.json({ ok: true });
+  });
+
+  app.put("/api/me/email", requireUser, async (req, res) => {
+    const email = normalizeEmail(req.body?.email);
+    const currentPassword = asString(req.body?.currentPassword);
+
+    if (!email) return res.status(400).json({ error: "email obrigatorio" });
+    if (!isValidEmail(email)) return res.status(400).json({ error: "email invalido" });
+    if (!currentPassword) return res.status(400).json({ error: "senha_atual_obrigatoria" });
+
+    await store
+      .runExclusive(async () => {
+        const data = store.load();
+        const user = store.getUserByDiscordId(data, req.portalUser.discordUserId);
+        if (!user) throw new Error("not_found");
+        if (!user?.isLocal || !user?.localAuth?.hash) throw new Error("local_only");
+        if (!verifyPassword(currentPassword, user.localAuth)) throw new Error("invalid_password");
+
+        const currentEmail = normalizeEmail(user?.localAuth?.email || user?.email);
+        if (currentEmail === email) return;
+
+        const exists =
+          data.users.find(
+            (entry) =>
+              normalizeEmail(entry?.localAuth?.email || entry?.email) === email &&
+              asString(entry?.discordUserId) !== asString(user?.discordUserId)
+          ) || null;
+        if (exists) throw new Error("email_exists");
+
+        user.email = email;
+        user.localAuth = { ...user.localAuth, email };
+        store.save(data);
+      })
+      .catch((err) => {
+        const code = asString(err?.message);
+        if (code === "not_found") return res.status(404).json({ error: "usuario nao encontrado" });
+        if (code === "local_only") return res.status(409).json({ error: "email_managed_by_discord" });
+        if (code === "invalid_password") return res.status(401).json({ error: "senha_atual_invalida" });
+        if (code === "email_exists") return res.status(409).json({ error: "email ja cadastrado" });
+        if (logError) logError("portal:me:updateEmail", err);
+        return res.status(500).json({ error: "erro interno" });
+      });
+
+    if (res.headersSent) return;
+    res.json({ ok: true, email });
   });
 
   app.get("/api/instances", requireUser, async (req, res) => {
@@ -1368,19 +1726,14 @@ export function startPortalServer(options = {}) {
         })
       },
       botTokenHash: tokenHash,
-      botProfile: {
-        applicationId: asString(profile.applicationId),
-        botUserId: asString(profile.botUserId),
-        username: asString(profile.username),
-        discriminator: asString(profile.discriminator),
-        avatar: asString(profile.avatar),
-        avatarUrl: asString(profile.avatarUrl),
-        verified: !!profile.verified,
-        updatedAt: now
-      },
+      botProfile: buildInstanceBotProfile(profile, { updatedAt: now }),
       runtime: {
         status: "configurado",
-        containerName: getInstanceContainerName({ ownerDiscordUserId: req.portalUser.discordUserId, id: instanceId }),
+        containerName: getInstanceContainerName({
+          ownerDiscordUserId: req.portalUser.discordUserId,
+          id: instanceId,
+          name
+        }),
         containerId: "",
         startedAt: "",
         finishedAt: "",
@@ -1431,7 +1784,37 @@ export function startPortalServer(options = {}) {
       });
 
     if (res.headersSent) return;
-    res.json({ ok: true, instance: toClientInstance(instance), apiKey });
+    let warning = "";
+    if (instanceDockerEnabled) {
+      try {
+        await dockerStartInstanceContainer(instance, token);
+        await sleep(instanceStartProbeMs);
+      } catch (err) {
+        warning = asString(err?.code || err?.message || "docker_error");
+      }
+    }
+
+    let updatedInstance = instance;
+    await store.runExclusive(async () => {
+      const data = store.load();
+      const owner = store.getUserByDiscordId(data, req.portalUser.discordUserId);
+      const target = (data.instances || []).find((entry) => String(entry.id) === String(instanceId));
+      if (!target) return;
+
+      if (warning) {
+        const runtime = getInstanceRuntime(target);
+        runtime.status = "erro";
+        runtime.lastError = warning;
+        runtime.updatedAt = nowIso();
+      }
+
+      await refreshInstanceRuntime(target, owner, { allowSuspendActions: true });
+      target.updatedAt = nowIso();
+      store.save(data);
+      updatedInstance = target;
+    });
+
+    res.json({ ok: true, warning, instance: toClientInstance(updatedInstance), apiKey });
   });
 
   app.put("/api/instances/:id", requireUser, async (req, res) => {
@@ -1555,16 +1938,7 @@ export function startPortalServer(options = {}) {
           })
         };
         instance.botTokenHash = tokenHash;
-        instance.botProfile = {
-          applicationId: asString(profile.applicationId),
-          botUserId: asString(profile.botUserId),
-          username: asString(profile.username),
-          discriminator: asString(profile.discriminator),
-          avatar: asString(profile.avatar),
-          avatarUrl: asString(profile.avatarUrl),
-          verified: !!profile.verified,
-          updatedAt: now
-        };
+        instance.botProfile = buildInstanceBotProfile(profile, { updatedAt: now });
         const runtime = getInstanceRuntime(instance);
         runtime.status = ownerPlanActive ? "configurado" : "suspenso";
         runtime.lastError = ownerPlanActive ? "" : "plano_inativo";
@@ -1585,13 +1959,14 @@ export function startPortalServer(options = {}) {
 
     if (res.headersSent) return;
     let warning = "";
-    const containerName = getInstanceContainerName(updatedInstance);
+    const containerCandidates = getInstanceContainerCandidates(updatedInstance);
     if (!ownerPlanActive) {
-      await dockerStopContainer(containerName).catch(() => null);
-      await dockerRemoveContainer(containerName).catch(() => null);
-    } else {
+      await dockerStopContainers(containerCandidates).catch(() => null);
+      await dockerRemoveContainers(containerCandidates).catch(() => null);
+    } else if (instanceDockerEnabled) {
       try {
         await dockerStartInstanceContainer(updatedInstance, token);
+        await sleep(instanceStartProbeMs);
       } catch (err) {
         warning = asString(err?.code || err?.message || "docker_error");
       }
@@ -1602,6 +1977,14 @@ export function startPortalServer(options = {}) {
       const instance = data.instances.find((entry) => String(entry.id) === String(instanceId));
       const owner = store.getUserByDiscordId(data, req.portalUser.discordUserId);
       if (!instance) return;
+
+      if (warning) {
+        const runtime = getInstanceRuntime(instance);
+        runtime.status = "erro";
+        runtime.lastError = warning;
+        runtime.updatedAt = nowIso();
+      }
+
       await refreshInstanceRuntime(instance, owner, { allowSuspendActions: true });
       instance.updatedAt = nowIso();
       store.save(data);
@@ -1614,6 +1997,7 @@ export function startPortalServer(options = {}) {
   app.delete("/api/instances/:id/bot-token", requireUser, async (req, res) => {
     const instanceId = asString(req.params.id);
     let containerName = "";
+    let containerCandidates = [];
     await store
       .runExclusive(async () => {
         const data = store.load();
@@ -1621,6 +2005,7 @@ export function startPortalServer(options = {}) {
         if (!instance) throw new Error("not_found");
         if (String(instance.ownerDiscordUserId) !== String(req.portalUser.discordUserId)) throw new Error("forbidden");
         containerName = getInstanceContainerName(instance);
+        containerCandidates = getInstanceContainerCandidates(instance);
 
         instance.botToken = { packed: "" };
         instance.botTokenHash = "";
@@ -1632,6 +2017,11 @@ export function startPortalServer(options = {}) {
           avatar: "",
           avatarUrl: "",
           verified: false,
+          intents: {
+            flags: 0,
+            messageContentEnabled: false,
+            guildMembersEnabled: false
+          },
           updatedAt: nowIso()
         };
         const runtime = getInstanceRuntime(instance);
@@ -1653,8 +2043,8 @@ export function startPortalServer(options = {}) {
       });
 
     if (res.headersSent) return;
-    await dockerStopContainer(containerName).catch(() => null);
-    await dockerRemoveContainer(containerName).catch(() => null);
+    await dockerStopContainers(containerCandidates.length ? containerCandidates : [containerName]).catch(() => null);
+    await dockerRemoveContainers(containerCandidates.length ? containerCandidates : [containerName]).catch(() => null);
     res.json({ ok: true });
   });
 
@@ -1682,13 +2072,51 @@ export function startPortalServer(options = {}) {
     const token = getInstanceBotToken(instance);
     if (!token) return res.status(409).json({ error: "bot_token_obrigatorio" });
     if (!isLikelyDiscordBotToken(token)) return res.status(409).json({ error: "bot_token_invalido" });
+    let validatedProfile = null;
+    try {
+      validatedProfile = await validateDiscordBotToken(token);
+    } catch (err) {
+      const code = asString(err?.message);
+      if (code === "bot_token_invalido" || code === "bot_token_missing") {
+        return res.status(409).json({ error: "bot_token_invalido" });
+      }
+      if (logError) logError("portal:instances:bot:start:validateBotToken", err, { instanceId });
+    }
+    if (validatedProfile) {
+      const profileNow = nowIso();
+      const normalizedProfile = buildInstanceBotProfile(validatedProfile, { updatedAt: profileNow });
+      instance.botProfile = normalizedProfile;
+      await store.runExclusive(async () => {
+        const next = store.load();
+        const target = (next.instances || []).find((entry) => String(entry.id) === instanceId);
+        if (!target) return;
+        target.botProfile = normalizedProfile;
+        target.updatedAt = profileNow;
+        store.save(next);
+      });
+    }
 
     try {
       await dockerStartInstanceContainer(instance, token);
+      await sleep(instanceStartProbeMs);
     } catch (err) {
       const code = asString(err?.code || err?.message);
+      await store.runExclusive(async () => {
+        const next = store.load();
+        const target = (next.instances || []).find((entry) => String(entry.id) === instanceId);
+        if (!target) return;
+        const runtime = getInstanceRuntime(target);
+        runtime.status = "erro";
+        runtime.lastError = code || "docker_error";
+        runtime.updatedAt = nowIso();
+        target.updatedAt = nowIso();
+        store.save(next);
+      });
       if (code === "docker_unavailable" || code === "docker_permission_denied") {
         return res.status(503).json({ error: code });
+      }
+      if (code === "docker_disabled") {
+        return res.status(409).json({ error: code });
       }
       if (code === "docker_image_missing") {
         return res.status(409).json({ error: code });
@@ -1704,12 +2132,16 @@ export function startPortalServer(options = {}) {
       const target = (next.instances || []).find((entry) => String(entry.id) === instanceId);
       if (!target) return;
       await refreshInstanceRuntime(target, ownerNext, { allowSuspendActions: true });
-      target.runtime.restartedAt = nowIso();
+      target.runtime.startedAt = nowIso();
+      target.runtime.stoppedAt = "";
       target.updatedAt = nowIso();
       updatedInstance = target;
       store.save(next);
     });
 
+    if (asString(updatedInstance?.runtime?.status).toLowerCase() === "erro") {
+      return res.status(409).json({ error: asString(updatedInstance?.runtime?.lastError || "runtime_error"), instance: toClientInstance(updatedInstance) });
+    }
     res.json({ ok: true, instance: toClientInstance(updatedInstance) });
   });
 
@@ -1721,12 +2153,17 @@ export function startPortalServer(options = {}) {
     if (String(instance.ownerDiscordUserId) !== String(req.portalUser.discordUserId)) return res.status(403).json({ error: "forbidden" });
 
     const containerName = getInstanceContainerName(instance);
+    const containerCandidates = getInstanceContainerCandidates(instance);
     try {
-      await dockerStopContainer(containerName);
+      await dockerStopContainers(containerCandidates, { strict: true });
+      await dockerRemoveContainers(containerCandidates).catch(() => null);
     } catch (err) {
       const code = asString(err?.code || err?.message);
       if (code === "docker_unavailable" || code === "docker_permission_denied") {
         return res.status(503).json({ error: code });
+      }
+      if (code === "docker_disabled") {
+        return res.status(409).json({ error: code });
       }
       if (logError) logError("portal:instances:bot:stop", err, { instanceId });
       return res.status(500).json({ error: "falha_ao_parar_bot" });
@@ -1743,6 +2180,8 @@ export function startPortalServer(options = {}) {
         : "suspenso";
       runtime.stoppedAt = nowIso();
       runtime.containerName = containerName;
+      runtime.containerId = "";
+      runtime.lastError = "";
       runtime.updatedAt = nowIso();
       target.updatedAt = nowIso();
       updatedInstance = target;
@@ -1776,13 +2215,51 @@ export function startPortalServer(options = {}) {
     const token = getInstanceBotToken(instance);
     if (!token) return res.status(409).json({ error: "bot_token_obrigatorio" });
     if (!isLikelyDiscordBotToken(token)) return res.status(409).json({ error: "bot_token_invalido" });
+    let validatedProfile = null;
+    try {
+      validatedProfile = await validateDiscordBotToken(token);
+    } catch (err) {
+      const code = asString(err?.message);
+      if (code === "bot_token_invalido" || code === "bot_token_missing") {
+        return res.status(409).json({ error: "bot_token_invalido" });
+      }
+      if (logError) logError("portal:instances:bot:restart:validateBotToken", err, { instanceId });
+    }
+    if (validatedProfile) {
+      const profileNow = nowIso();
+      const normalizedProfile = buildInstanceBotProfile(validatedProfile, { updatedAt: profileNow });
+      instance.botProfile = normalizedProfile;
+      await store.runExclusive(async () => {
+        const next = store.load();
+        const target = (next.instances || []).find((entry) => String(entry.id) === instanceId);
+        if (!target) return;
+        target.botProfile = normalizedProfile;
+        target.updatedAt = profileNow;
+        store.save(next);
+      });
+    }
 
     try {
       await dockerStartInstanceContainer(instance, token);
+      await sleep(instanceStartProbeMs);
     } catch (err) {
       const code = asString(err?.code || err?.message);
+      await store.runExclusive(async () => {
+        const next = store.load();
+        const target = (next.instances || []).find((entry) => String(entry.id) === instanceId);
+        if (!target) return;
+        const runtime = getInstanceRuntime(target);
+        runtime.status = "erro";
+        runtime.lastError = code || "docker_error";
+        runtime.updatedAt = nowIso();
+        target.updatedAt = nowIso();
+        store.save(next);
+      });
       if (code === "docker_unavailable" || code === "docker_permission_denied") {
         return res.status(503).json({ error: code });
+      }
+      if (code === "docker_disabled") {
+        return res.status(409).json({ error: code });
       }
       if (code === "docker_image_missing") {
         return res.status(409).json({ error: code });
@@ -1799,11 +2276,15 @@ export function startPortalServer(options = {}) {
       if (!target) return;
       await refreshInstanceRuntime(target, ownerNext, { allowSuspendActions: true });
       target.runtime.restartedAt = nowIso();
+      target.runtime.stoppedAt = "";
       target.updatedAt = nowIso();
       updatedInstance = target;
       store.save(next);
     });
 
+    if (asString(updatedInstance?.runtime?.status).toLowerCase() === "erro") {
+      return res.status(409).json({ error: asString(updatedInstance?.runtime?.lastError || "runtime_error"), instance: toClientInstance(updatedInstance) });
+    }
     res.json({ ok: true, instance: toClientInstance(updatedInstance) });
   });
 
@@ -1944,7 +2425,7 @@ export function startPortalServer(options = {}) {
     }
     if (!draft.name) draft.name = draft.id;
 
-    const issues = validateProductDraft(draft, { allowEmptyVariants: true });
+    const issues = validateProductDraft(draft, { allowEmptyVariants: false });
     if (issues.length) return res.status(400).json({ error: issues.join("; ") });
 
     const productsDb = loadInstanceProducts(instanceId);
@@ -1983,7 +2464,7 @@ export function startPortalServer(options = {}) {
     if (draft.id !== productId) return res.status(400).json({ error: "nao e permitido alterar o id" });
     if (!draft.name) draft.name = draft.id;
 
-    const issues = validateProductDraft(draft, { allowEmptyVariants: true });
+    const issues = validateProductDraft(draft, { allowEmptyVariants: false });
     if (issues.length) return res.status(400).json({ error: issues.join("; ") });
 
     productsDb.products[idx] = { ...productsDb.products[idx], ...draft };
@@ -2149,6 +2630,7 @@ export function startPortalServer(options = {}) {
   app.delete("/api/instances/:id", requireUser, async (req, res) => {
     const instanceId = asString(req.params.id);
     let containerName = "";
+    let containerCandidates = [];
 
     await store
       .runExclusive(async () => {
@@ -2159,6 +2641,7 @@ export function startPortalServer(options = {}) {
         const inst = data.instances[idx];
         if (String(inst.ownerDiscordUserId) !== String(req.portalUser.discordUserId)) throw new Error("forbidden");
         containerName = getInstanceContainerName(inst);
+        containerCandidates = getInstanceContainerCandidates(inst);
 
         data.instances.splice(idx, 1);
         store.save(data);
@@ -2172,8 +2655,8 @@ export function startPortalServer(options = {}) {
       });
 
     if (res.headersSent) return;
-    await dockerStopContainer(containerName).catch(() => null);
-    await dockerRemoveContainer(containerName).catch(() => null);
+    await dockerStopContainers(containerCandidates.length ? containerCandidates : [containerName]).catch(() => null);
+    await dockerRemoveContainers(containerCandidates.length ? containerCandidates : [containerName]).catch(() => null);
     res.json({ ok: true });
   });
 
@@ -2342,7 +2825,7 @@ export function startPortalServer(options = {}) {
             pending: `${baseUrl}/dashboard?mp=pending`,
             failure: `${baseUrl}/dashboard?mp=failure`
           },
-          auto_return: "approved",
+          ...(baseUrl.startsWith("https://") ? { auto_return: "approved" } : {}),
           notification_url: `${baseUrl}/webhooks/mercadopago`
         },
         mpToken,
@@ -2352,7 +2835,12 @@ export function startPortalServer(options = {}) {
       res.json({ ok: true, initPoint: preference.init_point || "", sandboxInitPoint: preference.sandbox_init_point || "" });
     } catch (err) {
       if (logError) logError("portal:plan:checkout", err, { planId });
-      res.status(500).json({ error: "falha ao criar pagamento" });
+      const errorMsg = err?.message || "falha ao criar pagamento";
+      const status = err?.status || 500;
+      res.status(status >= 400 && status < 600 ? status : 500).json({
+        error: errorMsg,
+        details: err?.mpError || null
+      });
     }
   });
 
@@ -2521,11 +3009,6 @@ export function startPortalServer(options = {}) {
   });
 
   // ── Admin: complete withdrawal (mark as paid/sent) ───────────────
-  function isPortalAdmin(discordUserId) {
-    const ids = asString(process.env.ADMIN_IDS).split(",").map((s) => s.trim()).filter(Boolean);
-    return ids.includes(asString(discordUserId));
-  }
-
   app.post("/api/admin/withdrawals/:id/complete", requireUser, async (req, res) => {
     if (!isPortalAdmin(req.portalUser.discordUserId)) return res.status(403).json({ error: "forbidden" });
     const wid = asString(req.params.id);
@@ -2626,20 +3109,30 @@ export function startPortalServer(options = {}) {
   app.get("/api/admin/withdrawals", requireUser, (req, res) => {
     if (!isPortalAdmin(req.portalUser.discordUserId)) return res.status(403).json({ error: "forbidden" });
     const data = store.load();
+    const usersById = new Map(
+      (data.users || []).map((user) => [asString(user?.discordUserId), user])
+    );
     const list = (data.withdrawals || [])
       .filter((w) => w.status === "requested")
       .sort((a, b) => Date.parse(a.createdAt || 0) - Date.parse(b.createdAt || 0))
-      .map((w) => ({
-        id: asString(w.id),
-        ownerDiscordUserId: asString(w.ownerDiscordUserId),
-        amountCents: Number(w.amountCents || 0),
-        amountFormatted: formatBRL(w.amountCents || 0),
-        status: asString(w.status),
-        method: asString(w.method || "pix"),
-        pixKey: asString(w.pixKey),
-        pixKeyType: asString(w.pixKeyType),
-        createdAt: asString(w.createdAt)
-      }));
+      .map((w) => {
+        const ownerDiscordUserId = asString(w.ownerDiscordUserId);
+        const owner = usersById.get(ownerDiscordUserId) || null;
+        return {
+          id: asString(w.id),
+          ownerDiscordUserId,
+          ownerDiscordUsername: asString(owner?.discordUsername),
+          ownerEmail: asString(owner?.email),
+          amountCents: Number(w.amountCents || 0),
+          amountFormatted: formatBRL(w.amountCents || 0),
+          status: asString(w.status),
+          method: asString(w.method || "pix"),
+          pixKey: asString(w.pixKey),
+          pixKeyType: asString(w.pixKeyType),
+          createdAt: asString(w.createdAt),
+          updatedAt: asString(w.updatedAt)
+        };
+      });
     res.json({ ok: true, withdrawals: list });
   });
 

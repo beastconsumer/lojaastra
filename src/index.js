@@ -32,9 +32,17 @@ const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const LOG_LEVEL = (process.env.LOG_LEVEL || "info").toLowerCase();
 const DEFAULT_MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const CART_INACTIVE_MS = 5 * 60 * 1000;
-const BRAND_COLOR = 0xE6212A;
+
+// BSRage Theme Colors
+const BRAND_COLOR = 0xE6212A;        // Main brand red
+const BRAND_COLOR_ALT = 0xFF4D57;    // Secondary accent red
+const COLOR_SUCCESS = 0x10B981;      // Green for success states
+const COLOR_WARNING = 0xF59E0B;      // Amber for warnings
+const COLOR_DANGER = 0xEF4444;       // Red for errors/danger
+const COLOR_INFO = BRAND_COLOR;      // Brand color for info states
 const DEFAULT_CART_COLOR = BRAND_COLOR;
 const manualConfirmLocks = new Set();
+let runtimeClientApplicationId = "";
 
 function shouldLog(level) {
   const current = LOG_LEVELS[LOG_LEVEL] ?? LOG_LEVELS.info;
@@ -98,13 +106,29 @@ async function mercadoPagoRequest(method, pathUrl, payload, accessToken, options
   };
   if (options.idempotencyKey) headers["X-Idempotency-Key"] = String(options.idempotencyKey);
 
-  const res = await axios({
-    method,
-    url,
-    headers,
-    data: payload || undefined
-  });
-  return res.data;
+  try {
+    const res = await axios({
+      method,
+      url,
+      headers,
+      data: payload || undefined
+    });
+    return res.data;
+  } catch (err) {
+    const status = Number(err?.response?.status || 0);
+    const apiData = err?.response?.data && typeof err.response.data === "object" ? err.response.data : {};
+    const message =
+      asString(apiData?.message) ||
+      asString(apiData?.error) ||
+      asString(apiData?.cause?.[0]?.description) ||
+      asString(err?.message) ||
+      "mercadopago_request_failed";
+    const wrapped = new Error(message);
+    wrapped.code = status ? `mercadopago_http_${status}` : "mercadopago_request_failed";
+    wrapped.status = status || 0;
+    wrapped.responseData = apiData;
+    throw wrapped;
+  }
 }
 
 process.on("unhandledRejection", (err) => {
@@ -145,67 +169,76 @@ const postsDb = loadJson(POSTS_PATH, { posts: [] });
 const customersDb = loadJson(CUSTOMERS_PATH, { customers: [] });
 const stockDb = loadJson(STOCK_PATH, { stock: {} });
 const deliveriesDb = loadJson(DELIVERIES_PATH, { deliveries: [] });
+const isInstanceRuntime = ["1", "true", "yes", "on"].includes(String(process.env.INSTANCE_RUNTIME || "").toLowerCase());
+const instanceEnableMessageContent = !["0", "false", "off", "no"].includes(
+  String(process.env.INSTANCE_ENABLE_MESSAGE_CONTENT || "true").toLowerCase()
+);
+const instanceEnableGuildMembers = ["1", "true", "yes", "on"].includes(
+  String(process.env.INSTANCE_ENABLE_GUILD_MEMBERS || "").toLowerCase()
+);
+const clientIntents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages];
+if (!isInstanceRuntime || instanceEnableMessageContent) clientIntents.push(GatewayIntentBits.MessageContent);
+if (!isInstanceRuntime || instanceEnableGuildMembers) clientIntents.push(GatewayIntentBits.GuildMembers);
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
-  ],
+  intents: clientIntents,
   partials: [Partials.Channel]
 });
 
-startAdminServer({
-  rootDir: ROOT,
-  config,
-  productsDb,
-  couponsDb,
-  cartsDb,
-  ordersDb,
-  postsDb,
-  deliveriesDb,
-  customersDb,
-  stockDb,
-  saveJson,
-  reloadProducts,
-  log,
-  logError,
-  client,
-  postProductToChannel,
-  purgeChannelMessages,
-  confirmCartPurchaseByAdmin,
-  deliverOrder,
-  sendDeliveryMessage,
-  sendOrUpdateCartMessage,
-  sendSystemEmbed,
-  sendUserSystemEmbed,
-  syncOrderStatus,
-  paths: {
-    config: CONFIG_PATH,
-    products: PRODUCTS_PATH,
-    stock: STOCK_PATH,
-    coupons: COUPONS_PATH,
-    carts: CARTS_PATH,
-    orders: ORDERS_PATH,
-    posts: POSTS_PATH,
-    deliveries: DELIVERIES_PATH,
-    customers: CUSTOMERS_PATH
-  }
-});
+if (!isInstanceRuntime) {
+  startAdminServer({
+    rootDir: ROOT,
+    config,
+    productsDb,
+    couponsDb,
+    cartsDb,
+    ordersDb,
+    postsDb,
+    deliveriesDb,
+    customersDb,
+    stockDb,
+    saveJson,
+    reloadProducts,
+    log,
+    logError,
+    client,
+    postProductToChannel,
+    purgeChannelMessages,
+    confirmCartPurchaseByAdmin,
+    deliverOrder,
+    sendDeliveryMessage,
+    sendOrUpdateCartMessage,
+    sendSystemEmbed,
+    sendUserSystemEmbed,
+    syncOrderStatus,
+    paths: {
+      config: CONFIG_PATH,
+      products: PRODUCTS_PATH,
+      stock: STOCK_PATH,
+      coupons: COUPONS_PATH,
+      carts: CARTS_PATH,
+      orders: ORDERS_PATH,
+      posts: POSTS_PATH,
+      deliveries: DELIVERIES_PATH,
+      customers: CUSTOMERS_PATH
+    }
+  });
 
-startPortalServer({
-  rootDir: ROOT,
-  log,
-  logError,
-  client,
-  store: portalStore,
-  postProductToChannel,
-  purgeChannelMessages
-});
+  startPortalServer({
+    rootDir: ROOT,
+    log,
+    logError,
+    client,
+    store: portalStore,
+    postProductToChannel,
+    purgeChannelMessages
+  });
+}
 
-client.once("clientReady", () => {
-  log("info", "bot:ready", { tag: client.user.tag, pid: process.pid });
+client.once("clientReady", async () => {
+  await client.application?.fetch().catch(() => null);
+  runtimeClientApplicationId = asString(client.application?.id || client.user?.id);
+  log("info", "bot:ready", { tag: client.user.tag, pid: process.pid, applicationId: runtimeClientApplicationId });
   log("info", "bot:path", { root: ROOT });
   log("info", "bot:data", { products: productsDb.products.length, productsPath: PRODUCTS_PATH });
   logAdmins();
@@ -216,6 +249,7 @@ client.once("clientReady", () => {
 
 client.on("messageCreate", async (message) => {
   if (!message.guild || message.author.bot) return;
+  if (!canCurrentRuntimeHandleGuild(message.guild.id)) return;
 
   const activeCart = cartsDb.carts.find(
     (c) =>
@@ -267,11 +301,13 @@ client.on("messageCreate", async (message) => {
 });
 
 client.on("guildMemberAdd", async (member) => {
+  if (!canCurrentRuntimeHandleGuild(member.guild?.id)) return;
   log("info", "guild:memberAdd", { userId: member.id, guildId: member.guild?.id });
   enqueueWelcome(member);
 });
 
 client.on("interactionCreate", async (interaction) => {
+  if (!canCurrentRuntimeHandleGuild(interaction.guildId || interaction.guild?.id)) return;
   try {
     if (interaction.isStringSelectMenu()) {
       await handleSelectMenu(interaction);
@@ -300,6 +336,19 @@ if (!token) {
 }
 client.login(token).catch((err) => {
   logError("discord:login", err);
+  if (isInstanceRuntime) {
+    const message = String(err?.message || "").toLowerCase();
+    if (message.includes("disallowed intents")) {
+      log("error", "discord:login:hint", {
+        reason: "used_disallowed_intents",
+        note: "ative Message Content Intent do bot no Discord Developer Portal para comandos de texto"
+      });
+      setTimeout(() => process.exit(78), 250);
+      return;
+    }
+    // Fail fast in instance containers so runtime monitor can mark token/start errors clearly.
+    setTimeout(() => process.exit(1), 250);
+  }
 });
 
 function parseChannelIdArg(value) {
@@ -1178,7 +1227,12 @@ async function handleButton(interaction) {
       logExit("handleButton:cartPay", { cartId, paymentId: payment.paymentId });
     } catch (err) {
       logError("handleButton:cartPay", err, { cartId });
-      await interaction.editReply("Nao foi possivel gerar o Pix. Avise um staff.");
+      const code = asString(err?.code || err?.message).toLowerCase();
+      if (code.includes("mercadopago_not_configured") || code.includes("mercado pago nao configurado")) {
+        await interaction.editReply("Nao foi possivel gerar o Pix: Mercado Pago da plataforma nao configurado.");
+      } else {
+        await interaction.editReply("Nao foi possivel gerar o Pix. Avise um staff.");
+      }
     }
     return;
   }
@@ -1536,11 +1590,62 @@ function instanceStockPath(instanceId) {
   return path.join(INSTANCES_DIR, String(instanceId || ""), "stock.json");
 }
 
-function getPortalInstanceForGuild(guildId) {
+function getCurrentRuntimeApplicationId() {
+  const current = asString(client.application?.id || runtimeClientApplicationId || client.user?.id);
+  if (current) runtimeClientApplicationId = current;
+  return current;
+}
+
+function findPortalInstanceForGuild(guildId) {
   const gid = String(guildId || "").trim();
   if (!gid) return null;
   const data = portalStore.load();
   return (data.instances || []).find((i) => String(i.discordGuildId || "") === gid) || null;
+}
+
+function isPortalInstanceAssignedToCurrentBot(instance) {
+  const instanceClientId = asString(instance?.botProfile?.applicationId);
+  if (!instanceClientId) return true;
+  const runtimeClientId = getCurrentRuntimeApplicationId();
+  if (!runtimeClientId) return true;
+  return instanceClientId === runtimeClientId;
+}
+
+function getRuntimeBoundInstance() {
+  if (!isInstanceRuntime) return null;
+  const runtimeInstanceId = asString(process.env.INSTANCE_ID);
+  if (!runtimeInstanceId) return null;
+  const data = portalStore.load();
+  const instance = (data.instances || []).find((i) => String(i?.id || "") === runtimeInstanceId) || null;
+  if (!instance) return null;
+  if (!isPortalInstanceAssignedToCurrentBot(instance)) return null;
+  return instance;
+}
+
+function canCurrentRuntimeHandleGuild(guildId) {
+  const gid = String(guildId || "").trim();
+  if (!gid) return !isInstanceRuntime;
+  const linkedInstance = findPortalInstanceForGuild(gid);
+  if (isInstanceRuntime) {
+    const runtimeInstance = getRuntimeBoundInstance();
+    if (!runtimeInstance) return false;
+    if (!linkedInstance) return true;
+    return String(linkedInstance.id || "") === String(runtimeInstance.id || "");
+  }
+  if (!linkedInstance) return true;
+  return isPortalInstanceAssignedToCurrentBot(linkedInstance);
+}
+
+function getPortalInstanceForGuild(guildId) {
+  const instance = findPortalInstanceForGuild(guildId);
+  if (instance) {
+    if (!isPortalInstanceAssignedToCurrentBot(instance)) return null;
+    return instance;
+  }
+  if (isInstanceRuntime) {
+    return getRuntimeBoundInstance();
+  }
+  return null;
 }
 
 function getGuildChannelConfig(guildId) {
@@ -1598,7 +1703,43 @@ function loadInstanceStore(instanceId, options = {}) {
 
 function getStoreContextForGuild(guildId, options = {}) {
   const gid = String(guildId || "").trim();
-  const instanceId = gid ? getInstanceIdForGuild(gid) : "";
+  const linkedInstance = gid ? findPortalInstanceForGuild(gid) : null;
+  const runtimeInstance = isInstanceRuntime ? getRuntimeBoundInstance() : null;
+
+  if (runtimeInstance?.id) {
+    if (linkedInstance && String(linkedInstance.id || "") !== String(runtimeInstance.id || "")) {
+      return {
+        source: "blocked",
+        instanceId: asString(linkedInstance.id),
+        productsDb: { products: [] },
+        stockDb: { stock: {} },
+        productsPath: "",
+        stockPath: ""
+      };
+    }
+    const boundInstanceId = String(runtimeInstance.id);
+    const store = loadInstanceStore(boundInstanceId, options);
+    return {
+      source: "instance",
+      instanceId: boundInstanceId,
+      productsDb: store.productsDb,
+      stockDb: store.stockDb,
+      productsPath: store.productsPath,
+      stockPath: store.stockPath
+    };
+  }
+
+  if (linkedInstance && !isPortalInstanceAssignedToCurrentBot(linkedInstance)) {
+    return {
+      source: "blocked",
+      instanceId: asString(linkedInstance.id),
+      productsDb: { products: [] },
+      stockDb: { stock: {} },
+      productsPath: "",
+      stockPath: ""
+    };
+  }
+  const instanceId = linkedInstance?.id ? String(linkedInstance.id) : "";
   if (instanceId) {
     const store = loadInstanceStore(instanceId, options);
     return {
@@ -1797,6 +1938,25 @@ function getGuildLicense(guildId) {
   return { ok: true, instance, owner, plan };
 }
 
+function resolveSaleOwnerForGuild(guildId) {
+  const license = getGuildLicense(guildId);
+  const instanceId = asString(license?.instance?.id);
+  const ownerDiscordUserId = asString(license?.owner?.discordUserId || license?.instance?.ownerDiscordUserId);
+  if (instanceId || ownerDiscordUserId) {
+    return { instanceId, ownerDiscordUserId };
+  }
+
+  const runtimeInstance = getRuntimeBoundInstance();
+  if (runtimeInstance) {
+    return {
+      instanceId: asString(runtimeInstance.id),
+      ownerDiscordUserId: asString(runtimeInstance.ownerDiscordUserId)
+    };
+  }
+
+  return { instanceId: "", ownerDiscordUserId: "" };
+}
+
 function shouldEnforceLicense(guildId) {
   const mode = getLicenseMode();
   if (mode === "off") return false;
@@ -1913,12 +2073,34 @@ function getPlatformFeePercent() {
   return raw;
 }
 
+function resolveOrderOwnerDiscordUserId(order) {
+  const fromOrder = asString(order?.ownerDiscordUserId);
+  if (fromOrder) return fromOrder;
+
+  const data = portalStore.load();
+  const instanceId = asString(order?.instanceId);
+  if (instanceId) {
+    const byInstanceId = (data.instances || []).find((i) => String(i?.id || "") === instanceId) || null;
+    const ownerByInstanceId = asString(byInstanceId?.ownerDiscordUserId);
+    if (ownerByInstanceId) return ownerByInstanceId;
+  }
+
+  const guildId = asString(order?.guildId);
+  if (guildId) {
+    const byGuild = (data.instances || []).find((i) => String(i?.discordGuildId || "") === guildId) || null;
+    const ownerByGuild = asString(byGuild?.ownerDiscordUserId);
+    if (ownerByGuild) return ownerByGuild;
+  }
+
+  return "";
+}
+
 async function maybeCreditWalletForOrder(order) {
   try {
     if (!order) return { ok: false, reason: "missing_order" };
     if (order.walletCreditedAt) return { ok: false, reason: "already_credited" };
 
-    const ownerDiscordUserId = String(order.ownerDiscordUserId || "").trim();
+    const ownerDiscordUserId = resolveOrderOwnerDiscordUserId(order);
     if (!ownerDiscordUserId) return { ok: false, reason: "missing_owner" };
 
     const valueCents = Number(order.valueCents || 0) > 0 ? Number(order.valueCents) : toCents(order.value);
@@ -1928,10 +2110,25 @@ async function maybeCreditWalletForOrder(order) {
     const feeCents = Math.round((valueCents * feePercent) / 100);
     const netCents = Math.max(0, valueCents - feeCents);
     const now = new Date().toISOString();
-    const txId = `tx_sale_${randomUUID()}`;
+    let txId = `tx_sale_${randomUUID()}`;
+    let credited = false;
 
     await portalStore.runExclusive(async () => {
       const data = portalStore.load();
+      if (!Array.isArray(data.transactions)) data.transactions = [];
+      const existingTx =
+        (data.transactions || []).find(
+          (tx) =>
+            String(tx?.type || "") === "sale_credit" &&
+            String(tx?.metadata?.orderId || "") === String(order.id || "") &&
+            String(tx?.ownerDiscordUserId || "") === ownerDiscordUserId
+        ) || null;
+      if (existingTx) {
+        txId = asString(existingTx.id) || txId;
+        credited = true;
+        return;
+      }
+
       const user = (data.users || []).find((u) => String(u.discordUserId || "") === ownerDiscordUserId) || null;
       if (!user) return;
 
@@ -1952,7 +2149,6 @@ async function maybeCreditWalletForOrder(order) {
         user.plan.expiresAt = new Date(start + bonusDays * 24 * 60 * 60 * 1000).toISOString();
       }
 
-      if (!Array.isArray(data.transactions)) data.transactions = [];
       data.transactions.push({
         id: txId,
         ownerDiscordUserId,
@@ -1972,8 +2168,14 @@ async function maybeCreditWalletForOrder(order) {
       });
 
       portalStore.save(data);
+      credited = true;
     });
 
+    if (!credited) {
+      return { ok: false, reason: "owner_not_found" };
+    }
+
+    order.ownerDiscordUserId = ownerDiscordUserId;
     order.walletCreditedAt = now;
     order.platformFeePercent = feePercent;
     order.platformFeeCents = feeCents;
@@ -1995,9 +2197,9 @@ function upsertManualOrderForCart(cart, product, variant, adminUserId) {
   const finalPrice = Number(applyDiscount(variant.price * quantity, cart.discountPercent || 0).toFixed(2));
   const valueCents = toCents(finalPrice);
 
-  const license = getGuildLicense(cart.guildId);
-  const instanceId = license.ok ? String(license.instance?.id || "") : "";
-  const ownerDiscordUserId = license.ok ? String(license.owner?.discordUserId || "") : "";
+  const saleOwner = resolveSaleOwnerForGuild(cart.guildId);
+  const instanceId = asString(saleOwner.instanceId);
+  const ownerDiscordUserId = asString(saleOwner.ownerDiscordUserId);
 
   if (latest && latest.status === "delivered") {
     return { order: latest, created: false, alreadyDelivered: true };
@@ -2209,7 +2411,7 @@ function buildProductMessage(product, options = {}) {
 
   if (!limitedVariants.length) {
     const warning = new EmbedBuilder()
-      .setColor(0xE67E22)
+      .setColor(COLOR_WARNING)
       .setTitle("Produto indisponivel")
       .setDescription(
         "Este produto ainda nao possui variacoes validas.\nAjuste as variacoes no painel para habilitar a compra."
@@ -2607,9 +2809,9 @@ async function createPixPayment(user, cart, product, variant) {
   const baseTotal = variant.price * quantity;
   const finalPrice = applyDiscount(baseTotal, cart.discountPercent);
 
-  const license = getGuildLicense(cart.guildId);
-  const instanceId = license.ok ? String(license.instance?.id || "") : "";
-  const ownerDiscordUserId = license.ok ? String(license.owner?.discordUserId || "") : "";
+  const saleOwner = resolveSaleOwnerForGuild(cart.guildId);
+  const instanceId = asString(saleOwner.instanceId);
+  const ownerDiscordUserId = asString(saleOwner.ownerDiscordUserId);
 
   const mpToken = getMercadoPagoAccessTokenForSale(ownerDiscordUserId);
   if (!mpToken) {
@@ -3217,7 +3419,10 @@ async function checkPendingPayments() {
   if (paymentCheckRunning) return;
   paymentCheckRunning = true;
   try {
-    const pending = ordersDb.orders.filter((o) => o.status === "pending" || o.status === "waiting_stock");
+    const pending = ordersDb.orders.filter((o) => {
+      if (o.status !== "pending" && o.status !== "waiting_stock") return false;
+      return canCurrentRuntimeHandleGuild(o.guildId);
+    });
     log("info", "paymentWatcher:check", { pending: pending.length });
     for (const order of pending) {
       await syncOrderStatus(order);
@@ -3712,7 +3917,7 @@ async function notifyOutOfStock(order) {
 
   const embed = new EmbedBuilder()
     .setTitle("Sem estoque")
-    .setColor(0xE67E22)
+    .setColor(COLOR_WARNING)
     .setDescription("Pagamento confirmado, mas o estoque esta vazio. Avise um staff.");
 
   await channel.send({ embeds: [embed], content: `<@&${config.staffRoleId}>` });
@@ -3847,6 +4052,7 @@ async function cleanupInactiveCarts() {
   const now = Date.now();
   const stale = cartsDb.carts.filter((c) => {
     if (c.status !== "open") return false;
+    if (!canCurrentRuntimeHandleGuild(c.guildId)) return false;
     const last = Date.parse(c.lastActivityAt || c.updatedAt || c.createdAt || 0);
     return last && now - last >= CART_INACTIVE_MS;
   });

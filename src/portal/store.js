@@ -77,6 +77,7 @@ export function createPortalStore(options) {
       existing.discordUsername = safeString(user?.discordUsername);
       existing.discordAvatar = safeString(user?.discordAvatar);
       existing.email = safeString(user?.email);
+      if (existing.profileAvatarUrl === undefined) existing.profileAvatarUrl = "";
       existing.lastLoginAt = now;
       if (user?.discordToken) existing.discordToken = user.discordToken;
       return existing;
@@ -92,6 +93,7 @@ export function createPortalStore(options) {
       plan: { tier: "free", status: "inactive", expiresAt: "" },
       walletCents: 0,
       salesCentsTotal: 0,
+      profileAvatarUrl: "",
       payout: { pixKey: "", pixKeyType: "" },
       discordToken: user?.discordToken || null
     };

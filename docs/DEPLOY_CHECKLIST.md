@@ -10,7 +10,9 @@ Checklist objetivo para deploy profissional em producao.
 
 ## 2) Seguranca minima
 - [ ] Definir `PORTAL_SESSION_SECRET` forte (minimo 32 chars).
-- [ ] Definir `ADMIN_PANEL_TOKEN`.
+- [ ] Definir `ADMIN_PANEL_AUTH_REQUIRED=true`.
+- [ ] Definir `ADMIN_LOGIN_USER` e `ADMIN_LOGIN_PASSWORD` (ou `ADMIN_LOGIN_PASSWORD_SHA256`).
+- [ ] Definir `ADMIN_PANEL_TOKEN` apenas se precisar automacao por bearer.
 - [ ] Definir `MERCADOPAGO_WEBHOOK_SECRET` (se webhook ativo).
 - [ ] Nao commitar segredos no repositorio.
 

@@ -1,104 +1,115 @@
 # AstraSystems | Discord Commerce SaaS
 
-Sistema completo de vendas para Discord com bot, portal SaaS, painel admin, carteira financeira e runtime por instancia.
+Plataforma de vendas para Discord com arquitetura SaaS multi-tenant:
+- bot de comercio digital com checkout e entrega automatica
+- portal para clientes criarem e operarem suas proprias instancias
+- painel admin para operacao, auditoria e monitoramento
 
 ![Preview do projeto](./bemvindo.gif)
 
 ## Sumario
-- [Visao do projeto](#sobre-o-projeto)
-- [Destaques de portfolio](#destaques-de-portfolio)
+- [Visao geral](#visao-geral)
+- [Por que este projeto e forte para portfolio](#por-que-este-projeto-e-forte-para-portfolio)
+- [Arquitetura e fluxo de negocio](#arquitetura-e-fluxo-de-negocio)
 - [Stack tecnica](#stack-tecnica)
-- [Fluxo ponta a ponta](#fluxo-ponta-a-ponta)
-- [Arquitetura](#arquitetura)
+- [Seguranca implementada](#seguranca-implementada)
 - [Funcionalidades principais](#funcionalidades-principais)
 - [Estrutura do repositorio](#estrutura-do-repositorio)
-- [Como rodar localmente](#como-rodar-localmente)
-- [Documentacao complementar](#documentacao-complementar)
+- [Como executar localmente](#como-executar-localmente)
+- [Deploy e operacao](#deploy-e-operacao)
+- [Documentacao](#documentacao)
 - [Capturas de tela](#capturas-de-tela)
 
-## Sobre o projeto
-O AstraSystems foi construido para resolver um problema real: vender produtos digitais no Discord com operacao profissional, onboarding simples e controle financeiro centralizado.
+## Visao geral
+O AstraSystems resolve um caso real de negocio: vender produtos digitais em comunidades Discord com operacao organizada, controle financeiro e escopo SaaS.
 
-Em uma unica base, o projeto entrega:
-- Bot de vendas com fluxo de carrinho, pagamento e entrega.
-- Portal SaaS para clientes criarem e gerenciarem suas proprias instancias.
-- Painel admin para operacao, monitoramento e diagnostico.
-- Runtime por instancia com Docker para isolamento e escalabilidade.
+Cada cliente opera sua propria instancia, com runtime isolado e controle de ciclo de vida (`start`, `stop`, `restart`), enquanto o time operador enxerga tudo por um painel central.
 
-## Destaques de portfolio
-- Arquitetura multi-tenant: cada cliente opera sua propria instancia, com dados separados.
-- Runtime dedicado por instancia: start/stop/restart do bot com monitoramento continuo.
-- Integracao com pagamentos e wallet interna: planos, creditos de venda e saques.
-- Observabilidade operacional: fila de solicitacoes, logs recentes, visao de negocio e auditoria.
-- Persistencia local com escrita atomica em JSON (foco em simplicidade operacional).
+## Por que este projeto e forte para portfolio
+- Projeto full-stack com dominio de produto real (vendas, planos, wallet, saque).
+- Arquitetura multi-tenant com separacao de dados por instancia.
+- Integracao com Discord e pagamentos (Mercado Pago) com webhooks.
+- Camada administrativa com diagnostico, auditoria e visao operacional.
+- Hardening de acesso admin com autenticacao por sessao e controles anti-abuso.
+- Documentacao tecnica completa para onboarding rapido de recrutador/cliente.
 
-## Stack tecnica
-- Backend: Node.js, Express, discord.js, axios, dotenv.
-- Frontend: React 18 via CDN (portal e admin SPA).
-- Pagamentos: Mercado Pago (checkout e webhook), suporte operacional para Asaas.
-- Infra: Docker Compose, healthcheck, volumes para `data/` e `logs/`.
-- Persistencia: arquivos JSON (`data/*.json` + `data/instances/*`).
-
-## Fluxo ponta a ponta
-1. Cliente entra no portal e cria conta (local/OAuth Discord).
-2. Ativa trial ou plano pago.
-3. Cria instancia e configura token do bot.
-4. Vincula a instancia ao servidor Discord.
-5. Publica produtos no canal.
-6. Comprador abre carrinho, paga e recebe entrega automatica.
-7. Receita cai na wallet do dono da instancia.
-8. Dono solicita saque; admin acompanha e finaliza.
-
-## Arquitetura
+## Arquitetura e fluxo de negocio
 ```text
-Usuario/Cliente
+Cliente/Usuario
    |
-   +--> Portal SaaS (3100) -------------------+
-   |        |                                  |
-   |        +--> gestao de instancias          |
-   |        +--> planos e checkout             |
-   |        +--> wallet e saques               |
-   |                                           v
-   +--> Discord Bot Runtime (src/index.js) <-> data/portal.json
+   +--> Portal SaaS (porta 3100) ------------------+
+   |        |                                       |
+   |        +--> cadastro/login                     |
+   |        +--> planos, checkout, wallet, saques  |
+   |        +--> gestao de instancias              |
+   |                                                v
+   +--> Runtime Discord (src/index.js) <------> data/portal.json
             |
-            +--> carrinho, pedidos, entrega
-            +--> posts de produto no Discord
-            +--> creditos de venda na wallet
+            +--> carrinho, pedidos, entrega automatica
+            +--> publicacao de produtos no Discord
+            +--> credito de receita na wallet
             |
-            +--> Painel Admin (3000)
-                    +--> operacao/monitoramento
-                    +--> catalogo/estoque/cupons
+            +--> Painel Admin (porta 3000)
+                    +--> monitoramento de negocio e runtime
+                    +--> operacao financeira (fila de saques)
                     +--> auditoria e diagnosticos
 ```
 
+Fluxo resumido:
+1. Cliente cria conta no portal e ativa trial/plano.
+2. Configura instancia, token do bot e servidor Discord.
+3. Publica catalogo e abre vendas.
+4. Comprador finaliza pedido; sistema confirma pagamento e entrega.
+5. Receita vai para wallet da instancia.
+6. Saques entram em fila para operacao admin.
+
+## Stack tecnica
+- Backend: Node.js, Express, discord.js, axios, dotenv
+- Frontend: React 18 via ESM/CDN (portal e admin SPA)
+- Pagamentos: Mercado Pago (checkout e webhook), suporte operacional Asaas
+- Infra: Docker Compose, healthcheck, volumes persistentes
+- Persistencia: JSON local com escrita atomica (`data/*.json`, `data/instances/*`)
+
+## Seguranca implementada
+- Acesso admin protegido por login/senha e sessao HTTP-only.
+- Cookies com `SameSite=Strict` e suporte a `Secure` em producao.
+- Assinatura HMAC de sessao com secret dedicado.
+- Rate limit de login com janela, tentativas maximas e lock temporario.
+- Headers de seguranca (`X-Frame-Options`, `X-Content-Type-Options`, etc.).
+- Endpoints de API com `Cache-Control: no-store`.
+
+Importante:
+- Credenciais padrao no `.env.example` sao apenas para ambiente local.
+- Em producao, troque usuario/senha e defina secrets fortes.
+
 ## Funcionalidades principais
-- Carrinho com expiracao por inatividade e confirmacao de compra.
-- Postagem e repostagem de produtos em canais do Discord.
-- Entrega automatica (DM/canal) com fallback e notificacoes operacionais.
-- Catalogo de produtos com variacoes, templates de DM e gestao de estoque.
-- Trial + plano pago com renovacao via Mercado Pago.
-- Wallet por cliente com solicitacao/cancelamento de saque e fila admin.
-- Vinculo de instancia ao servidor Discord via API key.
-- Controle de runtime por instancia (`start`, `stop`, `restart`) e leitura de status.
+- Carrinho com expiracao e fechamento de pedido.
+- Entrega automatica por DM/canal com fallback.
+- Catalogo com estoque, variacoes e cupons.
+- Trial + assinatura com renovacao via pagamento.
+- Wallet por cliente com solicitacao/cancelamento de saque.
+- Vinculo seguro de instancia ao servidor Discord.
+- Operacao admin com painel de saude, auditoria e fila financeira.
 
 ## Estrutura do repositorio
 ```text
 src/
-  index.js            # runtime principal do bot
-  portalServer.js     # API + SPA do portal (porta 3100)
-  adminServer.js      # API + SPA admin (porta 3000)
-  portal/             # frontend portal
-  admin/              # frontend admin
-data/                 # base JSON local (estado da aplicacao)
-scripts/              # scripts auxiliares PowerShell (start/stop bot)
+  index.js            # runtime principal do bot e logica de comercio
+  portalServer.js     # API + SPA do portal (3100)
+  adminServer.js      # API + SPA admin (3000)
+  portal/             # frontend do portal
+  admin/              # frontend do admin
+data/                 # base de dados local em JSON
+docs/                 # documentacao tecnica e material de portfolio
+scripts/              # utilitarios operacionais
 docker-compose.yml    # ambiente containerizado
 ```
 
-## Como rodar localmente
+## Como executar localmente
 ### 1) Requisitos
 - Node.js 20+
 - npm 10+
-- Docker (opcional, para execucao em container)
+- Docker (opcional)
 
 ### 2) Instalacao
 ```powershell
@@ -114,7 +125,11 @@ Configure no `.env`:
 - `DISCORD_OAUTH_CLIENT_SECRET`
 - `DISCORD_OAUTH_REDIRECT_URI`
 - `MERCADOPAGO_ACCESS_TOKEN` (quando usar checkout/webhook)
-- `ADMIN_PANEL_TOKEN` (recomendado para proteger `/admin`)
+- `ADMIN_PANEL_AUTH_REQUIRED=true`
+- `ADMIN_LOGIN_USER`
+- `ADMIN_LOGIN_PASSWORD` (ou `ADMIN_LOGIN_PASSWORD_SHA256`)
+- `ADMIN_SESSION_SECRET` (recomendado em producao)
+- `ADMIN_PANEL_TOKEN` (opcional para automacao por bearer token)
 
 ### 4) Execucao
 ```powershell
@@ -124,43 +139,36 @@ npm start
 URLs padrao:
 - Portal: `http://127.0.0.1:3100`
 - Admin: `http://127.0.0.1:3000/admin`
-- Health do portal: `http://127.0.0.1:3100/health`
-- Status admin: `http://127.0.0.1:3000/api/status`
+- Health: `http://127.0.0.1:3100/health`
 
 ### 5) Docker Compose
 ```powershell
 docker compose up -d --build
 ```
 
-Portas expostas: `3000` (admin) e `3100` (portal).  
-Volumes: `./data` e `./logs`.
-
-## Documentacao complementar
-- Documentacao central: [docs/INDEX.md](./docs/INDEX.md)
-- Changelog tecnico: [docs/CHANGELOG.md](./docs/CHANGELOG.md)
-- Texto pronto para LinkedIn: [docs/LINKEDIN_POST.md](./docs/LINKEDIN_POST.md)
-- Arquitetura tecnica: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- Configuracao de ambiente: [docs/CONFIGURATION.md](./docs/CONFIGURATION.md)
-- Referencia de API: [docs/API_REFERENCE.md](./docs/API_REFERENCE.md)
-- Seguranca: [docs/SECURITY.md](./docs/SECURITY.md)
+## Deploy e operacao
+- Checklist de producao: [docs/DEPLOY_CHECKLIST.md](./docs/DEPLOY_CHECKLIST.md)
 - Runbook de operacao: [docs/OPERATIONS_RUNBOOK.md](./docs/OPERATIONS_RUNBOOK.md)
-- Checklist de deploy/producao: [docs/DEPLOY_CHECKLIST.md](./docs/DEPLOY_CHECKLIST.md)
+- Guia de seguranca: [docs/SECURITY.md](./docs/SECURITY.md)
+
+## Documentacao
+- Hub de documentacao: [docs/INDEX.md](./docs/INDEX.md)
+- Arquitetura: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- Configuracao: [docs/CONFIGURATION.md](./docs/CONFIGURATION.md)
+- API Reference: [docs/API_REFERENCE.md](./docs/API_REFERENCE.md)
 - Troubleshooting: [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)
 - Case de portfolio: [docs/PORTFOLIO_CASE_STUDY.md](./docs/PORTFOLIO_CASE_STUDY.md)
-- Galeria de telas: [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md)
+- Changelog: [docs/CHANGELOG.md](./docs/CHANGELOG.md)
 
 ## Capturas de tela
 ### Home
-Tela inicial com proposta de valor, comparativo de margem e CTA para onboarding.
 ![Home](./docs/screenshots/01-home-desktop.png)
 
 ### Dashboard
-Visao autenticada do cliente com status de plano, instancias, wallet e operacao diaria.
 ![Dashboard](./docs/screenshots/07-dashboard-overview-desktop.png)
 
 ### Admin
-Painel operacional com monitoramento comercial, financeiro e auditoria tecnica.
 ![Admin](./docs/screenshots/13-admin-resumo-desktop.png)
 
-## Status atual
-Projeto ativo e orientado a evolucao continua para operacao SaaS de vendas no Discord.
+## Status
+Projeto em evolucao continua, pronto para demonstracao tecnica e uso como case profissional de portfolio.

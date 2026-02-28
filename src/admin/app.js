@@ -1,7 +1,29 @@
-
 import React, { useEffect, useMemo, useRef, useState } from "https://esm.sh/react@18.2.0";
 import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
 import htm from "https://esm.sh/htm@3.1.1";
+
+console.log("[admin:app.js] Script loaded, imports completed");
+
+window.onerror = function(msg, url, line, col, error) {
+  console.error("[admin:app.js] Global error:", msg, url, line, col);
+  const root = document.getElementById("root");
+  if (root) root.innerHTML = `<div style="color: red; padding: 20px; background: #1a0505;">
+    <h2>Erro JavaScript</h2>
+    <p>${msg}</p>
+    <p>Linha: ${line}, Coluna: ${col}</p>
+    <pre>${error?.stack || ""}</pre>
+  </div>`;
+  return false;
+};
+
+window.addEventListener('unhandledrejection', function(event) {
+  console.error('[admin:app.js] Unhandled rejection:', event.reason);
+  const root = document.getElementById("root");
+  if (root) root.innerHTML = `<div style="color: red; padding: 20px; background: #1a0505;">
+    <h2>Erro Promise</h2>
+    <pre>${event.reason?.stack || event.reason}</pre>
+  </div>`;
+});
 
 const html = htm.bind(React.createElement);
 
@@ -41,21 +63,124 @@ const emptyConfig = () => ({
 });
 
 const sectionLinks = [
-  { id: "dashboard-panel", label: "Visao geral" },
-  { id: "product-panel", label: "Produto" },
-  { id: "media-panel", label: "Midias" },
-  { id: "sections-panel", label: "Secoes" },
-  { id: "variants-panel", label: "Variacoes" },
-  { id: "stock-panel", label: "Estoque" },
-  { id: "actions-panel", label: "Acoes" },
-  { id: "config-panel", label: "Configuracao" },
-  { id: "coupons-panel", label: "Cupons" },
+  { id: "dashboard-panel", label: "Resumo" },
+  { id: "business-panel", label: "Operacao" },
+  { id: "requests-panel", label: "Solicitacoes" },
+  { id: "accounts-panel", label: "Contas" },
+  { id: "timeline-panel", label: "Auditoria" },
   { id: "orders-panel", label: "Pedidos" },
   { id: "carts-panel", label: "Carrinhos" },
-  { id: "posts-panel", label: "Posts" },
   { id: "deliveries-panel", label: "Entregas" },
-  { id: "customers-panel", label: "Clientes" }
+  { id: "customers-panel", label: "Clientes" },
+  { id: "product-panel", label: "Produto", editOnly: true },
+  { id: "media-panel", label: "Midias", editOnly: true },
+  { id: "sections-panel", label: "Secoes", editOnly: true },
+  { id: "variants-panel", label: "Variacoes", editOnly: true },
+  { id: "stock-panel", label: "Estoque", editOnly: true },
+  { id: "actions-panel", label: "Acoes", editOnly: true },
+  { id: "config-panel", label: "Config", editOnly: true },
+  { id: "coupons-panel", label: "Cupons", editOnly: true },
+  { id: "posts-panel", label: "Posts", editOnly: true }
 ];
+
+const emptyBusinessOverview = () => ({
+  generatedAt: "",
+  summary: {
+    usersTotal: 0,
+    usersActivePlan: 0,
+    usersTrialUsed: 0,
+    instancesTotal: 0,
+    instancesWithToken: 0,
+    instancesOnline: 0,
+    instancesSuspended: 0,
+    customersTotal: 0,
+    cartsTotal: 0,
+    cartsOpen: 0,
+    cartsPending: 0,
+    ordersTotal: 0,
+    ordersDelivered: 0,
+    ordersPending: 0,
+    ordersWaitingStock: 0,
+    deliveriesTotal: 0,
+    salesGrossCents: 0,
+    salesGrossFormatted: "R$ 0,00",
+    salesNetCents: 0,
+    salesNetFormatted: "R$ 0,00",
+    walletOutstandingCents: 0,
+    walletOutstandingFormatted: "R$ 0,00",
+    planRevenuePaidCents: 0,
+    planRevenuePaidFormatted: "R$ 0,00",
+    planRevenuePendingCents: 0,
+    planRevenuePendingFormatted: "R$ 0,00",
+    salesCreditCents: 0,
+    salesCreditFormatted: "R$ 0,00",
+    withdrawalsRequestedCount: 0,
+    withdrawalsRequestedCents: 0,
+    withdrawalsRequestedFormatted: "R$ 0,00",
+    withdrawalsCompletedCount: 0,
+    withdrawalsCompletedCents: 0,
+    withdrawalsCompletedFormatted: "R$ 0,00",
+    withdrawalsRevertedCount: 0,
+    withdrawalsRevertedCents: 0,
+    withdrawalsRevertedFormatted: "R$ 0,00"
+  },
+  recent: {
+    users: [],
+    instances: [],
+    payments: [],
+    orders: []
+  }
+});
+
+const emptyTimeline = () => ({
+  generatedAt: "",
+  summary: {
+    domainTotal: 0,
+    domainReturned: 0,
+    rawOutTotal: 0,
+    rawErrTotal: 0,
+    totalReturned: 0
+  },
+  events: [],
+  rawLogs: {
+    out: [],
+    err: []
+  }
+});
+
+const emptyMonitoringRequests = () => ({
+  generatedAt: "",
+  summary: {
+    ordersPending: 0,
+    ordersWaitingStock: 0,
+    cartsOpen: 0,
+    cartsPending: 0,
+    withdrawalsRequested: 0,
+    runtimeAlerts: 0,
+    totalActionable: 0
+  },
+  queues: {
+    ordersPending: [],
+    ordersWaitingStock: [],
+    cartsOpen: [],
+    cartsPending: [],
+    withdrawalsRequested: [],
+    runtimeAlerts: []
+  }
+});
+
+const emptyAdminUsersOverview = () => ({
+  generatedAt: "",
+  summary: {
+    usersTotal: 0,
+    usersBlocked: 0,
+    usersActive: 0,
+    usersWithActivePlan: 0,
+    usersTrialUsed: 0,
+    usersWithPendingItems: 0
+  },
+  users: []
+});
 
 const DM_PLACEHOLDERS = [
   "productName",
@@ -174,9 +299,46 @@ function formatDate(value) {
   return date.toLocaleString("pt-BR");
 }
 
+function formatCurrencyCents(value, currency = "BRL") {
+  const cents = Number(value || 0);
+  const amount = Number.isFinite(cents) ? cents / 100 : 0;
+  try {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(amount);
+  } catch {
+    return `R$ ${amount.toFixed(2)}`;
+  }
+}
+
+function truncateText(value, max = 120) {
+  const text = String(value || "");
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 3))}...`;
+}
+
 function shortId(value) {
   const text = String(value || "");
   return text.length > 8 ? `${text.slice(0, 8)}...` : text;
+}
+
+function humanizeCode(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "-";
+  const normalized = text.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function personLabel(username, email, id, fallback = "-") {
+  const primary = [username, email, id]
+    .map((item) => String(item || "").trim())
+    .find(Boolean);
+  return primary || fallback;
+}
+
+function personSubLabel(email, id) {
+  const cleanEmail = String(email || "").trim();
+  if (cleanEmail) return cleanEmail;
+  const cleanId = String(id || "").trim();
+  return cleanId ? `ID: ${cleanId}` : "-";
 }
 
 function statusLabel(status) {
@@ -186,11 +348,17 @@ function statusLabel(status) {
     delivered: "entregue",
     failed: "falhou",
     open: "aberto",
+    requested: "solicitado",
+    completed: "concluido",
+    rejected: "rejeitado",
     cancelled: "cancelado",
     expired: "expirado",
     paid: "pago",
     active: "ativo",
-    inactive: "inativo"
+    inactive: "inativo",
+    blocked: "bloqueado",
+    suspenso: "suspenso",
+    unknown: "desconhecido"
   };
   const key = String(status || "").toLowerCase();
   return map[key] || key || "-";
@@ -198,10 +366,37 @@ function statusLabel(status) {
 
 function statusTone(status) {
   const key = String(status || "").toLowerCase();
-  if (["delivered", "paid", "active"].includes(key)) return "emerald";
-  if (["pending", "waiting_stock", "open", "inactive"].includes(key)) return "amber";
-  if (["failed", "cancelled", "expired"].includes(key)) return "rose";
+  if (["delivered", "paid", "active", "completed"].includes(key)) return "emerald";
+  if (["pending", "waiting_stock", "open", "inactive", "requested"].includes(key)) return "amber";
+  if (["failed", "cancelled", "expired", "blocked", "suspenso", "rejected"].includes(key)) return "rose";
   return "slate";
+}
+
+function severityLabel(level) {
+  const key = String(level || "").toLowerCase();
+  if (key === "error") return "erro";
+  if (key === "warn" || key === "warning") return "alerta";
+  if (key === "debug") return "debug";
+  return "info";
+}
+
+function severityTone(level) {
+  const key = String(level || "").toLowerCase();
+  if (key === "error") return "rose";
+  if (key === "warn" || key === "warning") return "amber";
+  if (key === "debug") return "slate";
+  return "emerald";
+}
+
+function detailsPreview(details) {
+  if (!details || typeof details !== "object") return "-";
+  const entries = Object.entries(details).filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "");
+  if (!entries.length) return "-";
+  const text = entries
+    .slice(0, 3)
+    .map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value)}`)
+    .join(" | ");
+  return truncateText(text, 170);
 }
 
 function normalizeVariantRow(entry) {
@@ -395,16 +590,15 @@ function sumStockKeys(stock) {
 }
 
 function Button({ variant = "primary", onClick, disabled, children, className }) {
-  const base =
-    "inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition";
   const variants = {
-    primary: "bg-[var(--accent)] text-white shadow-md hover:-translate-y-0.5",
-    ghost: "border border-[var(--stroke)] bg-white/70 text-slate-900 hover:bg-white",
-    danger: "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+    primary: "primary",
+    ghost: "ghost",
+    danger: "danger"
   };
   return html`
     <button
-      className=${`${base} ${variants[variant] || variants.primary} ${className || ""}`}
+      type="button"
+      className=${`btn ${variants[variant] || variants.primary} ${className || ""}`}
       onClick=${onClick}
       disabled=${disabled}
     >
@@ -415,21 +609,14 @@ function Button({ variant = "primary", onClick, disabled, children, className })
 
 function Badge({ status }) {
   const tone = statusTone(status);
-  const classes = {
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    amber: "bg-amber-50 text-amber-700 border-amber-200",
-    rose: "bg-rose-50 text-rose-700 border-rose-200",
-    slate: "bg-slate-100 text-slate-600 border-slate-200"
-  };
-  return html`
-    <span
-      className=${`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.15em] ${
-        classes[tone]
-      }`}
-    >
-      ${statusLabel(status)}
-    </span>
-  `;
+  const mod = { emerald: "ok", amber: "warn", rose: "danger", slate: "muted" };
+  return html`<span className=${`badge ${mod[tone] || "muted"}`}>${statusLabel(status)}</span>`;
+}
+
+function SeverityBadge({ level }) {
+  const tone = severityTone(level);
+  const mod = { emerald: "ok", amber: "warn", rose: "danger", slate: "muted" };
+  return html`<span className=${`badge ${mod[tone] || "muted"}`}>${severityLabel(level)}</span>`;
 }
 
 function Card({ id, title, subtitle, actions, children }) {
@@ -447,8 +634,20 @@ function Card({ id, title, subtitle, actions, children }) {
   `;
 }
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
-  const [statusInfo, setStatusInfo] = useState({ ok: false, text: "Aguardando conexao", authRequired: false });
+  console.log("[admin:App] Component function called");
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("ukr4in");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  console.log("[admin:App] useState completed");
+  const [statusInfo, setStatusInfo] = useState({
+    ok: false,
+    text: "Aguardando conexao",
+    authRequired: false,
+    monitoringOnly: true
+  });
   const [data, setData] = useState({
     products: [],
     coupons: [],
@@ -460,6 +659,15 @@ function App() {
     stock: {},
     config: {}
   });
+  const [business, setBusiness] = useState(emptyBusinessOverview());
+  const [timeline, setTimeline] = useState(emptyTimeline());
+  const [monitorRequests, setMonitorRequests] = useState(emptyMonitoringRequests());
+  const [adminUsers, setAdminUsers] = useState(emptyAdminUsersOverview());
+  const [timelineSearch, setTimelineSearch] = useState("");
+  const [timelineSeverity, setTimelineSeverity] = useState("all");
+  const [accountSearch, setAccountSearch] = useState("");
+  const [accountStatusFilter, setAccountStatusFilter] = useState("all");
+  const [accountActionUserId, setAccountActionUserId] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [productForm, setProductForm] = useState(emptyProduct());
   const [sectionsForm, setSectionsForm] = useState([]);
@@ -475,12 +683,15 @@ function App() {
   const [ordersSearch, setOrdersSearch] = useState("");
   const [dmPreviewSource, setDmPreviewSource] = useState("pix");
   const [activeDmField, setActiveDmField] = useState("deliveryDmMessagePix");
+  const [adminTab, setAdminTab] = useState("painel");
+  const [productSubTab, setProductSubTab] = useState("info");
   const [postsHealth, setPostsHealth] = useState({ summary: null, byMessageId: {}, checkedAt: "" });
   const [diagnostics, setDiagnostics] = useState({ loading: false, report: null });
   const [activeSection, setActiveSection] = useState(sectionLinks[0].id);
   const [toast, setToast] = useState(null);
   const toastRef = useRef(null);
   const variantIdsRef = useRef([]);
+  const monitoringOnly = statusInfo.monitoringOnly !== false;
 
   const showToast = (message, type = "info") => {
     setToast({ message, type });
@@ -491,17 +702,32 @@ function App() {
   const api = async (path, options = {}) => {
     const headers = options.headers ? { ...options.headers } : {};
     headers["Content-Type"] = "application/json";
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const res = await fetch(path, { ...options, headers });
+    const res = await fetch(path, { credentials: "same-origin", ...options, headers });
     const contentType = res.headers.get("content-type") || "";
     const data = contentType.includes("application/json") ? await res.json().catch(() => ({})) : {};
 
     if (!res.ok) {
       const message = data?.error || `Erro ${res.status}`;
-      throw new Error(message);
+      const err = new Error(message);
+      err.status = res.status;
+      throw err;
     }
 
+    return data;
+  };
+
+  const fetchAuthStatus = async () => {
+    const res = await fetch("/api/auth/status", {
+      method: "GET",
+      credentials: "same-origin"
+    });
+    const contentType = res.headers.get("content-type") || "";
+    const data = contentType.includes("application/json") ? await res.json().catch(() => ({})) : {};
+    if (!res.ok) {
+      const err = new Error(data?.error || `Erro ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
     return data;
   };
 
@@ -518,61 +744,132 @@ function App() {
 
   const loadAll = async () => {
     try {
-      setStatusInfo({ ok: false, text: "Carregando dados...", authRequired: statusInfo.authRequired });
-      const [status, products, stock, config, coupons, orders, carts, posts, deliveries, customers] =
+      setStatusInfo((prev) => ({
+        ...prev,
+        ok: false,
+        text: "Carregando dados..."
+      }));
+      const [status, orders, carts, deliveries, customers, businessOverview, logsTimeline, requestsData, usersData, productsRes, stockRes, configRes, couponsRes, postsRes] =
         await Promise.all([
           api("/api/status"),
-          api("/api/products"),
-          api("/api/stock"),
-          api("/api/config"),
-          api("/api/coupons"),
           api("/api/orders"),
           api("/api/carts"),
-          api("/api/posts"),
           api("/api/deliveries"),
-          api("/api/customers")
+          api("/api/customers"),
+          api("/api/business/overview"),
+          api("/api/logs/recent?limit=260&rawLimit=140"),
+          api("/api/monitor/requests?limit=80"),
+          api("/api/admin/users"),
+          api("/api/products").catch(() => ({ products: [] })),
+          api("/api/stock").catch(() => ({ stock: {} })),
+          api("/api/config").catch(() => ({ config: {} })),
+          api("/api/coupons").catch(() => ({ coupons: [] })),
+          api("/api/posts").catch(() => ({ posts: [] }))
         ]);
 
       const nextData = {
-        products: products.products || [],
-        stock: stock.stock || {},
-        config: config.config || {},
-        coupons: coupons.coupons || [],
+        products: productsRes.products || [],
+        stock: stockRes.stock || {},
+        config: configRes.config || {},
+        coupons: couponsRes.coupons || [],
         orders: orders.orders || [],
         carts: carts.carts || [],
-        posts: posts.posts || [],
+        posts: postsRes.posts || [],
         deliveries: deliveries.deliveries || [],
         customers: customers.customers || []
       };
 
       setData(nextData);
+      setBusiness(businessOverview || emptyBusinessOverview());
+      setTimeline(logsTimeline || emptyTimeline());
+      setMonitorRequests(requestsData || emptyMonitoringRequests());
+      setAdminUsers(usersData || emptyAdminUsersOverview());
       setPostsHealth({ summary: null, byMessageId: {}, checkedAt: "" });
-      setConfigForm((prev) => ({ ...prev, ...nextData.config }));
-      const nextSelected =
-        selectedId && nextData.products.find((p) => p.id === selectedId)
-          ? selectedId
-          : nextData.products[0]?.id || "";
-      setSelectedId(nextSelected);
+      const cfg = configRes.config || {};
+      setConfigForm({
+        staffRoleId: cfg.staffRoleId || "",
+        adminUserIds: cfg.adminUserIds || "",
+        cartCategoryId: cfg.cartCategoryId || "",
+        trackerChannelId: cfg.trackerChannelId || "",
+        staffLogChannelId: cfg.staffLogChannelId || "",
+        postChannelId: cfg.postChannelId || "",
+        systemBanner: cfg.systemBanner || "",
+        pixInstructions: cfg.pixInstructions || "",
+        paymentCheckIntervalMs: cfg.paymentCheckIntervalMs || "",
+        maxAttachmentBytes: cfg.maxAttachmentBytes || "",
+        couponCode: "",
+        couponPercent: "",
+        couponActive: true
+      });
+      setSelectedId("");
       setStatusInfo({
         ok: true,
-        text: status.botReady ? "Bot pronto" : "Bot iniciando",
-        authRequired: status.authRequired
+        text: status.botReady ? "Central de monitoramento online" : "Bot iniciando",
+        authRequired: status.authRequired,
+        monitoringOnly: status.monitoringOnly !== false
       });
+      setIsAuthenticated(true);
+      setLoginError("");
       loadDiagnostics();
     } catch (err) {
+      if (err?.status === 401) {
+        setIsAuthenticated(false);
+        setStatusInfo((prev) => ({
+          ...prev,
+          ok: false,
+          authRequired: true,
+          text: "Autenticacao obrigatoria"
+        }));
+        return;
+      }
       setDiagnostics((prev) => ({ ...prev, loading: false }));
-      setStatusInfo({ ok: false, text: err.message || "Falha ao carregar", authRequired: statusInfo.authRequired });
+      setStatusInfo((prev) => ({
+        ...prev,
+        ok: false,
+        text: err.message || "Falha ao carregar"
+      }));
       showToast(err.message || "Falha ao carregar", "error");
     }
   };
 
   useEffect(() => {
-    if (token) {
-      loadAll();
-    }
+    let mounted = true;
+    (async () => {
+      try {
+        const auth = await fetchAuthStatus();
+        if (!mounted) return;
+        const authRequired = auth?.authRequired === true;
+        const authenticated = auth?.authenticated === true;
+        const monitorMode = auth?.monitoringOnly !== false;
+
+        setStatusInfo((prev) => ({
+          ...prev,
+          authRequired,
+          monitoringOnly: monitorMode,
+          text: authRequired && !authenticated ? "Autenticacao obrigatoria" : prev.text
+        }));
+        setIsAuthenticated(authenticated || !authRequired);
+
+        if (authRequired && !authenticated) return;
+        await loadAll();
+      } catch (err) {
+        if (!mounted) return;
+        setStatusInfo((prev) => ({
+          ...prev,
+          ok: false,
+          text: err.message || "Falha ao verificar autenticacao"
+        }));
+      } finally {
+        if (mounted) setAuthChecked(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
+    if (monitoringOnly) return;
     if (!selectedId) {
       variantIdsRef.current = [];
       setProductForm(emptyProduct());
@@ -609,9 +906,10 @@ function App() {
     setGifImages((product.gifImages || []).join("\n"));
     setStockForm(syncStockFormToVariants(buildStockForm(product, data.stock), normalizedVariants));
     setActionChannelId((prev) => prev || data.config?.postChannelId || "");
-  }, [selectedId, data.products, data.stock, data.config]);
+  }, [monitoringOnly, selectedId, data.products, data.stock, data.config]);
 
   useEffect(() => {
+    if (monitoringOnly) return;
     if (!selectedId) return;
     setStockForm((prev) => {
       const previousIds = variantIdsRef.current || [];
@@ -629,7 +927,7 @@ function App() {
       variantIdsRef.current = nextIds;
       return next;
     });
-  }, [variantsForm, selectedId]);
+  }, [monitoringOnly, variantsForm, selectedId]);
 
   useEffect(() => {
     if (!sectionLinks.length || !("IntersectionObserver" in window)) return;
@@ -651,24 +949,32 @@ function App() {
     return () => observer.disconnect();
   }, []);
   const stats = useMemo(() => {
-    const variantsCount = data.products.reduce((sum, product) => sum + (product.variants?.length || 0), 0);
-    const activeCoupons = data.coupons.filter((c) => c.active !== false).length;
     const pendingOrders = data.orders.filter((o) => o.status === "pending").length;
     const waitingStock = data.orders.filter((o) => o.status === "waiting_stock").length;
     const deliveredOrders = data.orders.filter((o) => o.status === "delivered").length;
     const openCarts = data.carts.filter((c) => c.status === "open").length;
     const pendingCarts = data.carts.filter((c) => c.status === "pending").length;
-    const totalKeys = sumStockKeys(data.stock);
+    const blockedUsers = adminUsers?.summary?.usersBlocked || 0;
+    const activeUsers = adminUsers?.summary?.usersActive || 0;
+    const requestsTotal = monitorRequests?.summary?.totalActionable || 0;
+    const withdrawalsRequested = monitorRequests?.summary?.withdrawalsRequested || 0;
+    const runtimeAlerts = monitorRequests?.summary?.runtimeAlerts || 0;
+    const gmv = business?.summary?.salesGrossFormatted || "R$ 0,00";
+    const net = business?.summary?.salesNetFormatted || "R$ 0,00";
 
     return [
-      { label: "Produtos", value: data.products.length, hint: `${variantsCount} variacoes` },
-      { label: "Cupons ativos", value: activeCoupons, hint: `${data.coupons.length} no total` },
-      { label: "Pedidos pendentes", value: pendingOrders, hint: `${waitingStock} aguardando estoque` },
-      { label: "Entregas", value: deliveredOrders, hint: `${data.deliveries.length} entregas` },
-      { label: "Carrinhos abertos", value: openCarts, hint: `${pendingCarts} pendentes` },
-      { label: "Estoque", value: totalKeys, hint: "keys disponiveis" }
+      {
+        label: "Solicitacoes abertas",
+        value: requestsTotal,
+        hint: `${pendingOrders + waitingStock} pedidos e ${openCarts + pendingCarts} carrinhos`
+      },
+      { label: "Contas bloqueadas", value: blockedUsers, hint: `${activeUsers} contas ativas` },
+      { label: "Saques pendentes", value: withdrawalsRequested, hint: "aguardando revisao financeira" },
+      { label: "Alertas de runtime", value: runtimeAlerts, hint: "bots com erro ou suspensao" },
+      { label: "Pedidos entregues", value: deliveredOrders, hint: `GMV: ${gmv}` },
+      { label: "Receita liquida", value: net, hint: `Planos pagos: ${business?.summary?.planRevenuePaidFormatted || "R$ 0,00"}` }
     ];
-  }, [data]);
+  }, [data, adminUsers, monitorRequests, business]);
 
   const filteredProducts = useMemo(() => {
     const query = productQuery.toLowerCase();
@@ -699,6 +1005,50 @@ function App() {
       return haystack.includes(query);
     });
   }, [data.orders, ordersFilter, ordersSourceFilter, ordersSearch]);
+
+  const filteredTimelineEvents = useMemo(() => {
+    const query = timelineSearch.toLowerCase().trim();
+    const severityFilter = String(timelineSeverity || "all").toLowerCase();
+    const sourceEvents = Array.isArray(timeline?.events) ? timeline.events : [];
+    return sourceEvents.filter((event) => {
+      const severity = String(event?.severity || "info").toLowerCase();
+      if (severityFilter !== "all" && severity !== severityFilter) return false;
+      if (!query) return true;
+      const haystack = [
+        event?.type,
+        event?.source,
+        event?.summary,
+        JSON.stringify(event?.details || {})
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [timeline, timelineSearch, timelineSeverity]);
+
+  const filteredAdminUsers = useMemo(() => {
+    const query = String(accountSearch || "").toLowerCase().trim();
+    const statusFilter = String(accountStatusFilter || "all").toLowerCase();
+    const users = Array.isArray(adminUsers?.users) ? adminUsers.users : [];
+    return users.filter((user) => {
+      const status = String(user?.accountStatus || "active").toLowerCase();
+      if (statusFilter !== "all" && status !== statusFilter) return false;
+      if (!query) return true;
+      const haystack = [
+        user?.discordUserId,
+        user?.discordUsername,
+        user?.email,
+        user?.planTier,
+        user?.planStatus,
+        user?.blockedReason
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [adminUsers, accountSearch, accountStatusFilter]);
 
   const dmPreview = useMemo(() => {
     return buildDmPreview(productForm || {}, dmPreviewSource);
@@ -750,15 +1100,51 @@ function App() {
     }
   };
 
-  const handleConnect = async () => {
-    localStorage.setItem("adminToken", token || "");
-    await loadAll();
+  const handleLogin = async (event) => {
+    if (event?.preventDefault) event.preventDefault();
+    const username = String(loginUsername || "").trim();
+    const password = String(loginPassword || "").trim();
+    if (!username || !password) {
+      setLoginError("Informe usuario e senha.");
+      return;
+    }
+
+    setLoginBusy(true);
+    setLoginError("");
+    try {
+      await api("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username, password })
+      });
+      setLoginPassword("");
+      setIsAuthenticated(true);
+      await loadAll();
+      showToast("Login realizado com sucesso.");
+    } catch (err) {
+      if (err?.status === 429) {
+        setLoginError("Muitas tentativas. Aguarde alguns minutos e tente novamente.");
+      } else if (err?.status === 401) {
+        setLoginError("Credenciais invalidas.");
+      } else {
+        setLoginError(err.message || "Falha ao autenticar.");
+      }
+    } finally {
+      setLoginBusy(false);
+    }
   };
 
-  const handleClearToken = () => {
-    localStorage.removeItem("adminToken");
-    setToken("");
-    showToast("Token limpo");
+  const handleLogout = async () => {
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+    } catch {}
+    setIsAuthenticated(false);
+    setStatusInfo((prev) => ({
+      ...prev,
+      ok: false,
+      authRequired: true,
+      text: "Sessao encerrada"
+    }));
+    showToast("Sessao encerrada.");
   };
 
   const updateProductField = (field, value) => {
@@ -1215,964 +1601,944 @@ function App() {
       showToast(err.message || "Erro ao cancelar carrinho", "error");
     }
   };
-  return html`
-    <div className="min-h-screen">
-      <div className="mx-auto flex max-w-[1400px] flex-col gap-6 px-6 py-8">
-        <header className="glass flex flex-wrap items-center justify-between gap-4 rounded-[22px] px-6 py-5">
-          <div>
-            <h1 className="font-display text-2xl font-semibold text-slate-900">Astra Admin</h1>
-            <p className="text-sm text-slate-500">Controle completo da loja e do bot.</p>
+
+  const handleSetAccountBlockStatus = async (discordUserId, shouldBlock) => {
+    const userId = String(discordUserId || "").trim();
+    if (!userId) return;
+    let reason = "";
+    if (shouldBlock) {
+      const input = prompt("Informe o motivo do bloqueio da conta:");
+      if (!input) return;
+      reason = String(input).trim();
+      if (!reason) {
+        showToast("Motivo do bloqueio obrigatorio.", "error");
+        return;
+      }
+    }
+    setAccountActionUserId(userId);
+    try {
+      await api(`/api/admin/users/${encodeURIComponent(userId)}/${shouldBlock ? "block" : "unblock"}`, {
+        method: "POST",
+        body: JSON.stringify({
+          byUserId: "admin-panel",
+          reason
+        })
+      });
+      showToast(shouldBlock ? "Conta bloqueada com sucesso." : "Conta desbloqueada com sucesso.");
+      await loadAll();
+    } catch (err) {
+      showToast(err.message || "Falha ao atualizar status da conta.", "error");
+    } finally {
+      setAccountActionUserId("");
+    }
+  };
+
+  if (!authChecked) {
+    return html`
+      <div>
+        <div className="app-bg" aria-hidden="true"></div>
+        <div style=${{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "24px" }}>
+          <div className="card" style=${{ width: "min(420px, 100%)", padding: "22px", textAlign: "center" }}>
+            <h1 className="font-display" style=${{ margin: "0 0 8px", fontSize: "22px" }}>Astra Admin</h1>
+            <p style=${{ margin: 0, color: "var(--muted)", fontSize: "13px" }}>Verificando autenticacao...</p>
           </div>
-          <div className="flex items-center gap-3">
-            <span
-              className=${`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
-                statusInfo.ok
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "bg-rose-50 text-rose-600"
-              }`}
-            >
+        </div>
+      </div>
+    `;
+  }
+
+  if (statusInfo.authRequired && !isAuthenticated) {
+    return html`
+      <div>
+        <div className="app-bg" aria-hidden="true"></div>
+        <div style=${{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "24px" }}>
+          <div className="card" style=${{ width: "min(460px, 100%)", padding: "24px", display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style=${{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+              <h1 className="font-display" style=${{ margin: 0, fontSize: "24px" }}>Login Admin</h1>
+              <span className="badge warn">Acesso restrito</span>
+            </div>
+            <p style=${{ margin: 0, color: "var(--muted)", fontSize: "13px", lineHeight: 1.6 }}>
+              Entre com suas credenciais para acessar o painel administrativo.
+            </p>
+            <form onSubmit=${handleLogin} style=${{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div className="field">
+                <label>Usuario</label>
+                <input
+                  type="text"
+                  value=${loginUsername}
+                  autoComplete="username"
+                  onInput=${(e) => setLoginUsername(e.target.value)}
+                  placeholder="Digite o usuario"
+                />
+              </div>
+              <div className="field">
+                <label>Senha</label>
+                <input
+                  type="password"
+                  value=${loginPassword}
+                  autoComplete="current-password"
+                  onInput=${(e) => setLoginPassword(e.target.value)}
+                  placeholder="Digite a senha"
+                />
+              </div>
+              ${loginError ? html`<div className="badge danger" style=${{ justifyContent: "center" }}>${loginError}</div>` : null}
+              <button type="submit" className="btn primary" disabled=${loginBusy}>
+                ${loginBusy ? "Entrando..." : "Entrar"}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const adminTabs = [
+    { id: "painel", label: "Painel" },
+    { id: "solicitacoes", label: "Solicitacoes" },
+    { id: "contas", label: "Contas" },
+    { id: "operacao", label: "Operacao" },
+    { id: "auditoria", label: "Auditoria" },
+    ...(!monitoringOnly ? [{ id: "produtos", label: "Produtos" }, { id: "config", label: "Config" }] : [])
+  ];
+  console.log("[admin:App] About to return JSX");
+  return html`
+    <div>
+      <div className="app-bg" aria-hidden="true"></div>
+      <div style=${{ maxWidth: "1400px", margin: "0 auto", padding: "18px 22px 60px" }}>
+        <header style=${{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px", background: "linear-gradient(160deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))", border: "1px solid var(--stroke)", borderRadius: "18px", padding: "13px 20px", backdropFilter: "blur(16px)", boxShadow: "var(--shadow)", marginBottom: "13px" }}>
+          <div style=${{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <h1 className="font-display" style=${{ fontSize: "18px", fontWeight: 700, margin: 0 }}>Astra Admin</h1>
+            <span className=${`badge ${monitoringOnly ? "muted" : "warn"}`} style=${{ fontSize: "10px" }}>
+              ${monitoringOnly ? "monitoramento" : "edicao completa"}
+            </span>
+            <span className=${`badge ${statusInfo.ok ? "ok" : "danger"}`}>
               ${statusInfo.ok ? "online" : "offline"}
             </span>
-            <span className="text-sm text-slate-500">${statusInfo.text}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="password"
-              value=${token}
-              placeholder="ADMIN_PANEL_TOKEN"
-              onInput=${(event) => setToken(event.target.value)}
-              className="rounded-full border border-[var(--stroke)] bg-white/70 px-4 py-2 text-sm"
-            />
-            ${html`<${Button} variant="primary" onClick=${handleConnect}>Conectar</${Button}>`}
-            ${html`<${Button} variant="ghost" onClick=${handleClearToken}>Limpar</${Button}>`}
+          <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <span className="badge ok">sessao ativa</span>
+            <${Button} variant="ghost" onClick=${handleLogout}>Sair</${Button}>
           </div>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="glass sticky top-6 flex max-h-[calc(100vh-120px)] flex-col gap-4 overflow-y-auto rounded-[22px] p-5">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Produtos</h3>
-              <p className="text-xs text-slate-500">Escolha um produto para editar.</p>
-            </div>
-            <input
-              type="text"
-              placeholder="Buscar produto..."
-              value=${productQuery}
-              onInput=${(event) => setProductQuery(event.target.value)}
-              className="rounded-full border border-[var(--stroke)] bg-white/70 px-4 py-2 text-sm"
-            />
-            <div className="flex flex-col gap-2">
-              ${filteredProducts.length
-                ? filteredProducts.map(
-                    (product) => html`
-                      <button
-                        key=${product.id}
-                        onClick=${() => setSelectedId(product.id)}
-                        className=${`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
-                          product.id === selectedId
-                            ? "border-[var(--accent)] bg-[rgba(233,90,43,0.12)] text-[var(--accent-strong)]"
-                            : "border-[var(--stroke)] bg-white/80 hover:border-[var(--accent)]"
-                        }`}
-                      >
-                        <div>${product.name || product.id}</div>
-                        <div className="text-xs text-slate-500">${product.id}</div>
-                      </button>
-                    `
-                  )
-                : html`<p className="text-xs text-slate-500">Nenhum produto encontrado.</p>`}
-            </div>
-            <div className="space-y-2 pt-2">
-              ${html`<${Button} variant="primary" onClick=${handleNewProduct}>Novo produto</${Button}>`}
-              ${html`<${Button} variant="ghost" onClick=${handleDuplicateProduct}>Duplicar</${Button}>`}
-              ${html`<${Button} variant="danger" onClick=${handleDeleteProduct}>Excluir</${Button}>`}
-            </div>
-          </aside>
-
-          <main className="flex flex-col gap-6">
-            <nav className="glass sticky top-6 z-20 flex flex-wrap items-center gap-2 rounded-[22px] px-5 py-4">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Navegacao</span>
-              <div className="flex flex-wrap gap-2">
-                ${sectionLinks.map(
-                  (link) => html`
-                    <a
-                      key=${link.id}
-                      href=${`#${link.id}`}
-                      className=${`rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                        activeSection === link.id
-                          ? "border-[var(--accent)] bg-[rgba(233,90,43,0.12)] text-[var(--accent-strong)]"
-                          : "border-transparent bg-white/70 text-slate-600 hover:border-[var(--accent)]"
-                      }`}
-                    >
-                      ${link.label}
-                    </a>
-                  `
-                )}
-              </div>
-            </nav>
-
-            ${html`<${Card}
-              id="dashboard-panel"
-              title="Visao geral"
-              subtitle="Resumo rapido das operacoes."
-              actions=${html`<${Button} variant="ghost" onClick=${loadAll}>Atualizar</${Button}>
-                <${Button} variant="ghost" onClick=${loadDiagnostics}>
-                  ${diagnostics.loading ? "Diagnostico..." : "Rodar diagnostico"}
-                </${Button}>`}
+        <nav style=${{ display: "flex", flexWrap: "wrap", gap: "5px", padding: "9px 13px", background: "rgba(8,8,14,0.9)", borderRadius: "13px", border: "1px solid var(--stroke)", backdropFilter: "blur(14px)", marginBottom: "18px", position: "sticky", top: "10px", zIndex: 20, boxShadow: "var(--shadow-soft)" }}>
+          ${adminTabs.map(tab => html`
+            <button
+              key=${tab.id}
+              type="button"
+              onClick=${() => setAdminTab(tab.id)}
+              style=${{
+                padding: "7px 16px", borderRadius: "999px", border: "1px solid",
+                borderColor: adminTab === tab.id ? "rgba(230,33,42,0.55)" : "rgba(255,255,255,0.1)",
+                background: adminTab === tab.id ? "rgba(230,33,42,0.18)" : "rgba(255,255,255,0.04)",
+                color: adminTab === tab.id ? "rgba(255,228,230,0.98)" : "var(--ink)",
+                fontSize: "12px", fontWeight: 700, cursor: "pointer", transition: "all 0.16s", whiteSpace: "nowrap",
+                display: "inline-flex", alignItems: "center", gap: "5px"
+              }}
             >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                ${stats.map(
-                  (stat) => html`
-                    <div className="card flex flex-col gap-2 p-4">
-                      <div className="text-xs uppercase tracking-[0.2em] text-slate-400">${stat.label}</div>
-                      <div className="font-display text-2xl font-semibold">${stat.value}</div>
-                      <div className="text-xs text-slate-500">${stat.hint}</div>
+              ${tab.label}
+              ${tab.id === "solicitacoes" && (monitorRequests?.summary?.totalActionable ?? 0) > 0 ? html`
+                <span style=${{ padding: "1px 6px", borderRadius: "999px", background: "rgba(230,33,42,0.55)", fontSize: "10px", fontWeight: 800 }}>
+                  ${monitorRequests.summary.totalActionable}
+                </span>
+              ` : null}
+            </button>
+          `)}
+        </nav>
+
+        <main style=${{ display: "flex", flexDirection: "column", gap: "0" }}>
+
+            ${adminTab === "painel" ? html`
+              <div style=${{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style=${{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: "12px" }}>
+                  ${stats.map(stat => html`
+                    <div key=${stat.label} className="stat-card">
+                      <div style=${{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "8px" }}>${stat.label}</div>
+                      <div className="font-display" style=${{ fontSize: "28px", fontWeight: 700, marginBottom: "4px" }}>${stat.value}</div>
+                      <div style=${{ fontSize: "12px", color: "var(--muted)" }}>${stat.hint}</div>
                     </div>
-                  `
-                )}
-              </div>
-              <div className="card p-4">
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Diagnostico</span>
-                  <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
-                    High: ${diagnostics.report?.summary?.high ?? 0}
-                  </span>
-                  <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300">
-                    Medium: ${diagnostics.report?.summary?.medium ?? 0}
-                  </span>
-                  <span className="rounded-full border border-slate-500/40 bg-slate-500/15 px-3 py-1 text-xs font-semibold text-slate-300">
-                    Low: ${diagnostics.report?.summary?.low ?? 0}
-                  </span>
+                  `)}
                 </div>
-                ${diagnostics.report?.issues?.length
-                  ? html`<ul className="space-y-2 text-sm text-slate-300">
-                      ${diagnostics.report.issues.slice(0, 8).map(
-                        (issue) => html`<li key=${`${issue.code}-${issue.message}`}>[${issue.severity}] ${issue.message}</li>`
-                      )}
-                    </ul>`
-                  : html`<p className="text-sm text-slate-400">Nenhum problema de consistencia encontrado.</p>`}
+                <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+                      <span style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)" }}>Diagnostico</span>
+                      <div style=${{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span className=${`badge ${(diagnostics.report?.summary?.high ?? 0) > 0 ? "danger" : "muted"}`}>Alta: ${diagnostics.report?.summary?.high ?? 0}</span>
+                        <span className=${`badge ${(diagnostics.report?.summary?.medium ?? 0) > 0 ? "warn" : "muted"}`}>Media: ${diagnostics.report?.summary?.medium ?? 0}</span>
+                        <span className="badge muted">Baixa: ${diagnostics.report?.summary?.low ?? 0}</span>
+                        <${Button} variant="ghost" onClick=${loadDiagnostics}>${diagnostics.loading ? "..." : "Rodar"}</${Button}>
+                      </div>
+                    </div>
+                    ${diagnostics.report?.issues?.length
+                      ? html`<ul style=${{ display: "flex", flexDirection: "column", gap: "6px", listStyle: "none", padding: 0, margin: 0 }}>
+                          ${diagnostics.report.issues.slice(0, 8).map(issue => html`
+                            <li key=${issue.code} style=${{ fontSize: "12px", color: "var(--ink)", padding: "5px 9px", background: "rgba(255,255,255,0.04)", borderRadius: "7px", display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span className=${`badge ${issue.severity === "high" ? "danger" : issue.severity === "medium" ? "warn" : "muted"}`}>${issue.severity}</span>
+                              ${issue.message}
+                            </li>
+                          `)}
+                        </ul>`
+                      : html`<p style=${{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>Nenhum problema encontrado.</p>`}
+                  </div>
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Status do sistema</div>
+                    <div style=${{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style=${{ fontSize: "13px" }}>Bot</span>
+                        <span className=${`badge ${statusInfo.ok ? "ok" : "danger"}`}>${statusInfo.text}</span>
+                      </div>
+                      <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style=${{ fontSize: "13px" }}>Modo</span>
+                        <span className=${`badge ${monitoringOnly ? "muted" : "warn"}`}>${monitoringOnly ? "Monitoramento" : "Edicao completa"}</span>
+                      </div>
+                      <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style=${{ fontSize: "13px" }}>Produtos</span>
+                        <span className="badge muted">${data.products.length} cadastrados</span>
+                      </div>
+                      <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style=${{ fontSize: "13px" }}>Usuarios</span>
+                        <span className="badge muted">${adminUsers?.summary?.usersTotal ?? 0} total</span>
+                      </div>
+                      <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style=${{ fontSize: "13px" }}>Saques pend.</span>
+                        <span className=${`badge ${(monitorRequests?.summary?.withdrawalsRequested ?? 0) > 0 ? "warn" : "muted"}`}>${monitorRequests?.summary?.withdrawalsRequested ?? 0} solicitados</span>
+                      </div>
+                    </div>
+                    <div style=${{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--stroke)" }}>
+                      <${Button} variant="ghost" onClick=${loadAll} style=${{ width: "100%", textAlign: "center" }}>Atualizar tudo</${Button}>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </${Card}>`}
+            ` : null}
 
-            ${html`<${Card}
-              id="product-panel"
-              title="Produto"
-              subtitle="Atualize os dados e salve para refletir no bot."
-              actions=${html`<${Button} variant="ghost" onClick=${loadAll}>Recarregar</${Button}>
-                <${Button} variant="primary" onClick=${handleSaveProduct}>Salvar produto</${Button}>`}
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">ID</label>
-                  <input
-                    disabled
-                    value=${productForm.id}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-slate-100 px-4 py-2 text-sm"
-                  />
+            ${adminTab === "solicitacoes" ? html`
+              <div style=${{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style=${{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                  <span className=${`badge ${(monitorRequests?.summary?.totalActionable ?? 0) > 0 ? "danger" : "muted"}`}>Abertas: ${monitorRequests?.summary?.totalActionable ?? 0}</span>
+                  <span className=${`badge ${(monitorRequests?.summary?.withdrawalsRequested ?? 0) > 0 ? "warn" : "muted"}`}>Saques: ${monitorRequests?.summary?.withdrawalsRequested ?? 0}</span>
+                  <span className=${`badge ${(monitorRequests?.summary?.runtimeAlerts ?? 0) > 0 ? "warn" : "muted"}`}>Runtime: ${monitorRequests?.summary?.runtimeAlerts ?? 0}</span>
+                  <${Button} variant="ghost" onClick=${loadAll}>Atualizar</${Button}>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">Nome</label>
-                  <input
-                    value=${productForm.name}
-                    onInput=${(event) => updateProductField("name", event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">Short label</label>
-                  <input
-                    value=${productForm.shortLabel}
-                    onInput=${(event) => updateProductField("shortLabel", event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">Demo URL</label>
-                  <input
-                    value=${productForm.demoUrl}
-                    onInput=${(event) => updateProductField("demoUrl", event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                  />
+                <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Pedidos pendentes</div>
+                    ${(monitorRequests?.queues?.ordersPending || []).concat(monitorRequests?.queues?.ordersWaitingStock || []).slice(0, 10).map(order => html`
+                      <div key=${order.id} style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--stroke)", gap: "8px" }}>
+                        <div style=${{ flex: 1, minWidth: 0 }}>
+                          <div style=${{ fontSize: "12px", fontWeight: 600, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>${order.id}</div>
+                          <div style=${{ fontSize: "11px", color: "var(--muted)" }}>${order.productId || "-"} · ${order.status}</div>
+                        </div>
+                        <div style=${{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                          <${Button} variant="ghost" onClick=${() => handleResyncOrder(order.id)}>Sync</${Button}>
+                          <${Button} variant="ghost" onClick=${() => handleManualDeliver(order.id)}>Entregar</${Button}>
+                        </div>
+                      </div>
+                    `)}
+                    ${(monitorRequests?.queues?.ordersPending?.length || 0) + (monitorRequests?.queues?.ordersWaitingStock?.length || 0) === 0
+                      ? html`<p style=${{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>Nenhum pedido pendente.</p>`
+                      : null}
+                    ${(monitorRequests?.queues?.ordersWaitingStock?.length || 0) > 0
+                      ? html`<div style=${{ marginTop: "12px" }}><${Button} variant="ghost" onClick=${handleRetryWaitingStock}>Reprocessar waiting_stock</${Button}></div>`
+                      : null}
+                  </div>
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Carrinhos ativos</div>
+                    ${(monitorRequests?.queues?.cartsOpen || []).concat(monitorRequests?.queues?.cartsPending || []).slice(0, 10).map(cart => html`
+                      <div key=${cart.id} style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--stroke)", gap: "8px" }}>
+                        <div style=${{ flex: 1, minWidth: 0 }}>
+                          <div style=${{ fontSize: "12px", fontWeight: 600, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>${cart.id}</div>
+                          <div style=${{ fontSize: "11px", color: "var(--muted)" }}>${cart.productId || "-"} · ${cart.status}</div>
+                        </div>
+                        <div style=${{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                          <${Button} variant="ghost" onClick=${() => handleManualConfirmCart(cart.id)}>Confirmar</${Button}>
+                          <${Button} variant="ghost" onClick=${() => handleCancelCart(cart.id)}>Cancelar</${Button}>
+                        </div>
+                      </div>
+                    `)}
+                    ${(monitorRequests?.queues?.cartsOpen?.length || 0) + (monitorRequests?.queues?.cartsPending?.length || 0) === 0
+                      ? html`<p style=${{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>Nenhum carrinho ativo.</p>`
+                      : null}
+                  </div>
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Saques solicitados</div>
+                    ${(monitorRequests?.queues?.withdrawalsRequested || []).slice(0, 8).map((w) => {
+                      const owner =
+                        personLabel(w.ownerDiscordUsername, w.ownerEmail, w.ownerDiscordUserId, "-");
+                      const badgeTone = statusTone(w.status);
+                      const badgeClass =
+                        badgeTone === "emerald" ? "ok" : badgeTone === "amber" ? "warn" : badgeTone === "rose" ? "danger" : "muted";
+                      return html`
+                        <div key=${w.id || w.ownerDiscordUserId} style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--stroke)", gap: "8px" }}>
+                          <div style=${{ minWidth: 0 }}>
+                            <div style=${{ fontSize: "12px", fontWeight: 600 }}>${owner}</div>
+                            <div style=${{ fontSize: "11px", color: "var(--muted)" }}>
+                              ${w.amountFormatted || "-"} · ${statusLabel(w.status)}
+                            </div>
+                          </div>
+                          <span className=${`badge ${badgeClass}`}>${statusLabel(w.status)}</span>
+                        </div>
+                      `;
+                    })}
+                    ${!(monitorRequests?.queues?.withdrawalsRequested?.length) ? html`<p style=${{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>Nenhum saque pendente.</p>` : null}
+                  </div>
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Alertas de runtime</div>
+                    ${(monitorRequests?.queues?.runtimeAlerts || []).slice(0, 8).map((alert, i) => html`
+                      <div key=${i} style=${{ padding: "8px 0", borderBottom: "1px solid var(--stroke)" }}>
+                        <div style=${{ fontSize: "12px", fontWeight: 600 }}>${alert.instanceId || alert.userId || "-"}</div>
+                        <div style=${{ fontSize: "11px", color: "var(--muted)" }}>${alert.message || alert.reason || "-"}</div>
+                      </div>
+                    `)}
+                    ${!(monitorRequests?.queues?.runtimeAlerts?.length) ? html`<p style=${{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>Nenhum alerta de runtime.</p>` : null}
+                  </div>
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">Descricao</label>
-                  <textarea
-                    rows="4"
-                    value=${productForm.description}
-                    onInput=${(event) => updateProductField("description", event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                  ></textarea>
+            ` : null}
+
+            ${adminTab === "contas" ? html`
+              <div style=${{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style=${{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                  <span className="badge muted">Total: ${adminUsers?.summary?.usersTotal ?? 0}</span>
+                  <span className="badge ok">Ativos: ${adminUsers?.summary?.usersActive ?? 0}</span>
+                  <span className=${`badge ${(adminUsers?.summary?.usersBlocked ?? 0) > 0 ? "danger" : "muted"}`}>Bloqueados: ${adminUsers?.summary?.usersBlocked ?? 0}</span>
+                  <span className="badge muted">Trial: ${adminUsers?.summary?.usersTrialUsed ?? 0}</span>
+                  <span className="badge muted">Plano ativo: ${adminUsers?.summary?.usersWithActivePlan ?? 0}</span>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">Pix instructions</label>
-                  <textarea
-                    rows="4"
-                    value=${productForm.pixInstructions}
-                    onInput=${(event) => updateProductField("pixInstructions", event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                  ></textarea>
+                <div style=${{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  <input
+                    type="text"
+                    placeholder="Buscar por discord, email, plano..."
+                    value=${accountSearch}
+                    onInput=${e => setAccountSearch(e.target.value)}
+                    style=${{ flex: 1, minWidth: "220px", padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "13px", outline: "none" }}
+                  />
+                  <select
+                    value=${accountStatusFilter}
+                    onChange=${e => setAccountStatusFilter(e.target.value)}
+                    style=${{ padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.55)", color: "var(--ink)", fontSize: "13px", outline: "none" }}
+                  >
+                    <option value="all">Todos status</option>
+                    <option value="active">Ativos</option>
+                    <option value="blocked">Bloqueados</option>
+                    <option value="suspended">Suspensos</option>
+                  </select>
+                </div>
+                <div style=${{ overflowX: "auto" }}>
+                  <table className="table" style=${{ minWidth: "700px" }}>
+                    <thead>
+                      <tr>
+                        <th>Discord</th>
+                        <th>Email</th>
+                        <th>Plano</th>
+                        <th>Status</th>
+                        <th>Bloqueio</th>
+                        <th>Acao</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${filteredAdminUsers.slice(0, 50).map(user => html`
+                        <tr key=${user.discordUserId}>
+                          <td>
+                            <div style=${{ fontWeight: 600, fontSize: "12px" }}>${user.discordUsername || user.discordUserId || "-"}</div>
+                            <div style=${{ fontSize: "10px", color: "var(--muted)", fontFamily: "monospace" }}>${user.discordUserId}</div>
+                          </td>
+                          <td style=${{ fontSize: "12px" }}>${user.email || "-"}</td>
+                          <td>
+                            <span className="badge muted">${user.planTier || "-"}</span>
+                            ${user.planStatus ? html` <span className="badge muted">${user.planStatus}</span>` : null}
+                          </td>
+                          <td><span className=${`badge ${user.accountStatus === "blocked" ? "danger" : user.accountStatus === "suspended" ? "warn" : "ok"}`}>${user.accountStatus || "active"}</span></td>
+                          <td style=${{ fontSize: "11px", color: "var(--muted)", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>${user.blockedReason || "-"}</td>
+                          <td>
+                            ${user.accountStatus === "blocked"
+                              ? html`<${Button} variant="ghost" onClick=${() => handleSetAccountBlockStatus(user.discordUserId, false)} disabled=${accountActionUserId === user.discordUserId}>Desbloquear</${Button}>`
+                              : html`<${Button} variant="danger" onClick=${() => handleSetAccountBlockStatus(user.discordUserId, true)} disabled=${accountActionUserId === user.discordUserId}>Bloquear</${Button}>`}
+                          </td>
+                        </tr>
+                      `)}
+                      ${filteredAdminUsers.length === 0 ? html`
+                        <tr><td colSpan="6" style=${{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>Nenhum usuario encontrado.</td></tr>
+                      ` : null}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-1">
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">DM title (entrega)</label>
-                  <input
-                    value=${productForm.deliveryDmTitle || ""}
-                    onInput=${(event) => updateProductField("deliveryDmTitle", event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                    placeholder="Compra confirmada"
-                  />
+            ` : null}
+
+            ${adminTab === "operacao" ? html`
+              <div style=${{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                <div style=${{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: "12px" }}>
+                  ${[
+                    { label: "GMV bruto", value: business?.summary?.salesGrossFormatted || "R$ 0,00" },
+                    { label: "Receita liquida", value: business?.summary?.salesNetFormatted || "R$ 0,00" },
+                    { label: "Planos pagos", value: business?.summary?.planRevenuePaidFormatted || "R$ 0,00" },
+                    { label: "Pedidos", value: data.orders.length },
+                    { label: "Entregas", value: data.deliveries.length },
+                    { label: "Clientes", value: data.customers.length }
+                  ].map(kpi => html`
+                    <div key=${kpi.label} className="stat-card">
+                      <div style=${{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "8px" }}>${kpi.label}</div>
+                      <div className="font-display" style=${{ fontSize: "24px", fontWeight: 700 }}>${kpi.value}</div>
+                    </div>
+                  `)}
                 </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">DM template padrao (fallback)</label>
-                  <textarea
-                    rows="5"
-                    value=${productForm.deliveryDmMessage || ""}
-                    onInput=${(event) => updateProductField("deliveryDmMessage", event.target.value)}
-                    onFocus=${() => setActiveDmField("deliveryDmMessage")}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                    placeholder="Mensagem usada se os templates de PIX/ADMIN estiverem vazios."
-                  ></textarea>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">DM template PIX confirmado</label>
-                  <textarea
-                    rows="5"
-                    value=${productForm.deliveryDmMessagePix || ""}
-                    onInput=${(event) => updateProductField("deliveryDmMessagePix", event.target.value)}
-                    onFocus=${() => setActiveDmField("deliveryDmMessagePix")}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                    placeholder="Template enviado quando o pagamento PIX confirma automaticamente."
-                  ></textarea>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">DM template confirmacao ADMIN</label>
-                  <textarea
-                    rows="5"
-                    value=${productForm.deliveryDmMessageAdmin || ""}
-                    onInput=${(event) => updateProductField("deliveryDmMessageAdmin", event.target.value)}
-                    onFocus=${() => setActiveDmField("deliveryDmMessageAdmin")}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                    placeholder="Template enviado quando admin confirma compra manualmente."
-                  ></textarea>
-                </div>
-                <div className="card space-y-3 p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      Placeholders (campo ativo: ${activeDmField || "-"})
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    ${DM_PLACEHOLDERS.map(
-                      (token) => html`
-                        <button
-                          key=${token}
-                          type="button"
-                          onClick=${() => insertPlaceholder(token)}
-                          className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-300"
-                        >
-                          ${`{{${token}}}`}
-                        </button>
-                      `
-                    )}
-                  </div>
-                  ${dmTemplateWarnings.length
-                    ? html`<div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-300">
-                        ${dmTemplateWarnings.join(" | ")}
-                      </div>`
-                    : null}
-                </div>
-                <div className="card space-y-3 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      Preview em tempo real
-                    </span>
-                    <select
-                      value=${dmPreviewSource}
-                      onChange=${(event) => setDmPreviewSource(event.target.value)}
-                      className="rounded-full border border-[var(--stroke)] bg-white/70 px-4 py-2 text-sm"
-                    >
-                      ${Object.entries(DM_SOURCE_META).map(
-                        ([value, meta]) => html`<option key=${value} value=${value}>${meta.label}</option>`
-                      )}
+                <div className="card" style=${{ padding: "18px" }}>
+                  <div style=${{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "14px", alignItems: "center" }}>
+                    <span style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)" }}>Pedidos</span>
+                    <select value=${ordersFilter} onChange=${e => setOrdersFilter(e.target.value)} style=${{ padding: "5px 10px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.55)", color: "var(--ink)", fontSize: "12px", outline: "none" }}>
+                      <option value="all">Todos</option>
+                      <option value="pending">Pendente</option>
+                      <option value="waiting_stock">Aguard. estoque</option>
+                      <option value="delivered">Entregue</option>
+                      <option value="cancelled">Cancelado</option>
                     </select>
+                    <select value=${ordersSourceFilter} onChange=${e => setOrdersSourceFilter(e.target.value)} style=${{ padding: "5px 10px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.55)", color: "var(--ink)", fontSize: "12px", outline: "none" }}>
+                      <option value="all">Todas origens</option>
+                      <option value="pix">PIX</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <input type="text" placeholder="Buscar ID, usuario..." value=${ordersSearch} onInput=${e => setOrdersSearch(e.target.value)} style=${{ padding: "5px 10px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none", flex: 1, minWidth: "160px" }} />
+                    <${Button} variant="ghost" onClick=${handleRetryWaitingStock}>Retry waiting_stock</${Button}>
                   </div>
-                  <div className="rounded-2xl border border-[var(--stroke)] bg-[rgba(255,255,255,0.03)] p-4">
-                    <div className="text-sm font-semibold text-slate-200">${dmPreview.title}</div>
-                    <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-slate-300">
-${dmPreview.description}
-                    </pre>
+                  <div style=${{ overflowX: "auto" }}>
+                    <table className="table" style=${{ minWidth: "720px" }}>
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Produto</th>
+                          <th>Variacao</th>
+                          <th>Status</th>
+                          <th>Origem</th>
+                          <th>Acao</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${filteredOrders.slice(0, 60).map(order => html`
+                          <tr key=${order.id}>
+                            <td style=${{ fontFamily: "monospace", fontSize: "11px" }}>${order.id}</td>
+                            <td style=${{ fontSize: "12px" }}>${order.productId || "-"}</td>
+                            <td style=${{ fontSize: "12px" }}>${order.variantId || "-"}</td>
+                            <td><span className=${`badge ${order.status === "delivered" ? "ok" : order.status === "pending" || order.status === "waiting_stock" ? "warn" : "muted"}`}>${order.status}</span></td>
+                            <td><span className="badge muted">${order.confirmedSource || "-"}</span></td>
+                            <td style=${{ display: "flex", gap: "4px" }}>
+                              <${Button} variant="ghost" onClick=${() => handleResyncOrder(order.id)}>Sync</${Button}>
+                              ${order.status !== "delivered" ? html`<${Button} variant="ghost" onClick=${() => handleManualDeliver(order.id)}>Entregar</${Button}>` : null}
+                            </td>
+                          </tr>
+                        `)}
+                        ${filteredOrders.length === 0 ? html`
+                          <tr><td colSpan="6" style=${{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>Nenhum pedido encontrado.</td></tr>
+                        ` : null}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-slate-500">
-                <input
-                  type="checkbox"
-                  checked=${productForm.disableThumbnail}
-                  onChange=${(event) => updateProductField("disableThumbnail", event.target.checked)}
-                />
-                Desativar thumbnail no embed
-              </label>
-            </${Card}>`}
-
-            ${html`<${Card} id="media-panel" title="Midias" subtitle="Use caminhos relativos a pasta do projeto.">
-              <div className="grid gap-4 md:grid-cols-2">
-                ${[
-                  { label: "Banner image", field: "bannerImage" },
-                  { label: "Preview image", field: "previewImage" },
-                  { label: "Thumbnail", field: "thumbnail" },
-                  { label: "Footer image", field: "footerImage" },
-                  { label: "Pre post gif", field: "prePostGif" }
-                ].map(
-                  (item) => html`
-                    <div>
-                      <label className="text-xs font-semibold uppercase text-slate-400">${item.label}</label>
-                      <input
-                        value=${productForm[item.field]}
-                        onInput=${(event) => updateProductField(item.field, event.target.value)}
-                        className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                      />
+                <div className="card" style=${{ padding: "18px" }}>
+                  <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Carrinhos</div>
+                  <div style=${{ overflowX: "auto" }}>
+                    <table className="table" style=${{ minWidth: "620px" }}>
+                      <thead><tr><th>ID</th><th>Produto</th><th>Status</th><th>Acao</th></tr></thead>
+                      <tbody>
+                        ${data.carts.slice(0, 40).map(cart => html`
+                          <tr key=${cart.id}>
+                            <td style=${{ fontFamily: "monospace", fontSize: "11px" }}>${cart.id}</td>
+                            <td style=${{ fontSize: "12px" }}>${cart.productId || "-"}</td>
+                            <td><span className=${`badge ${cart.status === "open" || cart.status === "pending" ? "warn" : cart.status === "paid" ? "ok" : "muted"}`}>${cart.status}</span></td>
+                            <td style=${{ display: "flex", gap: "4px" }}>
+                              ${cart.status !== "paid" && cart.status !== "cancelled" ? html`<${Button} variant="ghost" onClick=${() => handleManualConfirmCart(cart.id)}>Confirmar</${Button}>` : null}
+                              ${cart.status !== "cancelled" ? html`<${Button} variant="ghost" onClick=${() => handleCancelCart(cart.id)}>Cancelar</${Button}>` : null}
+                            </td>
+                          </tr>
+                        `)}
+                        ${data.carts.length === 0 ? html`<tr><td colSpan="4" style=${{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>Nenhum carrinho.</td></tr>` : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Entregas recentes</div>
+                    <div style=${{ overflowX: "auto" }}>
+                      <table className="table">
+                        <thead><tr><th>ID pedido</th><th>Produto</th><th>Status</th></tr></thead>
+                        <tbody>
+                          ${data.deliveries.slice(0, 20).map(d => html`
+                            <tr key=${d.orderId || d.id}>
+                              <td style=${{ fontFamily: "monospace", fontSize: "11px" }}>${d.orderId || d.id || "-"}</td>
+                              <td style=${{ fontSize: "12px" }}>${d.productId || "-"}</td>
+                              <td><span className=${`badge ${d.status === "delivered" ? "ok" : "muted"}`}>${d.status || "-"}</span></td>
+                            </tr>
+                          `)}
+                          ${data.deliveries.length === 0 ? html`<tr><td colSpan="3" style=${{ textAlign: "center", color: "var(--muted)", padding: "16px" }}>Nenhuma entrega.</td></tr>` : null}
+                        </tbody>
+                      </table>
                     </div>
-                  `
-                )}
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase text-slate-400">Gif images (1 por linha)</label>
-                <textarea
-                  rows="4"
-                  value=${gifImages}
-                  onInput=${(event) => setGifImages(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                ></textarea>
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="sections-panel"
-              title="Secoes do embed"
-              subtitle="Adicione blocos com titulo e texto."
-              actions=${html`<${Button} variant="ghost" onClick=${addSection}>Adicionar secao</${Button}>`}
-            >
-              <div className="space-y-3">
-                ${sectionsForm.length
-                  ? sectionsForm.map(
-                      (section, index) => html`
-                        <div className="card grid gap-3 p-4 md:grid-cols-[1fr_2fr_120px_100px]">
-                          <div>
-                            <label className="text-xs font-semibold uppercase text-slate-400">Titulo</label>
-                            <input
-                              value=${section.name || ""}
-                              onInput=${(event) => updateSectionField(index, "name", event.target.value)}
-                              className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold uppercase text-slate-400">Texto</label>
-                            <textarea
-                              rows="2"
-                              value=${section.value || ""}
-                              onInput=${(event) => updateSectionField(index, "value", event.target.value)}
-                              className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                            ></textarea>
-                          </div>
-                          <label className="flex items-center gap-2 text-sm text-slate-500">
-                            <input
-                              type="checkbox"
-                              checked=${section.inline || false}
-                              onChange=${(event) => updateSectionField(index, "inline", event.target.checked)}
-                            />
-                            Inline
-                          </label>
-                          ${html`<${Button} variant="danger" onClick=${() => removeSection(index)}>Remover</${Button}>`}
-                        </div>
-                      `
-                    )
-                  : html`<p className="text-sm text-slate-500">Nenhuma secao criada.</p>`}
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="variants-panel"
-              title="Variacoes"
-              subtitle="Cada variacao vira opcao no select (maximo 25)."
-              actions=${html`<${Button} variant="ghost" onClick=${addVariant}>Adicionar variacao</${Button}>`}
-            >
-              <div className="space-y-3">
-                ${variantsForm.length
-                  ? variantsForm.map(
-                      (variant, index) => html`
-                        <div className="card grid gap-3 p-4 md:grid-cols-[1fr_1.3fr_0.6fr_0.8fr_0.7fr_100px]">
-                          ${[
-                            { label: "ID", field: "id" },
-                            { label: "Label", field: "label" },
-                            { label: "Emoji", field: "emoji" },
-                            { label: "Duracao", field: "duration" }
-                          ].map(
-                            (item) => html`
-                              <div>
-                                <label className="text-xs font-semibold uppercase text-slate-400">${item.label}</label>
-                                <input
-                                  value=${variant[item.field] || ""}
-                                  onInput=${(event) => updateVariantField(index, item.field, event.target.value)}
-                                  className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                                />
-                              </div>
-                            `
-                          )}
-                          <div>
-                            <label className="text-xs font-semibold uppercase text-slate-400">Preco</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value=${variant.price ?? ""}
-                              onInput=${(event) => updateVariantField(index, "price", event.target.value)}
-                              className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                            />
-                          </div>
-                          ${html`<${Button} variant="danger" onClick=${() => removeVariant(index)}>Remover</${Button}>`}
-                        </div>
-                      `
-                    )
-                  : html`<p className="text-sm text-slate-500">Nenhuma variacao criada.</p>`}
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="stock-panel"
-              title="Estoque"
-              subtitle="Keys separadas por produto e por variacao. Uma key por linha."
-              actions=${html`<${Button} variant="primary" onClick=${handleSaveStock}>Salvar estoque</${Button}>`}
-            >
-              <div className="card space-y-3 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Resumo de cobertura</div>
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-cyan-300">
-                    default: ${(stockPayloadPreview.default || []).length}
-                  </span>
-                  <span className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1 text-sky-300">
-                    shared: ${(stockPayloadPreview.shared || []).length}
-                  </span>
-                  <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-emerald-300">
-                    total: ${countStockEntries(stockPayloadPreview)}
-                  </span>
+                  </div>
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Clientes</div>
+                    <div style=${{ overflowX: "auto" }}>
+                      <table className="table">
+                        <thead><tr><th>ID</th><th>Produto</th><th>Data</th></tr></thead>
+                        <tbody>
+                          ${data.customers.slice(0, 20).map(c => html`
+                            <tr key=${c.userId || c.id}>
+                              <td style=${{ fontFamily: "monospace", fontSize: "11px" }}>${c.userId || c.discordUserId || c.id || "-"}</td>
+                              <td style=${{ fontSize: "12px" }}>${c.productId || "-"}</td>
+                              <td style=${{ fontSize: "11px", color: "var(--muted)" }}>${c.purchasedAt ? new Date(c.purchasedAt).toLocaleDateString("pt-BR") : "-"}</td>
+                            </tr>
+                          `)}
+                          ${data.customers.length === 0 ? html`<tr><td colSpan="3" style=${{ textAlign: "center", color: "var(--muted)", padding: "16px" }}>Nenhum cliente.</td></tr>` : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid gap-2 md:grid-cols-2">
-                  ${stockCoverage.length
-                    ? stockCoverage.map((item) => html`
-                        <div
-                          key=${item.variantId}
-                          className=${`rounded-xl border px-3 py-2 text-xs ${
-                            item.covered
-                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                              : "border-rose-500/40 bg-rose-500/10 text-rose-300"
-                          }`}
+              </div>
+            ` : null}
+
+            ${adminTab === "auditoria" ? html`
+              <div style=${{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style=${{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                  <input type="text" placeholder="Buscar eventos..." value=${timelineSearch} onInput=${e => setTimelineSearch(e.target.value)} style=${{ flex: 1, minWidth: "220px", padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "13px", outline: "none" }} />
+                  <select value=${timelineSeverity} onChange=${e => setTimelineSeverity(e.target.value)} style=${{ padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.55)", color: "var(--ink)", fontSize: "13px", outline: "none" }}>
+                    <option value="all">Todas severidades</option>
+                    <option value="critical">Critica</option>
+                    <option value="high">Alta</option>
+                    <option value="medium">Media</option>
+                    <option value="info">Info</option>
+                  </select>
+                  <${Button} variant="ghost" onClick=${loadAll}>Atualizar</${Button}>
+                </div>
+                <div className="card" style=${{ padding: "18px" }}>
+                  <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "14px" }}>Eventos (${filteredTimelineEvents.length})</div>
+                  <div style=${{ overflowX: "auto" }}>
+                    <table className="table" style=${{ minWidth: "600px" }}>
+                      <thead><tr><th>Hora</th><th>Tipo</th><th>Origem</th><th>Resumo</th><th>Severidade</th></tr></thead>
+                      <tbody>
+                        ${filteredTimelineEvents.slice(0, 60).map((event, i) => html`
+                          <tr key=${i}>
+                            <td style=${{ fontFamily: "monospace", fontSize: "11px", whiteSpace: "nowrap" }}>${event.ts ? new Date(event.ts).toLocaleTimeString("pt-BR") : "-"}</td>
+                            <td style=${{ fontSize: "12px" }}>${event.type || "-"}</td>
+                            <td style=${{ fontSize: "12px" }}>${event.source || "-"}</td>
+                            <td style=${{ fontSize: "12px", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>${event.summary || "-"}</td>
+                            <td><span className=${`badge ${event.severity === "critical" || event.severity === "high" ? "danger" : event.severity === "medium" ? "warn" : "muted"}`}>${event.severity || "info"}</span></td>
+                          </tr>
+                        `)}
+                        ${filteredTimelineEvents.length === 0 ? html`<tr><td colSpan="5" style=${{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>Nenhum evento encontrado.</td></tr>` : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                ${(timeline?.rawLogs?.out || []).length > 0 ? html`
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "10px" }}>Log stdout (recente)</div>
+                    <pre style=${{ fontSize: "11px", color: "rgba(200,240,200,0.85)", background: "rgba(0,0,0,0.4)", borderRadius: "8px", padding: "12px", overflowX: "auto", maxHeight: "220px", overflowY: "auto", margin: 0, lineHeight: 1.5 }}>${(timeline.rawLogs.out || []).join("\n")}</pre>
+                  </div>
+                ` : null}
+                ${(timeline?.rawLogs?.err || []).length > 0 ? html`
+                  <div className="card" style=${{ padding: "18px" }}>
+                    <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)", marginBottom: "10px" }}>Log stderr (recente)</div>
+                    <pre style=${{ fontSize: "11px", color: "rgba(255,200,180,0.85)", background: "rgba(0,0,0,0.4)", borderRadius: "8px", padding: "12px", overflowX: "auto", maxHeight: "220px", overflowY: "auto", margin: 0, lineHeight: 1.5 }}>${(timeline.rawLogs.err || []).join("\n")}</pre>
+                  </div>
+                ` : null}
+              </div>
+            ` : null}
+
+            ${adminTab === "produtos" && !monitoringOnly ? html`
+              <div style=${{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
+                <div style=${{ width: "260px", flexShrink: 0 }}>
+                  <div className="card" style=${{ padding: "14px", position: "sticky", top: "80px" }}>
+                    <div style=${{ display: "flex", gap: "5px", marginBottom: "10px" }}>
+                      <input type="text" placeholder="Filtrar produto..." value=${productQuery} onInput=${e => setProductQuery(e.target.value)} style=${{ flex: 1, padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none" }} />
+                    </div>
+                    <div style=${{ display: "flex", gap: "5px", marginBottom: "12px" }}>
+                      <${Button} variant="primary" onClick=${handleNewProduct} style=${{ flex: 1 }}>+ Novo</${Button}>
+                      ${selectedId ? html`<${Button} variant="ghost" onClick=${handleDuplicateProduct}>Dup</${Button}>` : null}
+                      ${selectedId ? html`<${Button} variant="danger" onClick=${handleDeleteProduct}>Del</${Button}>` : null}
+                    </div>
+                    <div style=${{ display: "flex", flexDirection: "column", gap: "3px", maxHeight: "420px", overflowY: "auto" }}>
+                      ${filteredProducts.map(product => html`
+                        <button
+                          key=${product.id}
+                          type="button"
+                          onClick=${() => setSelectedId(product.id)}
+                          style=${{
+                            padding: "8px 10px", borderRadius: "8px", border: "1px solid",
+                            borderColor: selectedId === product.id ? "rgba(230,33,42,0.5)" : "transparent",
+                            background: selectedId === product.id ? "rgba(230,33,42,0.12)" : "rgba(255,255,255,0.03)",
+                            color: "var(--ink)", textAlign: "left", cursor: "pointer", fontSize: "12px"
+                          }}
                         >
-                          ${item.variantId}: proprio ${item.ownCount} | fallback ${item.fallbackCount} | disponivel ${item.available}
+                          <div style=${{ fontWeight: 600 }}>${product.name || product.id}</div>
+                          <div style=${{ fontSize: "10px", color: "var(--muted)", fontFamily: "monospace" }}>${product.id}</div>
+                        </button>
+                      `)}
+                      ${filteredProducts.length === 0 ? html`<p style=${{ fontSize: "12px", color: "var(--muted)", textAlign: "center", padding: "16px 0" }}>Nenhum produto.</p>` : null}
+                    </div>
+                  </div>
+                </div>
+                <div style=${{ flex: 1, minWidth: 0 }}>
+                  ${!selectedId ? html`
+                    <div className="card" style=${{ padding: "40px 24px", textAlign: "center" }}>
+                      <div style=${{ fontSize: "32px", marginBottom: "10px" }}>📦</div>
+                      <div style=${{ fontSize: "15px", fontWeight: 600, marginBottom: "6px" }}>Selecione um produto</div>
+                      <div style=${{ fontSize: "13px", color: "var(--muted)" }}>Escolha um produto na lista ao lado ou crie um novo.</div>
+                    </div>
+                  ` : html`
+                    <div style=${{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <div style=${{ display: "flex", flexWrap: "wrap", gap: "5px", alignItems: "center" }}>
+                        ${["info","mensagens","estoque","midia","publicar"].map(tab => html`
+                          <button
+                            key=${tab}
+                            type="button"
+                            onClick=${() => setProductSubTab(tab)}
+                            style=${{
+                              padding: "7px 16px", borderRadius: "999px", border: "1px solid",
+                              borderColor: productSubTab === tab ? "rgba(230,33,42,0.55)" : "rgba(255,255,255,0.1)",
+                              background: productSubTab === tab ? "rgba(230,33,42,0.18)" : "rgba(255,255,255,0.04)",
+                              color: productSubTab === tab ? "rgba(255,228,230,0.98)" : "var(--ink)",
+                              fontSize: "12px", fontWeight: 700, cursor: "pointer", transition: "all 0.16s", whiteSpace: "nowrap", textTransform: "capitalize"
+                            }}
+                          >${tab}</button>
+                        `)}
+                        <${Button} variant="primary" onClick=${handleSaveProduct} style=${{ marginLeft: "auto" }}>Salvar produto</${Button}>
+                      </div>
+
+                      ${productSubTab === "info" ? html`
+                        <div className="card" style=${{ padding: "18px", display: "flex", flexDirection: "column", gap: "14px" }}>
+                          <div className="field">
+                            <label>Nome do produto</label>
+                            <input type="text" value=${productForm.name} onInput=${e => updateProductField("name", e.target.value)} />
+                          </div>
+                          <div className="field">
+                            <label>Label curto (ex: "Bot Premium")</label>
+                            <input type="text" value=${productForm.shortLabel} onInput=${e => updateProductField("shortLabel", e.target.value)} />
+                          </div>
+                          <div className="field">
+                            <label>Descricao (embed do Discord)</label>
+                            <textarea rows="4" value=${productForm.description} onInput=${e => updateProductField("description", e.target.value)}></textarea>
+                          </div>
+                          <div className="field">
+                            <label>Instrucoes PIX (embed)</label>
+                            <textarea rows="3" value=${productForm.pixInstructions} onInput=${e => updateProductField("pixInstructions", e.target.value)}></textarea>
+                          </div>
+                          <div className="field">
+                            <label>URL demo (botao no embed)</label>
+                            <input type="text" value=${productForm.demoUrl} onInput=${e => updateProductField("demoUrl", e.target.value)} />
+                          </div>
+                          <div>
+                            <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                              <span style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Secoes do embed</span>
+                              <${Button} variant="ghost" onClick=${addSection}>+ Secao</${Button}>
+                            </div>
+                            ${sectionsForm.map((section, i) => html`
+                              <div key=${i} style=${{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px" }}>
+                                <input type="text" placeholder="Nome" value=${section.name} onInput=${e => updateSectionField(i, "name", e.target.value)} style=${{ flex: 1, padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none" }} />
+                                <input type="text" placeholder="Valor" value=${section.value} onInput=${e => updateSectionField(i, "value", e.target.value)} style=${{ flex: 2, padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none" }} />
+                                <label className="checkbox"><input type="checkbox" checked=${section.inline} onChange=${e => updateSectionField(i, "inline", e.target.checked)} /> inline</label>
+                                <${Button} variant="danger" onClick=${() => removeSection(i)}>✕</${Button}>
+                              </div>
+                            `)}
+                          </div>
+                          <div>
+                            <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                              <span style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Variacoes</span>
+                              <${Button} variant="ghost" onClick=${addVariant}>+ Variacao</${Button}>
+                            </div>
+                            ${variantsForm.map((variant, i) => html`
+                              <div key=${i} style=${{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px", padding: "10px", background: "rgba(255,255,255,0.03)", borderRadius: "8px" }}>
+                                <input type="text" placeholder="ID (ex: mensal)" value=${variant.id} onInput=${e => updateVariantField(i, "id", e.target.value)} style=${{ width: "110px", padding: "5px 8px", borderRadius: "7px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none" }} />
+                                <input type="text" placeholder="Label" value=${variant.label} onInput=${e => updateVariantField(i, "label", e.target.value)} style=${{ width: "110px", padding: "5px 8px", borderRadius: "7px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none" }} />
+                                <input type="text" placeholder="Emoji" value=${variant.emoji} onInput=${e => updateVariantField(i, "emoji", e.target.value)} style=${{ width: "60px", padding: "5px 8px", borderRadius: "7px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none" }} />
+                                <input type="text" placeholder="Duracao" value=${variant.duration} onInput=${e => updateVariantField(i, "duration", e.target.value)} style=${{ width: "90px", padding: "5px 8px", borderRadius: "7px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none" }} />
+                                <input type="text" placeholder="Preco (R$)" value=${variant.price} onInput=${e => updateVariantField(i, "price", e.target.value)} style=${{ width: "80px", padding: "5px 8px", borderRadius: "7px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "12px", outline: "none" }} />
+                                <${Button} variant="danger" onClick=${() => removeVariant(i)}>✕</${Button}>
+                              </div>
+                            `)}
+                          </div>
                         </div>
-                      `)
-                    : html`<div className="text-xs text-slate-500">Configure variacoes para calcular cobertura.</div>`}
-                </div>
-                ${stockDuplicateKeys.length
-                  ? html`<div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300">
-                      Key duplicada detectada: ${stockDuplicateKeys[0].key} (${stockDuplicateKeys[0].firstBucket} e ${stockDuplicateKeys[0].duplicateBucket}).
-                    </div>`
-                  : null}
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                ${stockEntries.map(
-                  ([key, value]) => html`
-                    <div>
-                      <label className="text-xs font-semibold uppercase text-slate-400">${key}</label>
-                      <textarea
-                        rows="5"
-                        value=${value}
-                        onInput=${(event) => setStockForm((prev) => ({ ...prev, [key]: event.target.value }))}
-                        className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                      ></textarea>
+                      ` : null}
+
+                      ${productSubTab === "mensagens" ? html`
+                        <div className="card" style=${{ padding: "18px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                          <div style=${{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", background: "rgba(255,255,255,0.04)", borderRadius: "10px" }}>
+                            <span style=${{ fontSize: "11px", color: "var(--muted)", width: "100%", marginBottom: "4px" }}>Placeholders — clique para inserir no campo ativo:</span>
+                            ${DM_PLACEHOLDERS.map(token => html`
+                              <button key=${token} type="button" onClick=${() => insertPlaceholder(token)} style=${{ padding: "3px 8px", fontSize: "11px", borderRadius: "6px", border: "1px solid var(--stroke)", background: "rgba(255,255,255,0.06)", color: "var(--ink)", cursor: "pointer" }}>${"{{" + token + "}}"}</button>
+                            `)}
+                          </div>
+                          ${dmTemplateWarnings.length > 0 ? html`
+                            <div style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              ${dmTemplateWarnings.map((w, i) => html`<div key=${i} style=${{ fontSize: "12px", color: "#ff9060", background: "rgba(255,100,0,0.1)", borderRadius: "7px", padding: "7px 10px" }}>${w}</div>`)}
+                            </div>
+                          ` : null}
+                          <div className="field">
+                            <label>Titulo da DM de entrega</label>
+                            <input type="text" value=${productForm.deliveryDmTitle} onInput=${e => updateProductField("deliveryDmTitle", e.target.value)} onFocus=${() => setActiveDmField("deliveryDmTitle")} />
+                          </div>
+                          <div className="field">
+                            <label>Mensagem padrao</label>
+                            <textarea rows="4" value=${productForm.deliveryDmMessage} onInput=${e => updateProductField("deliveryDmMessage", e.target.value)} onFocus=${() => setActiveDmField("deliveryDmMessage")} style=${{ fontFamily: "monospace" }}></textarea>
+                          </div>
+                          <div className="field">
+                            <label>Mensagem PIX (confirmacao automatica)</label>
+                            <textarea rows="4" value=${productForm.deliveryDmMessagePix} onInput=${e => updateProductField("deliveryDmMessagePix", e.target.value)} onFocus=${() => setActiveDmField("deliveryDmMessagePix")} style=${{ fontFamily: "monospace" }}></textarea>
+                          </div>
+                          <div className="field">
+                            <label>Mensagem Admin (confirmacao manual)</label>
+                            <textarea rows="4" value=${productForm.deliveryDmMessageAdmin} onInput=${e => updateProductField("deliveryDmMessageAdmin", e.target.value)} onFocus=${() => setActiveDmField("deliveryDmMessageAdmin")} style=${{ fontFamily: "monospace" }}></textarea>
+                          </div>
+                          <div className="card" style=${{ padding: "14px", background: "rgba(255,255,255,0.03)" }}>
+                            <div style=${{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                              <span style=${{ fontSize: "12px", fontWeight: 700, color: "var(--muted)" }}>Preview DM:</span>
+                              <select value=${dmPreviewSource} onChange=${e => setDmPreviewSource(e.target.value)} style=${{ padding: "4px 8px", borderRadius: "7px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.55)", color: "var(--ink)", fontSize: "12px", outline: "none" }}>
+                                <option value="pix">PIX</option>
+                                <option value="admin">Admin</option>
+                                <option value="default">Padrao</option>
+                              </select>
+                            </div>
+                            <pre style=${{ fontSize: "12px", color: "rgba(220,240,220,0.9)", background: "rgba(0,0,0,0.4)", borderRadius: "8px", padding: "10px", overflowX: "auto", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>${dmPreview}</pre>
+                          </div>
+                        </div>
+                      ` : null}
+
+                      ${productSubTab === "estoque" ? html`
+                        <div className="card" style=${{ padding: "18px", display: "flex", flexDirection: "column", gap: "14px" }}>
+                          <div style=${{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                            <span style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Estoque — ${selectedId}</span>
+                            ${stockDuplicateKeys.length > 0 ? html`<span className="badge danger">Keys duplicadas!</span>` : null}
+                            <${Button} variant="primary" onClick=${handleSaveStock} style=${{ marginLeft: "auto" }}>Salvar estoque</${Button}>
+                          </div>
+                          ${stockCoverage.length > 0 ? html`
+                            <div style=${{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                              ${stockCoverage.map(entry => html`
+                                <span key=${entry.variantId} className=${`badge ${entry.covered ? "ok" : "danger"}`}>${entry.variantId}: ${entry.count} keys</span>
+                              `)}
+                            </div>
+                          ` : null}
+                          ${stockEntries.map(entry => html`
+                            <div key=${entry.bucket} style=${{ background: "rgba(255,255,255,0.03)", borderRadius: "10px", padding: "12px" }}>
+                              <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <span style=${{ fontSize: "12px", fontWeight: 700, fontFamily: "monospace" }}>${entry.bucket}</span>
+                                <span className="badge muted">${(stockForm[entry.bucket] || "").split("\n").filter(k => k.trim()).length} keys</span>
+                              </div>
+                              <textarea
+                                rows="5"
+                                value=${stockForm[entry.bucket] || ""}
+                                onInput=${e => setStockForm(prev => ({ ...prev, [entry.bucket]: e.target.value }))}
+                                placeholder="Uma key por linha..."
+                                style=${{ fontFamily: "monospace", fontSize: "11px", width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.3)", color: "var(--ink)", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                              ></textarea>
+                            </div>
+                          `)}
+                          ${stockEntries.length === 0 ? html`<p style=${{ fontSize: "13px", color: "var(--muted)" }}>Configure variacoes primeiro (aba Info) e salve.</p>` : null}
+                        </div>
+                      ` : null}
+
+                      ${productSubTab === "midia" ? html`
+                        <div className="card" style=${{ padding: "18px", display: "flex", flexDirection: "column", gap: "14px" }}>
+                          <div className="field">
+                            <label>Banner (imagem grande no topo do embed)</label>
+                            <input type="text" value=${productForm.bannerImage} onInput=${e => updateProductField("bannerImage", e.target.value)} placeholder="https://..." />
+                            ${productForm.bannerImage ? html`<img src=${productForm.bannerImage} alt="banner" style=${{ marginTop: "8px", maxHeight: "120px", borderRadius: "8px", objectFit: "cover", maxWidth: "100%" }} />` : null}
+                          </div>
+                          <div className="field">
+                            <label>Preview (imagem media)</label>
+                            <input type="text" value=${productForm.previewImage} onInput=${e => updateProductField("previewImage", e.target.value)} placeholder="https://..." />
+                          </div>
+                          <div className="field">
+                            <label>Thumbnail (icone pequeno no embed)</label>
+                            <input type="text" value=${productForm.thumbnail} onInput=${e => updateProductField("thumbnail", e.target.value)} placeholder="https://..." />
+                            ${productForm.thumbnail ? html`<img src=${productForm.thumbnail} alt="thumbnail" style=${{ marginTop: "8px", maxHeight: "60px", borderRadius: "6px" }} />` : null}
+                          </div>
+                          <div className="field">
+                            <label>Footer (imagem no rodape do embed)</label>
+                            <input type="text" value=${productForm.footerImage} onInput=${e => updateProductField("footerImage", e.target.value)} placeholder="https://..." />
+                          </div>
+                          <div className="field">
+                            <label>GIF pre-post (enviado antes do embed principal)</label>
+                            <input type="text" value=${productForm.prePostGif} onInput=${e => updateProductField("prePostGif", e.target.value)} placeholder="https://..." />
+                          </div>
+                          <div className="field">
+                            <label>GIFs de carousel (uma URL por linha)</label>
+                            <textarea rows="5" value=${gifImages} onInput=${e => setGifImages(e.target.value)} placeholder="https://exemplo.com/gif1.gif&#10;https://exemplo.com/gif2.gif" style=${{ fontFamily: "monospace" }}></textarea>
+                          </div>
+                          <label className="checkbox" style=${{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}><input type="checkbox" checked=${productForm.disableThumbnail} onChange=${e => updateProductField("disableThumbnail", e.target.checked)} /> Desabilitar thumbnail no embed</label>
+                        </div>
+                      ` : null}
+
+                      ${productSubTab === "publicar" ? html`
+                        <div style=${{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                          <div className="card" style=${{ padding: "18px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                            <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Postar produto no Discord</div>
+                            <div className="field">
+                              <label>Channel ID</label>
+                              <input type="text" value=${actionChannelId} onInput=${e => setActionChannelId(e.target.value)} placeholder="ID do canal Discord..." />
+                            </div>
+                            <label className="checkbox" style=${{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}><input type="checkbox" checked=${actionPurge} onChange=${e => setActionPurge(e.target.checked)} /> Apagar mensagens antigas antes de postar (purge)</label>
+                            <${Button} variant="primary" onClick=${handlePostProduct}>Postar no Discord</${Button}>
+                          </div>
+                          <div className="card" style=${{ padding: "18px" }}>
+                            <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                              <span style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Posts publicados</span>
+                              <div style=${{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                ${postsHealth.summary ? html`
+                                  <span className=${`badge ${postsHealth.summary.healthy < postsHealth.summary.total ? "warn" : "ok"}`}>${postsHealth.summary.healthy}/${postsHealth.summary.total} ok</span>
+                                ` : null}
+                                <${Button} variant="ghost" onClick=${handleCheckPostsHealth}>Verificar saude</${Button}>
+                              </div>
+                            </div>
+                            <div style=${{ overflowX: "auto" }}>
+                              <table className="table">
+                                <thead><tr><th>Produto</th><th>Canal</th><th>Mensagem</th><th>Saude</th><th>Acao</th></tr></thead>
+                                <tbody>
+                                  ${data.posts.filter(p => p.productId === selectedId).map(post => html`
+                                    <tr key=${post.messageId || post.id}>
+                                      <td style=${{ fontSize: "12px" }}>${post.productId}</td>
+                                      <td style=${{ fontFamily: "monospace", fontSize: "11px" }}>${post.channelId || "-"}</td>
+                                      <td style=${{ fontFamily: "monospace", fontSize: "11px" }}>${post.messageId || "-"}</td>
+                                      <td>
+                                        ${postsHealth.byMessageId[post.messageId]
+                                          ? html`<span className=${`badge ${postsHealth.byMessageId[post.messageId].ok ? "ok" : "danger"}`}>${postsHealth.byMessageId[post.messageId].ok ? "ok" : "falhou"}</span>`
+                                          : html`<span className="badge muted">-</span>`}
+                                      </td>
+                                      <td><${Button} variant="ghost" onClick=${() => handleRepostFromPanel(post)}>Repostar</${Button}></td>
+                                    </tr>
+                                  `)}
+                                  ${data.posts.filter(p => p.productId === selectedId).length === 0
+                                    ? html`<tr><td colSpan="5" style=${{ textAlign: "center", color: "var(--muted)", padding: "20px" }}>Nenhum post para este produto.</td></tr>`
+                                    : null}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      ` : null}
                     </div>
-                  `
-                )}
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="actions-panel"
-              title="Acoes"
-              subtitle="Poste o produto em um canal do Discord (requer variacoes e estoque)."
-              actions=${html`<${Button} variant="primary" onClick=${handlePostProduct}>Postar produto</${Button}>`}
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">Channel ID</label>
-                  <input
-                    value=${actionChannelId}
-                    onInput=${(event) => setActionChannelId(event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                  />
+                  `}
                 </div>
-                <label className="flex items-center gap-2 text-sm text-slate-500">
-                  <input
-                    type="checkbox"
-                    checked=${actionPurge}
-                    onChange=${(event) => setActionPurge(event.target.checked)}
-                  />
-                  Limpar canal antes de postar
-                </label>
               </div>
-            </${Card}>`}
+            ` : null}
 
-            ${html`<${Card}
-              id="config-panel"
-              title="Configuracao"
-              subtitle="Campos gerais usados pelo bot."
-              actions=${html`<${Button} variant="primary" onClick=${handleSaveConfig}>Salvar configuracao</${Button}>`}
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                ${[
-                  { label: "Staff role ID", field: "staffRoleId" },
-                  { label: "Admin user IDs (comma)", field: "adminUserIds" },
-                  { label: "Cart category ID", field: "cartCategoryId" },
-                  { label: "Tracker channel ID", field: "trackerChannelId" },
-                  { label: "Staff log channel ID", field: "staffLogChannelId" },
-                  { label: "Post channel ID", field: "postChannelId" },
-                  { label: "System banner", field: "systemBanner" },
-                  { label: "Pix instructions", field: "pixInstructions" },
-                  { label: "Payment check interval (ms)", field: "paymentCheckIntervalMs" },
-                  { label: "Max attachment bytes", field: "maxAttachmentBytes" }
-                ].map(
-                  (item) => html`
-                    <div>
-                      <label className="text-xs font-semibold uppercase text-slate-400">${item.label}</label>
-                      <input
-                        value=${configForm[item.field] || ""}
-                        onInput=${(event) => setConfigForm((prev) => ({ ...prev, [item.field]: event.target.value }))}
-                        className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                      />
+            ${adminTab === "config" && !monitoringOnly ? html`
+              <div style=${{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="card" style=${{ padding: "18px", display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)" }}>Configuracoes do bot</span>
+                    <${Button} variant="primary" onClick=${handleSaveConfig}>Salvar</${Button}>
+                  </div>
+                  <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                    <div className="field">
+                      <label>Staff Role ID</label>
+                      <input type="text" value=${configForm.staffRoleId} onInput=${e => setConfigForm(prev => ({ ...prev, staffRoleId: e.target.value }))} />
                     </div>
-                  `
-                )}
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="coupons-panel"
-              title="Cupons"
-              subtitle="Crie, ative ou remova cupons rapidamente."
-              actions=${html`<${Button} variant="ghost" onClick=${loadAll}>Recarregar</${Button}>`}
-            >
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">Codigo</label>
-                  <input
-                    value=${configForm.couponCode || ""}
-                    onInput=${(event) => setConfigForm((prev) => ({ ...prev, couponCode: event.target.value }))}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                  />
+                    <div className="field">
+                      <label>Admin User IDs (virgula)</label>
+                      <input type="text" value=${configForm.adminUserIds} onInput=${e => setConfigForm(prev => ({ ...prev, adminUserIds: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Cart Category ID</label>
+                      <input type="text" value=${configForm.cartCategoryId} onInput=${e => setConfigForm(prev => ({ ...prev, cartCategoryId: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Tracker Channel ID</label>
+                      <input type="text" value=${configForm.trackerChannelId} onInput=${e => setConfigForm(prev => ({ ...prev, trackerChannelId: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Staff Log Channel ID</label>
+                      <input type="text" value=${configForm.staffLogChannelId} onInput=${e => setConfigForm(prev => ({ ...prev, staffLogChannelId: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Post Channel ID (padrao)</label>
+                      <input type="text" value=${configForm.postChannelId} onInput=${e => setConfigForm(prev => ({ ...prev, postChannelId: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Intervalo checagem pag. (ms)</label>
+                      <input type="number" value=${configForm.paymentCheckIntervalMs} onInput=${e => setConfigForm(prev => ({ ...prev, paymentCheckIntervalMs: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Max attachment (bytes)</label>
+                      <input type="number" value=${configForm.maxAttachmentBytes} onInput=${e => setConfigForm(prev => ({ ...prev, maxAttachmentBytes: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Banner do sistema (mensagem global)</label>
+                    <textarea rows="2" value=${configForm.systemBanner} onInput=${e => setConfigForm(prev => ({ ...prev, systemBanner: e.target.value }))}></textarea>
+                  </div>
+                  <div className="field">
+                    <label>Instrucoes PIX (padrao global)</label>
+                    <textarea rows="3" value=${configForm.pixInstructions} onInput=${e => setConfigForm(prev => ({ ...prev, pixInstructions: e.target.value }))}></textarea>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-400">Percentual</label>
-                  <input
-                    type="number"
-                    step="1"
-                    value=${configForm.couponPercent || ""}
-                    onInput=${(event) => setConfigForm((prev) => ({ ...prev, couponPercent: event.target.value }))}
-                    className="mt-2 w-full rounded-2xl border border-[var(--stroke)] bg-white px-4 py-2 text-sm"
-                  />
+                <div className="card" style=${{ padding: "18px", display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <div style=${{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)" }}>Cupons de desconto</div>
+                  <div style=${{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                    <input type="text" placeholder="CODIGO" value=${configForm.couponCode} onInput=${e => setConfigForm(prev => ({ ...prev, couponCode: e.target.value }))} style=${{ width: "120px", padding: "7px 10px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "13px", outline: "none" }} />
+                    <input type="number" placeholder="% desconto" value=${configForm.couponPercent} onInput=${e => setConfigForm(prev => ({ ...prev, couponPercent: e.target.value }))} style=${{ width: "110px", padding: "7px 10px", borderRadius: "8px", border: "1px solid var(--stroke)", background: "rgba(0,0,0,0.22)", color: "var(--ink)", fontSize: "13px", outline: "none" }} />
+                    <label className="checkbox" style=${{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}><input type="checkbox" checked=${configForm.couponActive} onChange=${e => setConfigForm(prev => ({ ...prev, couponActive: e.target.checked }))} /> Ativo</label>
+                    <${Button} variant="primary" onClick=${handleCreateCoupon}>Criar cupom</${Button}>
+                  </div>
+                  <div style=${{ overflowX: "auto" }}>
+                    <table className="table">
+                      <thead><tr><th>Codigo</th><th>Desconto</th><th>Status</th><th>Acao</th></tr></thead>
+                      <tbody>
+                        ${data.coupons.map(coupon => html`
+                          <tr key=${coupon.code}>
+                            <td style=${{ fontWeight: 700, fontFamily: "monospace" }}>${coupon.code}</td>
+                            <td>${coupon.percent}%</td>
+                            <td><span className=${`badge ${coupon.active ? "ok" : "muted"}`}>${coupon.active ? "ativo" : "inativo"}</span></td>
+                            <td style=${{ display: "flex", gap: "4px" }}>
+                              <${Button} variant="ghost" onClick=${() => handleToggleCoupon(coupon.code)}>${coupon.active ? "Desativar" : "Ativar"}</${Button}>
+                              <${Button} variant="danger" onClick=${() => handleDeleteCoupon(coupon.code)}>Excluir</${Button}>
+                            </td>
+                          </tr>
+                        `)}
+                        ${data.coupons.length === 0 ? html`<tr><td colSpan="4" style=${{ textAlign: "center", color: "var(--muted)", padding: "20px" }}>Nenhum cupom cadastrado.</td></tr>` : null}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <label className="flex items-center gap-2 text-sm text-slate-500">
-                  <input
-                    type="checkbox"
-                    checked=${configForm.couponActive !== false}
-                    onChange=${(event) => setConfigForm((prev) => ({ ...prev, couponActive: event.target.checked }))}
-                  />
-                  Ativo
-                </label>
               </div>
-              <div className="flex justify-start">
-                ${html`<${Button} variant="primary" onClick=${handleCreateCoupon}>Criar cupom</${Button}>`}
-              </div>
-              <div className="overflow-x-auto rounded-2xl border border-[var(--stroke)]">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[#f4efe6] text-left text-xs uppercase tracking-[0.2em] text-slate-400">
-                    <tr>
-                      <th className="px-4 py-3">Codigo</th>
-                      <th className="px-4 py-3">Percentual</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Criado em</th>
-                      <th className="px-4 py-3">Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${data.coupons.length
-                      ? data.coupons.map(
-                          (coupon) => html`
-                            <tr className="border-t border-[var(--stroke)]">
-                              <td className="px-4 py-3 font-semibold">${coupon.code}</td>
-                              <td className="px-4 py-3">${coupon.percent}%</td>
-                              <td className="px-4 py-3">${html`<${Badge} status=${coupon.active === false ? "inactive" : "active"} />`}</td>
-                              <td className="px-4 py-3">${formatDate(coupon.createdAt)}</td>
-                              <td className="px-4 py-3">
-                                ${html`<${Button} variant="ghost" onClick=${() => handleToggleCoupon(coupon.code)}>
-                                  ${coupon.active === false ? "Ativar" : "Desativar"}
-                                </${Button}>`}
-                                ${html`<${Button} variant="danger" onClick=${() => handleDeleteCoupon(coupon.code)}>
-                                  Excluir
-                                </${Button}>`}
-                              </td>
-                            </tr>
-                          `
-                        )
-                      : html`
-                          <tr>
-                            <td className="px-4 py-6 text-center text-slate-500" colSpan="5">
-                              Nenhum cupom cadastrado.
-                            </td>
-                          </tr>
-                        `}
-                  </tbody>
-                </table>
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="orders-panel"
-              title="Pedidos"
-              subtitle="Acompanhe pagamentos, entregas, confirmacoes e re-sincronize."
-              actions=${html`<${Button} variant="ghost" onClick=${loadAll}>Recarregar</${Button}>
-                <${Button} variant="ghost" onClick=${handleRetryWaitingStock}>Retry waiting_stock</${Button}>`}
-            >
-              <div className="flex flex-wrap gap-3">
-                <select
-                  value=${ordersFilter}
-                  onChange=${(event) => setOrdersFilter(event.target.value)}
-                  className="rounded-full border border-[var(--stroke)] bg-white/70 px-4 py-2 text-sm"
-                >
-                  <option value="all">Todos</option>
-                  <option value="pending">Pendentes</option>
-                  <option value="waiting_stock">Aguardando estoque</option>
-                  <option value="delivered">Entregues</option>
-                  <option value="failed">Falhados</option>
-                </select>
-                <select
-                  value=${ordersSourceFilter}
-                  onChange=${(event) => setOrdersSourceFilter(event.target.value)}
-                  className="rounded-full border border-[var(--stroke)] bg-white/70 px-4 py-2 text-sm"
-                >
-                  <option value="all">Fonte: todas</option>
-                  <option value="pix">pix</option>
-                  <option value="admin_button">admin_button</option>
-                  <option value="admin_manual_delivery">admin_manual_delivery</option>
-                </select>
-                <input
-                  value=${ordersSearch}
-                  onInput=${(event) => setOrdersSearch(event.target.value)}
-                  placeholder="Buscar por user, payment, confirmador ou id"
-                  className="rounded-full border border-[var(--stroke)] bg-white/70 px-4 py-2 text-sm"
-                />
-              </div>
-              <div className="overflow-x-auto rounded-2xl border border-[var(--stroke)]">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[#f4efe6] text-left text-xs uppercase tracking-[0.2em] text-slate-400">
-                    <tr>
-                      <th className="px-4 py-3">ID</th>
-                      <th className="px-4 py-3">Usuario</th>
-                      <th className="px-4 py-3">Produto</th>
-                      <th className="px-4 py-3">Valor</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Payment</th>
-                      <th className="px-4 py-3">Data</th>
-                      <th className="px-4 py-3">Confirmacao</th>
-                      <th className="px-4 py-3">Historico</th>
-                      <th className="px-4 py-3">Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${filteredOrders.length
-                      ? filteredOrders.map(
-                          (order) => html`
-                            <tr className="border-t border-[var(--stroke)]">
-                              <td className="px-4 py-3 font-semibold">${shortId(order.id)}</td>
-                              <td className="px-4 py-3">${order.userId || "-"}</td>
-                              <td className="px-4 py-3">${order.productId || "-"} / ${order.variantId || "-"}</td>
-                              <td className="px-4 py-3">${formatCurrency(order.value)}</td>
-                              <td className="px-4 py-3">${html`<${Badge} status=${order.status} />`}</td>
-                              <td className="px-4 py-3">${order.paymentId ? shortId(order.paymentId) : "-"}</td>
-                              <td className="px-4 py-3">${formatDate(order.createdAt)}</td>
-                              <td className="px-4 py-3">
-                                <div className="space-y-1 text-xs">
-                                  <div>Fonte: ${formatSourceLabel(order.confirmedSource)}</div>
-                                  <div>Por: ${order.confirmedByUserId || order.manualConfirmedByUserId || "-"}</div>
-                                  <div>Em: ${formatDate(order.confirmedAt || order.manualConfirmedAt)}</div>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="max-w-[280px] space-y-1 text-xs text-slate-300">
-                                  ${(order.confirmations || []).length
-                                    ? (order.confirmations || [])
-                                        .slice(-3)
-                                        .reverse()
-                                        .map(
-                                          (entry) => html`
-                                            <div key=${entry.id || `${entry.source}-${entry.at}`}>
-                                              ${formatDate(entry.at)} | ${formatSourceLabel(entry.source)} | ${entry.byUserId || "-"}
-                                            </div>
-                                          `
-                                        )
-                                    : html`<span className="text-slate-500">Sem historico</span>`}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                ${html`<${Button} variant="ghost" onClick=${() => handleResyncOrder(order.id)}>
-                                  Resync
-                                </${Button}>`}
-                                ${order.status === "waiting_stock"
-                                  ? html`<${Button}
-                                      variant="ghost"
-                                      onClick=${() => handleManualDeliver(order.id)}
-                                    >
-                                      Entrega manual
-                                    </${Button}>`
-                                  : null}
-                              </td>
-                            </tr>
-                          `
-                        )
-                      : html`
-                          <tr>
-                            <td className="px-4 py-6 text-center text-slate-500" colSpan="10">
-                              Nenhum pedido encontrado.
-                            </td>
-                          </tr>
-                        `}
-                  </tbody>
-                </table>
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="carts-panel"
-              title="Carrinhos"
-              subtitle="Acompanhe carrinhos e cancele quando necessario."
-              actions=${html`<${Button} variant="ghost" onClick=${loadAll}>Recarregar</${Button}>`}
-            >
-              <div className="overflow-x-auto rounded-2xl border border-[var(--stroke)]">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[#f4efe6] text-left text-xs uppercase tracking-[0.2em] text-slate-400">
-                    <tr>
-                      <th className="px-4 py-3">ID</th>
-                      <th className="px-4 py-3">Usuario</th>
-                      <th className="px-4 py-3">Produto</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Canal</th>
-                      <th className="px-4 py-3">Data</th>
-                      <th className="px-4 py-3">Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${data.carts.length
-                      ? data.carts.map(
-                          (cart) => html`
-                            <tr className="border-t border-[var(--stroke)]">
-                              <td className="px-4 py-3 font-semibold">${shortId(cart.id)}</td>
-                              <td className="px-4 py-3">${cart.userId || "-"}</td>
-                              <td className="px-4 py-3">${cart.productId || "-"} / ${cart.variantId || "-"}</td>
-                              <td className="px-4 py-3">${html`<${Badge} status=${cart.status} />`}</td>
-                              <td className="px-4 py-3">${cart.channelId || "-"}</td>
-                              <td className="px-4 py-3">${formatDate(cart.createdAt || cart.updatedAt)}</td>
-                              <td className="px-4 py-3">
-                                ${(cart.status === "open" || cart.status === "pending")
-                                  ? html`<${Button} variant="ghost" onClick=${() => handleManualConfirmCart(cart.id)}>
-                                      Confirmar compra
-                                    </${Button}>
-                                    <${Button} variant="danger" onClick=${() => handleCancelCart(cart.id)}>
-                                      Cancelar
-                                    </${Button}>`
-                                  : null}
-                              </td>
-                            </tr>
-                          `
-                        )
-                      : html`
-                          <tr>
-                            <td className="px-4 py-6 text-center text-slate-500" colSpan="7">
-                              Nenhum carrinho registrado.
-                            </td>
-                          </tr>
-                        `}
-                  </tbody>
-                </table>
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="posts-panel"
-              title="Posts"
-              subtitle="Historico dos posts de produtos e monitoramento de mensagem."
-              actions=${html`<${Button} variant="ghost" onClick=${loadAll}>Recarregar</${Button}>
-                <${Button} variant="ghost" onClick=${handleCheckPostsHealth}>Checar saude</${Button}>`}
-            >
-              ${postsHealth.summary
-                ? html`<div className="flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-emerald-300">
-                      OK: ${postsHealth.summary.ok || 0}
-                    </span>
-                    <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-amber-300">
-                      Missing: ${postsHealth.summary.missing || 0}
-                    </span>
-                    <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-rose-300">
-                      Channel/fetch: ${(postsHealth.summary.channelMissing || 0) + (postsHealth.summary.fetchError || 0)}
-                    </span>
-                    <span className="text-slate-500">Ultima checagem: ${formatDate(postsHealth.checkedAt)}</span>
-                  </div>`
-                : null}
-              <div className="overflow-x-auto rounded-2xl border border-[var(--stroke)]">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[#f4efe6] text-left text-xs uppercase tracking-[0.2em] text-slate-400">
-                    <tr>
-                      <th className="px-4 py-3">Produto</th>
-                      <th className="px-4 py-3">Canal</th>
-                      <th className="px-4 py-3">Mensagem</th>
-                      <th className="px-4 py-3">Saude</th>
-                      <th className="px-4 py-3">Data</th>
-                      <th className="px-4 py-3">Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${data.posts.length
-                      ? data.posts.map(
-                          (post) => {
-                            const health = postsHealth.byMessageId?.[post.messageId];
-                            const status = health?.status || "nao checado";
-                            return html`
-                            <tr className="border-t border-[var(--stroke)]">
-                              <td className="px-4 py-3 font-semibold">${post.productId || "-"}</td>
-                              <td className="px-4 py-3">${post.channelId || "-"}</td>
-                              <td className="px-4 py-3">${post.messageId || "-"}</td>
-                              <td className="px-4 py-3">${status}</td>
-                              <td className="px-4 py-3">${formatDate(post.createdAt)}</td>
-                              <td className="px-4 py-3">
-                                <${Button} variant="ghost" onClick=${() => handleRepostFromPanel(post)}>
-                                  Repostar
-                                </${Button}>
-                              </td>
-                            </tr>
-                          `;
-                          }
-                        )
-                      : html`
-                          <tr>
-                            <td className="px-4 py-6 text-center text-slate-500" colSpan="6">
-                              Nenhum post registrado.
-                            </td>
-                          </tr>
-                        `}
-                  </tbody>
-                </table>
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="deliveries-panel"
-              title="Entregas"
-              subtitle="Keys entregues e status final."
-              actions=${html`<${Button} variant="ghost" onClick=${loadAll}>Recarregar</${Button}>`}
-            >
-              <div className="overflow-x-auto rounded-2xl border border-[var(--stroke)]">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[#f4efe6] text-left text-xs uppercase tracking-[0.2em] text-slate-400">
-                    <tr>
-                      <th className="px-4 py-3">Pedido</th>
-                      <th className="px-4 py-3">Usuario</th>
-                      <th className="px-4 py-3">Produto</th>
-                      <th className="px-4 py-3">Key</th>
-                      <th className="px-4 py-3">Data</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${data.deliveries.length
-                      ? data.deliveries.map((delivery) => {
-                          const key = delivery.key || "-";
-                          const masked = key.length > 10 ? `${key.slice(0, 4)}...${key.slice(-4)}` : key;
-                          return html`
-                            <tr className="border-t border-[var(--stroke)]">
-                              <td className="px-4 py-3 font-semibold">${shortId(delivery.orderId)}</td>
-                              <td className="px-4 py-3">${delivery.userId || "-"}</td>
-                              <td className="px-4 py-3">${delivery.productId || "-"} / ${delivery.variantId || "-"}</td>
-                              <td className="px-4 py-3">${masked}</td>
-                              <td className="px-4 py-3">${formatDate(delivery.deliveredAt)}</td>
-                            </tr>
-                          `;
-                        })
-                      : html`
-                          <tr>
-                            <td className="px-4 py-6 text-center text-slate-500" colSpan="5">
-                              Nenhuma entrega registrada.
-                            </td>
-                          </tr>
-                        `}
-                  </tbody>
-                </table>
-              </div>
-            </${Card}>`}
-
-            ${html`<${Card}
-              id="customers-panel"
-              title="Clientes"
-              subtitle="Registros vinculados ao Discord."
-              actions=${html`<${Button} variant="ghost" onClick=${loadAll}>Recarregar</${Button}>`}
-            >
-              <div className="overflow-x-auto rounded-2xl border border-[var(--stroke)]">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[#f4efe6] text-left text-xs uppercase tracking-[0.2em] text-slate-400">
-                    <tr>
-                      <th className="px-4 py-3">Usuario</th>
-                      <th className="px-4 py-3">Customer ID</th>
-                      <th className="px-4 py-3">Data</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${data.customers.length
-                      ? data.customers.map(
-                          (customer) => html`
-                            <tr className="border-t border-[var(--stroke)]">
-                              <td className="px-4 py-3 font-semibold">${customer.userId || "-"}</td>
-                              <td className="px-4 py-3">${customer.customerId || "-"}</td>
-                              <td className="px-4 py-3">${formatDate(customer.createdAt)}</td>
-                            </tr>
-                          `
-                        )
-                      : html`
-                          <tr>
-                            <td className="px-4 py-6 text-center text-slate-500" colSpan="3">
-                              Nenhum cliente registrado.
-                            </td>
-                          </tr>
-                        `}
-                  </tbody>
-                </table>
-              </div>
-            </${Card}>`}
+            ` : null}
           </main>
         </div>
-      </div>
 
-      ${toast
-        ? html`
-            <div
-              className=${`fixed bottom-6 right-6 rounded-2xl border px-4 py-3 text-sm shadow-lg ${
-                toast.type === "error"
-                  ? "border-rose-200 bg-rose-50 text-rose-700"
-                  : "border-slate-200 bg-white text-slate-700"
-              }`}
-            >
-              ${toast.message}
-            </div>
-          `
-        : null}
+      <div className=${`toast ${toast ? "show" : ""}`} data-type=${toast?.type === "error" ? "error" : "info"}>
+        ${toast?.message || ""}
+      </div>
     </div>
   `;
 }
 
-const root = createRoot(document.getElementById("root"));
-root.render(html`<${App} />`);
+console.log("[admin:app.js] About to render App component...");
+
+// Error boundary component
+function ErrorBoundary({ children }) {
+  const [hasError, setHasError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  if (hasError) {
+    return html`<div style=${{ color: "red", padding: "20px", background: "#1a0505" }}>
+      <h2>Erro no Admin Panel</h2>
+      <pre>${errorMsg}</pre>
+    </div>`;
+  }
+
+  return children;
+}
+
+try {
+  const rootEl = document.getElementById("root");
+  console.log("[admin:app.js] Root element found:", rootEl);
+  const root = createRoot(rootEl);
+  root.render(html`<${App} />`);
+  console.log("[admin:app.js] Render called successfully");
+} catch (err) {
+  console.error("[admin:app.js] Render error:", err);
+  document.getElementById("root").innerHTML = `<div style="color: red; padding: 20px; background: #1a0505;">
+    <h2>Erro no Admin Panel</h2>
+    <pre>${err.stack || err.message}</pre>
+  </div>`;
+}

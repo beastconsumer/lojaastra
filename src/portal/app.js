@@ -10,7 +10,60 @@ import {
   Link2,
   Plus,
   Rocket,
-  ShoppingBag
+  ShoppingBag,
+  Play,
+  Square,
+  RotateCcw,
+  Settings,
+  Trash2,
+  Edit3,
+  Package,
+  Send,
+  Save,
+  X,
+  RefreshCw,
+  Search,
+  Box,
+  Boxes,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Server,
+  Key,
+  Copy,
+  ExternalLink,
+  Sparkles,
+  Zap,
+  Shield,
+  Clock,
+  TrendingUp,
+  Wallet,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  UserPlus,
+  Mail,
+  Lock,
+  User,
+  LogOut,
+  Gift,
+  Store,
+  Banknote,
+  AlertTriangle,
+  Check,
+  Loader2,
+  Timer,
+  Bell,
+  BookOpen,
+  FileText,
+  ShieldCheck,
+  HelpCircle,
+  ChevronDown,
+  ArrowRight,
+  Info,
+  CircleDollarSign,
+  Receipt,
+  BadgeCheck
 } from "https://esm.sh/lucide-react@0.468.0?deps=react@18.2.0";
 
 const html = htm.bind(React.createElement);
@@ -27,6 +80,164 @@ function formatBRLFromCents(cents) {
   } catch {
     return `R$ ${value.toFixed(2)}`;
   }
+}
+
+function formatDateTime(value) {
+  const raw = asString(value).trim();
+  if (!raw) return "—";
+  const ts = Date.parse(raw);
+  if (!Number.isFinite(ts)) return raw;
+  try {
+    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(ts));
+  } catch {
+    return raw.slice(0, 19).replace("T", " ");
+  }
+}
+
+function humanizeCode(value) {
+  const raw = asString(value).trim().toLowerCase();
+  if (!raw) return "—";
+  const text = raw.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function maskSensitive(value, visibleStart = 3, visibleEnd = 3) {
+  const text = asString(value).trim();
+  if (!text) return "—";
+  const minLen = visibleStart + visibleEnd + 1;
+  if (text.length <= minLen) return text;
+  return `${text.slice(0, visibleStart)}...${text.slice(-visibleEnd)}`;
+}
+
+function getTransactionTypeMeta(type) {
+  const key = asString(type).trim().toLowerCase();
+  const labels = {
+    sale_credit: "Venda aprovada",
+    plan_purchase: "Assinatura",
+    trial_activated: "Trial ativado",
+    withdrawal_request: "Saque solicitado",
+    withdrawal_cancelled: "Saque cancelado",
+    withdrawal_completed: "Saque concluido"
+  };
+  return {
+    key,
+    label: labels[key] || humanizeCode(key)
+  };
+}
+
+function getTransactionStatusMeta(status) {
+  const key = asString(status).trim().toLowerCase();
+  if (key === "paid") return { key, label: "Pago", className: "active" };
+  if (key === "pending") return { key, label: "Pendente", className: "pending" };
+  if (key === "failed") return { key, label: "Falhou", className: "error" };
+  if (key === "cancelled") return { key, label: "Cancelado", className: "none" };
+  return { key, label: humanizeCode(key), className: "none" };
+}
+
+function getWithdrawalStatusMeta(status) {
+  const key = asString(status).trim().toLowerCase();
+  if (key === "requested") return { key, label: "Solicitado", className: "pending" };
+  if (key === "completed") return { key, label: "Concluido", className: "active" };
+  if (key === "cancelled") return { key, label: "Cancelado", className: "none" };
+  if (key === "rejected") return { key, label: "Rejeitado", className: "error" };
+  return { key, label: humanizeCode(key), className: "none" };
+}
+
+function formatRuntimeStatus(status) {
+  const key = asString(status).toLowerCase();
+  if (key === "online") return { label: "Online", className: "active" };
+  if (key === "offline") return { label: "Offline", className: "pending" };
+  if (key === "erro") return { label: "Erro", className: "error" };
+  if (key === "suspenso") return { label: "Suspenso", className: "none" };
+  if (key === "nao_configurado") return { label: "Sem token", className: "none" };
+  return { label: key ? key : "Configurando", className: "pending" };
+}
+
+function formatDockerIssue(code) {
+  const key = asString(code).toLowerCase();
+  if (key === "docker_unavailable") return "Docker indisponível no servidor.";
+  if (key === "docker_permission_denied") return "Sem permissão para acessar o Docker.";
+  if (key === "docker_image_missing") return "Imagem do bot não encontrada. Faça build da imagem da instância.";
+  if (key === "docker_disabled") return "Modo Docker desativado no servidor.";
+  if (key === "crash_exit_1" || key === "crash_repetido_exit_1") {
+    return "Falha ao iniciar o bot. Revise o token do bot e as intents no Discord Developer Portal.";
+  }
+  if (key === "crash_exit_78" || key === "crash_repetido_exit_78") {
+    return "Token válido, mas intent bloqueada. Ative Message Content Intent no Discord Developer Portal do bot.";
+  }
+  if (key === "crash_repetido_exit_0") {
+    return "O bot iniciou e encerrou em seguida. Revise token, permissões e conexão com Discord.";
+  }
+  if (key.startsWith("crash_exit_")) return `Bot encerrou ao iniciar (${key}).`;
+  if (key.startsWith("crash_repetido_exit_")) return `Bot entrou em loop de reinício (${key}).`;
+  if (!key) return "";
+  return `Falha no runtime: ${key}`;
+}
+
+function parseVariantPrice(value) {
+  const raw = asString(value).replace(",", ".").trim();
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : NaN;
+}
+
+function validateProductDraftClient(draft, options = {}) {
+  const { requireId = false, requireVariant = true } = options;
+  const issues = [];
+
+  const id = asString(draft?.id).trim();
+  const name = asString(draft?.name).trim();
+  if (requireId && !id) issues.push("Defina um ID para o produto.");
+  if (requireId && id && !/^[a-zA-Z0-9._-]+$/.test(id)) {
+    issues.push("ID inválido: use apenas letras, números, ponto, underline e hífen.");
+  }
+  if (!name) issues.push("Defina um nome para o produto.");
+
+  const variants = Array.isArray(draft?.variants) ? draft.variants : [];
+  const seen = new Set();
+  let validVariants = 0;
+
+  variants.forEach((variant, index) => {
+    const vid = asString(variant?.id).trim();
+    const label = asString(variant?.label).trim();
+    const duration = asString(variant?.duration).trim();
+    const price = parseVariantPrice(variant?.price);
+    const hasAny = Boolean(vid || label || duration || asString(variant?.price).trim());
+    if (!hasAny) return;
+
+    if (!vid) issues.push(`Variação ${index + 1}: informe o ID.`);
+    if (!label) issues.push(`Variação ${index + 1}: informe o label.`);
+    if (!duration) issues.push(`Variação ${index + 1}: informe a duração.`);
+    if (!Number.isFinite(price) || price <= 0) issues.push(`Variação ${index + 1}: preço inválido.`);
+    if (vid) {
+      if (seen.has(vid)) issues.push(`Variação duplicada: ${vid}.`);
+      seen.add(vid);
+    }
+
+    if (vid && label && duration && Number.isFinite(price) && price > 0) {
+      validVariants += 1;
+    }
+  });
+
+  if (requireVariant && validVariants === 0) {
+    issues.push("Adicione ao menos 1 variação válida.");
+  }
+
+  return issues;
+}
+
+function countStockKeys(stock) {
+  if (!stock || typeof stock !== "object") return 0;
+  return Object.values(stock).reduce((sum, bucket) => {
+    if (!Array.isArray(bucket)) return sum;
+    return sum + bucket.length;
+  }, 0);
+}
+
+const DASHBOARD_TABS = ["overview", "instances", "store", "wallet", "account"];
+
+function normalizeDashboardTab(value) {
+  const key = asString(value).trim().toLowerCase();
+  return DASHBOARD_TABS.includes(key) ? key : "overview";
 }
 
 function useRoute() {
@@ -68,42 +279,10 @@ async function apiFetch(url, options = {}) {
 }
 
 function Button({ variant = "primary", disabled, onClick, children, icon: Icon }) {
-  return html`<button className=${`btn ${variant}`} disabled=${disabled} onClick=${onClick}>
+  return html`<button type="button" className=${`btn ${variant}`} disabled=${disabled} onClick=${onClick}>
     ${Icon ? html`<${Icon} className="btnIcon" size=${16} strokeWidth=${1.9} aria-hidden="true" />` : null}
     <span>${children}</span>
   </button>`;
-}
-
-function Modal({ open, title, onClose, children }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-  return html`
-    <div
-      className="modalOverlay"
-      role="dialog"
-      aria-modal="true"
-      onClick=${(e) => {
-        if (e.target === e.currentTarget) onClose?.();
-      }}
-    >
-      <div className="modal">
-        <div className="modalHeader">
-          <h3 className="modalTitle">${title || "Modal"}</h3>
-          <button className="modalClose" onClick=${onClose} aria-label="Fechar">×</button>
-        </div>
-        <div className="hr"></div>
-        ${children}
-      </div>
-    </div>
-  `;
 }
 
 function TopBar({ route, me, onLogout }) {
@@ -137,19 +316,19 @@ function TopBar({ route, me, onLogout }) {
       <div className="right">
         ${me
           ? html`
-              <${Button} variant="subtle" onClick=${() => route.navigate("/dashboard")}>Dashboard</${Button}>
-              ${me.discordAvatarUrl
+              <${Button} variant="subtle" icon=${LayoutDashboard} onClick=${() => route.navigate("/dashboard")}>Dashboard</${Button}>
+              ${me.profileAvatarUrl || me.discordAvatarUrl
                 ? html`<img
-                    src=${me.discordAvatarUrl}
+                    src=${me.profileAvatarUrl || me.discordAvatarUrl}
                     alt=${me.discordUsername || "avatar"}
                     className="topbarAvatar"
                     onClick=${() => route.navigate("/dashboard")}
                     title=${me.discordUsername || "Dashboard"}
                   />`
                 : null}
-              <${Button} variant="ghost" onClick=${onLogout}>Sair</${Button}>
+              <${Button} variant="ghost" icon=${X} onClick=${onLogout}>Sair</${Button}>
             `
-          : html`<${Button} variant="primary" onClick=${() => route.navigate("/login")}>Entrar</${Button}>`}
+          : html`<${Button} variant="primary" icon=${UserPlus} onClick=${() => route.navigate("/login")}>Entrar</${Button}>`}
       </div>
     </div>
   `;
@@ -175,38 +354,32 @@ function Home({ route }) {
 
   const features = [
     {
-      icon: "⚡",
-      iconBg: "rgba(230,33,42,0.18)",
+      icon: html`<${Zap} size=${20} />`,
       title: "Taxa imbatível: apenas 6%",
       desc: html`A menor taxa do mercado. Concorrentes cobram até <b style=${{ color: "var(--accent2)" }}>19%</b>. Você fica com mais do que vendeu.`
     },
     {
-      icon: "💸",
-      iconBg: "rgba(16,185,129,0.15)",
+      icon: html`<${Banknote} size=${20} />`,
       title: "PIX cai na hora",
       desc: "Aprovação do pagamento confirmada em segundos. Zero espera, zero burocracia."
     },
     {
-      icon: "🤖",
-      iconBg: "rgba(99,102,241,0.18)",
+      icon: html`<${Bot} size=${20} />`,
       title: "Bot 100% seu",
       desc: "Use o token do seu próprio bot Discord. Nome, avatar e identidade são seus."
     },
     {
-      icon: "🏪",
-      iconBg: "rgba(245,158,11,0.15)",
+      icon: html`<${Store} size=${20} />`,
       title: "Loja embutida no Discord",
       desc: "Produtos com variações, estoque, embed rico e botão de compra — tudo dentro do servidor."
     },
     {
-      icon: "🔒",
-      iconBg: "rgba(239,68,68,0.15)",
+      icon: html`<${Shield} size=${20} />`,
       title: "Proteção anti-fraude",
       desc: "Entrega automática só após confirmação do pagamento. Stock zerado nunca entrega."
     },
     {
-      icon: "🎁",
-      iconBg: "rgba(168,85,247,0.18)",
+      icon: html`<${Gift} size=${20} />`,
       title: "Plano cresce com suas vendas",
       desc: html`A cada <b style=${{ color: "var(--good)" }}>R$ 20 em vendas</b>, seu plano ganha <b style=${{ color: "var(--good)" }}>+1 dia</b> automático.`
     }
@@ -224,8 +397,8 @@ function Home({ route }) {
           Bot próprio, estoque automático, PIX na hora e taxa de só 6%.
         </p>
         <div className="cta">
-          <${Button} variant="primary" onClick=${() => route.navigate("/dashboard")}>Começar agora</${Button}>
-          <${Button} variant="ghost" onClick=${() => route.navigate("/plans")}>Ver Planos</${Button}>
+          <${Button} variant="primary" icon=${Rocket} onClick=${() => route.navigate("/dashboard")}>Começar agora</${Button}>
+          <${Button} variant="ghost" icon=${CreditCard} onClick=${() => route.navigate("/plans")}>Ver Planos</${Button}>
         </div>
       </div>
 
@@ -235,7 +408,7 @@ function Home({ route }) {
           <div className="featureList">
             ${features.map((f) => html`
               <div className="featureItem">
-                <div className="featureIcon" style=${{ background: f.iconBg }}>${f.icon}</div>
+                <div className="featureIcon">${f.icon}</div>
                 <div className="featureText">
                   <div className="featureTitle">${f.title}</div>
                   <div className="featureDesc">${f.desc}</div>
@@ -245,7 +418,7 @@ function Home({ route }) {
           </div>
 
           <div className="bonusBox">
-            <span style=${{ fontSize: "18px" }}>✨</span>
+            <${Sparkles} size=${20} style=${{ color: "var(--accent2)", flexShrink: 0 }} />
             <div>
               <div style=${{ fontWeight: 800, fontSize: "14px" }}>
                 Como a AstraSystems pode te deixar no lucro
@@ -361,7 +534,8 @@ function Login({ error }) {
       }
       window.location.href = "/dashboard";
     } catch (err) {
-      const msg = err?.message || "Falha ao entrar. Tente novamente.";
+      const raw = err?.message || "Falha ao entrar. Tente novamente.";
+      const msg = raw === "conta_bloqueada" ? "Conta bloqueada. Entre em contato com o suporte." : raw;
       setLocalError(msg);
     } finally {
       setBusy(false);
@@ -375,6 +549,8 @@ function Login({ error }) {
       ? "Sessao expirou. Tente novamente."
     : error === "oauth_config"
       ? "Login com Discord indisponivel no momento."
+    : error === "account_blocked"
+      ? "Conta bloqueada. Entre em contato com o suporte."
       : "";
 
   return html`
@@ -395,6 +571,7 @@ function Login({ error }) {
               disabled=${busy || !status?.oauthEnabled}
               onClick=${() => (window.location.href = "/auth/discord")}
             >
+              <${Bot} size=${18} style=${{ marginRight: "8px" }} />
               Continuar com Discord
             </${Button}>
             ${status?.oauthEnabled
@@ -404,6 +581,7 @@ function Login({ error }) {
 
             <div className="row grow" style=${{ marginTop: "4px" }}>
               <${Button} variant=${mode === "login" ? "primary" : "ghost"} disabled=${busy} onClick=${() => setMode("login")}>
+                <${Mail} size=${16} style=${{ marginRight: "6px" }} />
                 Entrar com Email
               </${Button}>
               <${Button}
@@ -411,6 +589,7 @@ function Login({ error }) {
                 disabled=${busy}
                 onClick=${() => setMode("register")}
               >
+                <${UserPlus} size=${16} style=${{ marginRight: "6px" }} />
                 Criar conta
               </${Button}>
             </div>
@@ -426,6 +605,7 @@ function Login({ error }) {
             <input className="input" type="email" value=${email} onInput=${(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" />
             <input className="input" type="password" value=${password} onInput=${(e) => setPassword(e.target.value)} placeholder="sua senha" />
             <${Button} variant="subtle" disabled=${busy} onClick=${submitLocal}>
+              <${LogOut} size=${16} style=${{ marginRight: "6px", transform: "rotate(180deg)" }} />
               ${mode === "register" ? "Criar e entrar" : "Entrar"}
             </${Button}>
           </div>
@@ -471,17 +651,37 @@ function Plans({ route, me, toast }) {
 
   const planTier = asString(me?.plan?.tier);
   const planActive = !!me?.planActive;
+  const trialClaimedAt = asString(me?.trialClaimedAt).trim();
+  const trialAlreadyUsed = !!trialClaimedAt;
   const mpEnabled = !!status?.mercadoPagoEnabled;
+  const trialDisabled = busy || (me && (planActive || trialAlreadyUsed));
 
   const onTrial = async () => {
     if (!me) return route.navigate("/login");
+    if (trialAlreadyUsed) {
+      return toast(
+        "Nao elegivel ao trial",
+        "Este usuario ja utilizou o trial gratuito e nao pode ativar novamente.",
+        "bad"
+      );
+    }
+    if (planActive) {
+      return toast("Plano ativo", "Voce ja possui um plano ativo.", "bad");
+    }
     setBusy(true);
     try {
       await apiFetch("/api/plans/trial", { method: "POST", body: "{}" });
       toast("Plano Trial ativado", "Voce ganhou 24 horas para testar.", "good");
       route.navigate("/dashboard");
     } catch (err) {
-      toast("Falha ao ativar trial", err.message || "Erro interno", "bad");
+      const msg = err?.message || "Erro interno";
+      if (msg === "trial ja utilizado") {
+        toast("Nao elegivel ao trial", "Este usuario ja utilizou o trial gratuito.", "bad");
+      } else if (msg === "voce ja tem um plano ativo") {
+        toast("Plano ativo", "Voce ja possui um plano ativo.", "bad");
+      } else {
+        toast("Falha ao ativar trial", msg, "bad");
+      }
     } finally {
       setBusy(false);
     }
@@ -505,8 +705,10 @@ function Plans({ route, me, toast }) {
       else toast("Falha ao criar pagamento", "Sem URL de checkout.", "bad");
     } catch (err) {
       const msg = err?.message || "Erro interno";
-      if (msg === "mercadopago_not_configured") {
+      if (msg === "mercadopago_not_configured" || msg.includes("mercadopago_not_configured")) {
         toast("Pagamento indisponivel", "Pagamentos nao estao configurados no servidor.", "bad");
+      } else if (msg.includes("MP API Error")) {
+        toast("Erro no Mercado Pago", msg.replace("MP API Error: ", ""), "bad");
       } else {
         toast("Falha ao criar pagamento", msg, "bad");
       }
@@ -557,7 +759,10 @@ function Plans({ route, me, toast }) {
                     ${planTier === "trial" ? "Trial (24h)" : planTier === "start" ? "Start" : planTier || "Ativo"}
                   </div>
                 </div>
-                <${Button} variant="ghost" onClick=${() => route.navigate("/dashboard")}>Ir para Dashboard</${Button}>
+                <${Button} variant="ghost" onClick=${() => route.navigate("/dashboard")}>
+                  <${LayoutDashboard} size=${16} style=${{ marginRight: "6px" }} />
+                  Ir para Dashboard
+                </${Button}>
               </div>
             </div>
           `
@@ -574,7 +779,10 @@ function Plans({ route, me, toast }) {
                     O sistema de pagamentos nao esta configurado no servidor. Contate o suporte para habilitar.
                   </div>
                 </div>
-                <${Button} variant="ghost" onClick=${() => route.navigate("/dashboard")}>Abrir Dashboard</${Button}>
+                <${Button} variant="ghost" onClick=${() => route.navigate("/dashboard")}>
+                  <${LayoutDashboard} size=${16} style=${{ marginRight: "6px" }} />
+                  Abrir Dashboard
+                </${Button}>
               </div>
             </div>
           `
@@ -597,11 +805,17 @@ function Plans({ route, me, toast }) {
             <li>Personalizacao base</li>
           </ul>
           <div className="foot">
-            <${Button} variant="ghost" disabled=${busy || (me && planActive)} onClick=${onTrial}>
-              ${me && planActive ? "Plano ativo" : "Testar Gratis"}
+            <${Button} variant="ghost" disabled=${trialDisabled} onClick=${onTrial}>
+              <${Sparkles} size=${16} style=${{ marginRight: "6px" }} />
+              ${me && trialAlreadyUsed ? "Nao elegivel" : me && planActive ? "Plano ativo" : "Testar Gratis"}
             </${Button}>
-            ${me && planActive
-              ? html`<div className="muted2" style=${{ marginTop: "10px", fontSize: "12px" }}>Voce ja possui um plano ativo.</div>`
+            ${me && trialAlreadyUsed
+                ? html`<div className="muted2" style=${{ marginTop: "10px", fontSize: "12px" }}>
+                    Este usuario ja utilizou o trial e nao esta mais elegivel.
+                    ${trialClaimedAt ? html`<br />Usado em: ${formatDateTime(trialClaimedAt)}.` : null}
+                  </div>`
+              : me && planActive
+                ? html`<div className="muted2" style=${{ marginTop: "10px", fontSize: "12px" }}>Voce ja possui um plano ativo.</div>`
               : null}
           </div>
         </div>
@@ -629,7 +843,10 @@ function Plans({ route, me, toast }) {
             <li>Suporte prioritario</li>
           </ul>
           <div className="foot">
-            <${Button} variant="primary" disabled=${busy || !mpEnabled} onClick=${onStart}>Comecar Agora</${Button}>
+            <${Button} variant="primary" disabled=${busy || !mpEnabled} onClick=${onStart}>
+              <${Rocket} size=${16} style=${{ marginRight: "6px" }} />
+              Comecar Agora
+            </${Button}>
             ${mpEnabled
               ? null
               : html`<div className="muted2" style=${{ marginTop: "10px", fontSize: "12px" }}>Pagamentos indisponiveis no servidor.</div>`}
@@ -650,7 +867,10 @@ function Plans({ route, me, toast }) {
             <li>White-label completo</li>
           </ul>
           <div className="foot">
-            <${Button} variant="ghost" disabled=${true}>Em Breve</${Button}>
+            <${Button} variant="ghost" disabled=${true}>
+              <${Clock} size=${16} style=${{ marginRight: "6px" }} />
+              Em Breve
+            </${Button}>
           </div>
         </div>
       </div>
@@ -662,7 +882,8 @@ function TrialPage({ route, me, refreshMe, toast }) {
   const [phase, setPhase] = useState("idle"); // idle | loading | done
 
   const alreadyHasPlan = me?.planActive;
-  const alreadyUsedTrial = me?.trialClaimedAt;
+  const trialClaimedAt = asString(me?.trialClaimedAt).trim();
+  const alreadyUsedTrial = !!trialClaimedAt;
 
   const features = [
     "Vendas via PIX (Mercado Pago)",
@@ -675,6 +896,16 @@ function TrialPage({ route, me, refreshMe, toast }) {
   ];
 
   const onActivate = async () => {
+    if (alreadyUsedTrial) {
+      return toast(
+        "Nao elegivel ao trial",
+        "Este usuario ja utilizou o trial gratuito e nao pode ativar novamente.",
+        "bad"
+      );
+    }
+    if (alreadyHasPlan) {
+      return toast("Plano ativo", "Voce ja possui um plano ativo.", "bad");
+    }
     setPhase("loading");
     try {
       await apiFetch("/api/plans/trial", { method: "POST", body: "{}" });
@@ -713,7 +944,7 @@ function TrialPage({ route, me, refreshMe, toast }) {
         <!-- LEFT: Trial details card -->
         <div className="card pad trialCard">
           <div style=${{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-            <div className="trialIconBox">🎁</div>
+            <div className="trialIconBox"><${Gift} size=${24} /></div>
             <div>
               <div style=${{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "18px" }}>Trial Gratuito</div>
               <div className="pill good" style=${{ marginTop: "5px", fontSize: "11px", padding: "3px 9px" }}>24 Horas Grátis</div>
@@ -732,7 +963,7 @@ function TrialPage({ route, me, refreshMe, toast }) {
           <div className="trialFeatures">
             ${features.map((f) => html`
               <div className="trialFeatureRow">
-                <span className="trialCheck">✓</span>
+                <${Check} size=${14} className="trialCheck" />
                 <span>${f}</span>
               </div>
             `)}
@@ -752,16 +983,19 @@ function TrialPage({ route, me, refreshMe, toast }) {
 
           ${phase === "idle" ? html`
             <div className="trialStatusBody">
-              ${alreadyHasPlan ? html`
-                <div className="trialStatusIcon trialStatusIconWarn">⚡</div>
+              ${alreadyUsedTrial ? html`
+                <div className="trialStatusIcon trialStatusIconWarn"><${AlertTriangle} size=${28} /></div>
+                <div className="trialStatusTitle">Nao elegivel: trial ja utilizado</div>
+                <div className="trialStatusDesc">
+                  Voce ja usou o trial gratuito e nao pode ativar novamente.
+                  ${trialClaimedAt ? html`<br />Data de uso: <b>${formatDateTime(trialClaimedAt)}</b>.` : null}
+                </div>
+              ` : alreadyHasPlan ? html`
+                <div className="trialStatusIcon trialStatusIconWarn"><${Zap} size=${28} /></div>
                 <div className="trialStatusTitle">Plano já ativo</div>
                 <div className="trialStatusDesc">Você já possui um plano ativo. Gerencie seu plano ou acesse a dashboard.</div>
-              ` : alreadyUsedTrial ? html`
-                <div className="trialStatusIcon trialStatusIconWarn">⚠️</div>
-                <div className="trialStatusTitle">Trial já utilizado</div>
-                <div className="trialStatusDesc">Você já usou o trial gratuito. Escolha um plano para continuar.</div>
               ` : html`
-                <div className="trialStatusIcon trialStatusIconGood">✓</div>
+                <div className="trialStatusIcon trialStatusIconGood"><${Check} size=${28} /></div>
                 <div className="trialStatusTitle">Você está elegível!</div>
                 <div className="trialStatusDesc">Sua conta está apta para receber o trial gratuito. Clique no botão abaixo para ativar.</div>
               `}
@@ -769,11 +1003,11 @@ function TrialPage({ route, me, refreshMe, toast }) {
               ${!alreadyHasPlan && !alreadyUsedTrial ? html`
                 <div className="trialChecks">
                   <div className="trialCheckLine">
-                    <span style=${{ color: "var(--good)" }}>✓</span>
+                    <${Check} size=${14} style=${{ color: "var(--good)" }} />
                     Primeira vez usando o trial
                   </div>
                   <div className="trialCheckLine">
-                    <span style=${{ color: "var(--good)" }}>✓</span>
+                    <${Check} size=${14} style=${{ color: "var(--good)" }} />
                     Conta verificada
                   </div>
                 </div>
@@ -797,12 +1031,12 @@ function TrialPage({ route, me, refreshMe, toast }) {
           ` : phase === "loading" ? html`
             <div className="trialStatusBody">
               <div className="trialStatusIcon trialStatusIconLoading">
-                <span className="spin" style=${{ fontSize: "22px" }}>⟳</span>
+                <${Loader2} size=${28} className="spin" />
               </div>
               <div className="trialStatusTitle">Preparando seu bot...</div>
               <div className="trialStatusDesc">Estamos configurando sua conta trial. Isso pode levar alguns instantes.</div>
               <div className="trialLoadingBox">
-                <span style=${{ opacity: 0.6, fontSize: "13px" }}>⏳</span>
+                <${Timer} size=${16} style=${{ opacity: 0.6 }} />
                 <div>
                   <div style=${{ fontWeight: 800, fontSize: "13px", color: "rgba(255,255,255,0.8)" }}>Aguarde...</div>
                   <div style=${{ fontSize: "12px", color: "var(--muted2)", marginTop: "2px" }}>O trial será ativado automaticamente</div>
@@ -811,7 +1045,7 @@ function TrialPage({ route, me, refreshMe, toast }) {
             </div>
           ` : html`
             <div className="trialStatusBody">
-              <div className="trialStatusIcon trialStatusIconGood">✓</div>
+              <div className="trialStatusIcon trialStatusIconGood"><${Check} size=${28} /></div>
               <div className="trialStatusTitle">Trial ativado!</div>
               <div className="trialStatusDesc">Tudo pronto. Redirecionando para a dashboard...</div>
             </div>
@@ -835,6 +1069,12 @@ function TrialPage({ route, me, refreshMe, toast }) {
               <span className="muted2">Taxa por venda:</span>
               <span style=${{ fontWeight: 700 }}>6%</span>
             </div>
+            <div className="trialDetailRow">
+              <span className="muted2">Elegibilidade:</span>
+              <span style=${{ fontWeight: 700, color: alreadyUsedTrial || alreadyHasPlan ? "var(--warn)" : "var(--good)" }}>
+                ${alreadyUsedTrial ? "Nao elegivel (ja utilizado)" : alreadyHasPlan ? "Nao elegivel (plano ativo)" : "Elegivel"}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -844,13 +1084,25 @@ function TrialPage({ route, me, refreshMe, toast }) {
 }
 
 function Dashboard({ route, me, refreshMe, toast }) {
+  const createEmptyInstanceEdit = () => ({
+    id: "",
+    name: "",
+    guildId: "",
+    brandName: "",
+    accent: "",
+    logoUrl: "",
+    logsChannelId: "",
+    salesChannelId: "",
+    feedbackChannelId: ""
+  });
+
   const [instances, setInstances] = useState([]);
   const [guilds, setGuilds] = useState([]);
   const [txs, setTxs] = useState([]);
   const [botStatus, setBotStatus] = useState({ ok: false, botReady: false, oauthEnabled: false, mercadoPagoEnabled: false });
   const [tab, setTab] = useState(() => {
     try {
-      return window.localStorage.getItem("as_dash_tab") || "overview";
+      return normalizeDashboardTab(window.localStorage.getItem("as_dash_tab"));
     } catch {
       return "overview";
     }
@@ -864,31 +1116,49 @@ function Dashboard({ route, me, refreshMe, toast }) {
   const [pixKey, setPixKey] = useState("");
   const [pixKeyType, setPixKeyType] = useState("");
   const [withdrawals, setWithdrawals] = useState([]);
+  const [adminWithdrawals, setAdminWithdrawals] = useState([]);
+  const [pendingAdminWithdrawalAction, setPendingAdminWithdrawalAction] = useState({ id: "", action: "" });
+  const [adminWithdrawalActionKey, setAdminWithdrawalActionKey] = useState("");
   const [tokenDraftByInstance, setTokenDraftByInstance] = useState({});
   const [savingTokenFor, setSavingTokenFor] = useState("");
   const [clearingTokenFor, setClearingTokenFor] = useState("");
+  const [pendingClearTokenInstanceId, setPendingClearTokenInstanceId] = useState("");
+  const [pendingDeleteInstanceId, setPendingDeleteInstanceId] = useState("");
+  const [pendingCancelWithdrawalId, setPendingCancelWithdrawalId] = useState("");
+  const [botActionByInstance, setBotActionByInstance] = useState({});
   const [editChannels, setEditChannels] = useState({ loading: false, error: "", channels: [] });
-  const [edit, setEdit] = useState({
-    open: false,
-    id: "",
-    name: "",
-    guildId: "",
-    brandName: "",
-    accent: "",
-    logoUrl: "",
-    logsChannelId: "",
-    salesChannelId: "",
-    feedbackChannelId: ""
-  });
+  const [instanceWorkspaceMode, setInstanceWorkspaceMode] = useState("none");
+  const [instanceWorkspaceId, setInstanceWorkspaceId] = useState("");
+  const [edit, setEdit] = useState(createEmptyInstanceEdit);
   const [profileName, setProfileName] = useState("");
+  const [profileAvatarDraft, setProfileAvatarDraft] = useState("");
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
   const [pwCurrent, setPwCurrent] = useState("");
   const [pwNew, setPwNew] = useState("");
   const [pwNew2, setPwNew2] = useState("");
 
   const [storeInstanceId, setStoreInstanceId] = useState("");
+  const [storeSearch, setStoreSearch] = useState("");
   const [storeProducts, setStoreProducts] = useState({ loading: false, products: [], stockCounts: {}, bucketCounts: {} });
-  const [productEditor, setProductEditor] = useState({ open: false, mode: "create", instanceId: "", saving: false, draft: null });
-  const [stockEditor, setStockEditor] = useState({
+  const createEmptyProductDraft = () => ({
+    id: "",
+    name: "",
+    shortLabel: "",
+    description: "",
+    sections: [],
+    variants: [{ id: "", label: "", duration: "", price: "", emoji: "" }],
+    bannerImage: "",
+    previewImage: "",
+    prePostGif: "",
+    thumbnail: "",
+    footerImage: "",
+    demoUrl: "",
+    disableThumbnail: false,
+    infiniteStock: false
+  });
+  const createEmptyProductEditor = () => ({ open: false, mode: "create", instanceId: "", saving: false, draft: null });
+  const createEmptyStockEditor = () => ({
     open: false,
     instanceId: "",
     productId: "",
@@ -900,7 +1170,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
     keysText: "",
     stock: {}
   });
-  const [postEditor, setPostEditor] = useState({
+  const createEmptyPostEditor = () => ({
     open: false,
     instanceId: "",
     productId: "",
@@ -910,6 +1180,13 @@ function Dashboard({ route, me, refreshMe, toast }) {
     loading: false,
     channels: []
   });
+  const [storeSelectedProductId, setStoreSelectedProductId] = useState("");
+  const [storeWorkspaceMode, setStoreWorkspaceMode] = useState("none");
+  const [pendingDeleteProductId, setPendingDeleteProductId] = useState("");
+  const [pendingClearBucket, setPendingClearBucket] = useState("");
+  const [productEditor, setProductEditor] = useState(createEmptyProductEditor);
+  const [stockEditor, setStockEditor] = useState(createEmptyStockEditor);
+  const [postEditor, setPostEditor] = useState(createEmptyPostEditor);
 
   const load = async () => {
     if (!me) return;
@@ -926,6 +1203,19 @@ function Dashboard({ route, me, refreshMe, toast }) {
       setWithdrawals(w.withdrawals || []);
     } catch {
       setWithdrawals([]);
+    }
+    if (me?.isPortalAdmin) {
+      try {
+        const admin = await apiFetch("/api/admin/withdrawals");
+        setAdminWithdrawals(admin.withdrawals || []);
+      } catch (err) {
+        setAdminWithdrawals([]);
+        if (Number(err?.status) !== 403) {
+          toast("Falha ao carregar saques pendentes", err?.message || "Erro interno", "bad");
+        }
+      }
+    } else {
+      setAdminWithdrawals([]);
     }
     try {
       const g = await apiFetch("/api/discord/guilds");
@@ -973,13 +1263,23 @@ function Dashboard({ route, me, refreshMe, toast }) {
 
   useEffect(() => {
     if (!storeInstanceId) return;
+    setStoreSelectedProductId("");
+    setStoreWorkspaceMode("none");
+    setPendingDeleteProductId("");
+    setPendingClearBucket("");
+    setProductEditor(createEmptyProductEditor());
+    setStockEditor(createEmptyStockEditor());
+    setPostEditor(createEmptyPostEditor());
     loadStoreProducts(storeInstanceId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeInstanceId]);
 
   useEffect(() => {
     setProfileName(asString(me?.discordUsername || ""));
-  }, [me?.discordUsername]);
+    setProfileAvatarDraft(asString(me?.profileAvatarUrl || me?.discordAvatarUrl || ""));
+    setEmailDraft(asString(me?.email || ""));
+    setEmailPassword("");
+  }, [me?.discordUsername, me?.profileAvatarUrl, me?.discordAvatarUrl, me?.email]);
 
   useEffect(() => {
     setPixKey(asString(me?.payout?.pixKey || ""));
@@ -987,8 +1287,13 @@ function Dashboard({ route, me, refreshMe, toast }) {
   }, [me?.discordUserId]);
 
   useEffect(() => {
+    const normalized = normalizeDashboardTab(tab);
+    if (normalized !== tab) {
+      setTab(normalized);
+      return;
+    }
     try {
-      window.localStorage.setItem("as_dash_tab", tab);
+      window.localStorage.setItem("as_dash_tab", normalized);
     } catch {}
   }, [tab]);
 
@@ -1000,6 +1305,38 @@ function Dashboard({ route, me, refreshMe, toast }) {
     setCreating(true);
     setAutoOnboardingDone(true);
   }, [autoOnboardingDone, me?.planActive, instances?.length]);
+
+  useEffect(() => {
+    if (!pendingClearTokenInstanceId && !pendingDeleteInstanceId) return;
+    if (pendingClearTokenInstanceId) {
+      const stillHasToken = (instances || []).some(
+        (inst) => asString(inst?.id) === pendingClearTokenInstanceId && !!inst?.hasBotToken
+      );
+      if (!stillHasToken) setPendingClearTokenInstanceId("");
+    }
+    if (pendingDeleteInstanceId) {
+      const stillExists = (instances || []).some((inst) => asString(inst?.id) === pendingDeleteInstanceId);
+      if (!stillExists) setPendingDeleteInstanceId("");
+    }
+  }, [instances, pendingClearTokenInstanceId, pendingDeleteInstanceId]);
+
+  useEffect(() => {
+    if (!pendingCancelWithdrawalId) return;
+    const stillRequested = (withdrawals || []).some(
+      (w) => asString(w?.id) === pendingCancelWithdrawalId && asString(w?.status).toLowerCase() === "requested"
+    );
+    if (!stillRequested) setPendingCancelWithdrawalId("");
+  }, [pendingCancelWithdrawalId, withdrawals]);
+
+  useEffect(() => {
+    const id = asString(pendingAdminWithdrawalAction?.id);
+    const action = asString(pendingAdminWithdrawalAction?.action);
+    if (!id || !action) return;
+    const stillRequested = (adminWithdrawals || []).some(
+      (w) => asString(w?.id) === id && asString(w?.status).toLowerCase() === "requested"
+    );
+    if (!stillRequested) setPendingAdminWithdrawalAction({ id: "", action: "" });
+  }, [adminWithdrawals, pendingAdminWithdrawalAction]);
 
   const planText = useMemo(() => {
     const p = me?.plan;
@@ -1049,12 +1386,15 @@ function Dashboard({ route, me, refreshMe, toast }) {
   const onCancelWithdrawal = async (wid) => {
     const id = asString(wid);
     if (!id) return;
-    const ok = window.confirm("Cancelar este saque? O valor volta para seu saldo.");
-    if (!ok) return;
+    if (pendingCancelWithdrawalId !== id) {
+      setPendingCancelWithdrawalId(id);
+      return toast("Confirme cancelamento", "Clique novamente em Cancelar para devolver o valor ao saldo.", "bad");
+    }
 
     setBusy(true);
     try {
       await apiFetch(`/api/wallet/withdrawals/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" });
+      setPendingCancelWithdrawalId("");
       toast("Saque cancelado", "O valor foi devolvido para seu saldo.", "good");
       await refreshMe();
       await load();
@@ -1062,6 +1402,59 @@ function Dashboard({ route, me, refreshMe, toast }) {
       toast("Falha ao cancelar", err.message || "Erro interno", "bad");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onAdminProcessWithdrawal = async (wid, action) => {
+    const id = asString(wid).trim();
+    const op = asString(action).trim().toLowerCase();
+    if (!id || (op !== "complete" && op !== "reject")) return;
+
+    const needsConfirm =
+      asString(pendingAdminWithdrawalAction?.id) !== id ||
+      asString(pendingAdminWithdrawalAction?.action) !== op;
+    if (needsConfirm) {
+      setPendingAdminWithdrawalAction({ id, action: op });
+      return toast(
+        "Confirme a acao",
+        op === "complete"
+          ? "Clique novamente em Concluir para confirmar que o Pix foi pago."
+          : "Clique novamente em Rejeitar para devolver o valor ao saldo do vendedor.",
+        "bad"
+      );
+    }
+
+    const opKey = `${op}:${id}`;
+    setAdminWithdrawalActionKey(opKey);
+    try {
+      const endpoint =
+        op === "complete"
+          ? `/api/admin/withdrawals/${encodeURIComponent(id)}/complete`
+          : `/api/admin/withdrawals/${encodeURIComponent(id)}/reject`;
+      await apiFetch(endpoint, { method: "POST", body: "{}" });
+      setPendingAdminWithdrawalAction({ id: "", action: "" });
+      toast(
+        op === "complete" ? "Saque concluido" : "Saque rejeitado",
+        op === "complete"
+          ? "Marcado como pago e removido da fila pendente."
+          : "Saque rejeitado e saldo devolvido ao vendedor.",
+        "good"
+      );
+      await refreshMe();
+      await load();
+    } catch (err) {
+      const msg = err?.message || "Erro interno";
+      if (msg === "saque_nao_encontrado") {
+        toast("Saque nao encontrado", "Ele pode ter sido processado por outro admin.", "bad");
+      } else if (msg === "saque_nao_esta_pendente") {
+        toast("Saque ja processado", "Apenas saques pendentes podem ser alterados.", "bad");
+      } else if (msg === "forbidden") {
+        toast("Permissao negada", "Seu usuario nao tem permissao administrativa.", "bad");
+      } else {
+        toast("Falha ao processar saque", msg, "bad");
+      }
+    } finally {
+      setAdminWithdrawalActionKey("");
     }
   };
 
@@ -1077,7 +1470,16 @@ function Dashboard({ route, me, refreshMe, toast }) {
       setNewBotToken("");
       setCreating(false);
       const botName = asString(data?.instance?.botProfile?.username);
-      toast("Instancia criada", botName ? `Token validado para @${botName}.` : "Token validado com sucesso.", "good");
+      const warning = asString(data?.warning).trim();
+      if (warning) {
+        toast(
+          "Instancia criada com alerta",
+          `${botName ? `Token validado para @${botName}. ` : ""}${formatDockerIssue(warning) || warning}`,
+          "bad"
+        );
+      } else {
+        toast("Instancia criada", botName ? `Token validado para @${botName}.` : "Token validado com sucesso.", "good");
+      }
       await load();
     } catch (err) {
       const msg = err?.message || "Erro interno";
@@ -1123,13 +1525,19 @@ function Dashboard({ route, me, refreshMe, toast }) {
     setSavingTokenFor(id);
     setBusy(true);
     try {
-      await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot-token`, {
+      const data = await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot-token`, {
         method: "PUT",
         body: JSON.stringify({ token })
       });
+      setPendingClearTokenInstanceId("");
       setTokenDraftByInstance((prev) => ({ ...prev, [id]: "" }));
       await load();
-      toast("Token atualizado", "Bot da instancia validado com sucesso.", "good");
+      const warning = asString(data?.warning).trim();
+      if (warning) {
+        toast("Token atualizado com alerta", formatDockerIssue(warning) || warning, "bad");
+      } else {
+        toast("Token atualizado", "Bot da instancia validado com sucesso.", "good");
+      }
     } catch (err) {
       if (err?.message === "bot_token_invalido") {
         toast("Token invalido", "Nao foi possivel validar esse token.", "bad");
@@ -1145,13 +1553,16 @@ function Dashboard({ route, me, refreshMe, toast }) {
   const onClearBotToken = async (instId) => {
     const id = asString(instId);
     if (!id) return;
-    const ok = window.confirm("Remover token do bot desta instancia?");
-    if (!ok) return;
+    if (pendingClearTokenInstanceId !== id) {
+      setPendingClearTokenInstanceId(id);
+      return toast("Confirme remoção", "Clique novamente em Remover token para essa instância.", "bad");
+    }
 
     setClearingTokenFor(id);
     setBusy(true);
     try {
       await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot-token`, { method: "DELETE" });
+      setPendingClearTokenInstanceId("");
       await load();
       toast("Token removido", "A instancia ficou sem token configurado.", "good");
     } catch (err) {
@@ -1162,13 +1573,74 @@ function Dashboard({ route, me, refreshMe, toast }) {
     }
   };
 
+  const onBotRuntimeAction = async (instId, action) => {
+    const id = asString(instId);
+    const op = asString(action).toLowerCase();
+    if (!id || !op) return;
+
+    setBotActionByInstance((prev) => ({ ...prev, [id]: op }));
+    try {
+      const data = await apiFetch(`/api/instances/${encodeURIComponent(id)}/bot/${encodeURIComponent(op)}`, {
+        method: "POST",
+        body: "{}"
+      });
+      await load();
+
+      const runtimeStatus = asString(data?.instance?.runtime?.status).toLowerCase();
+      const runtimeError = asString(data?.instance?.runtime?.lastError).trim();
+
+      if (op === "start") {
+        if (runtimeStatus === "online") {
+          toast("Bot iniciado", "Container iniciado para esta instância.", "good");
+        } else if (runtimeStatus === "erro" || runtimeError) {
+          toast("Falha no runtime", formatDockerIssue(runtimeError) || runtimeError || "Erro interno", "bad");
+        } else {
+          toast("Start concluído", `Runtime retornou status: ${runtimeStatus || "desconhecido"}.`, "good");
+        }
+      } else if (op === "stop") {
+        if (runtimeStatus === "offline" || runtimeStatus === "nao_configurado" || runtimeStatus === "suspenso") {
+          toast("Bot parado", "Container parado para esta instância.", "good");
+        } else {
+          toast("Stop concluído", `Runtime retornou status: ${runtimeStatus || "desconhecido"}.`, "good");
+        }
+      } else if (op === "restart") {
+        if (runtimeStatus === "online") {
+          toast("Bot reiniciado", "Container reiniciado para esta instância.", "good");
+        } else if (runtimeStatus === "erro" || runtimeError) {
+          toast("Falha no runtime", formatDockerIssue(runtimeError) || runtimeError || "Erro interno", "bad");
+        } else {
+          toast("Restart concluído", `Runtime retornou status: ${runtimeStatus || "desconhecido"}.`, "good");
+        }
+      } else {
+        toast("Ação concluída", "Runtime atualizado.", "good");
+      }
+    } catch (err) {
+      const msg = asString(err?.message);
+      if (msg === "plano_inativo") {
+        toast("Plano inativo", "Ative um plano para operar o runtime do bot.", "bad");
+      } else if (msg === "bot_token_obrigatorio") {
+        toast("Token pendente", "Configure o token do bot antes de iniciar.", "bad");
+      } else if (msg === "bot_token_invalido") {
+        toast("Token inválido", "Atualize o token do bot desta instância.", "bad");
+      } else {
+        toast("Falha no runtime", formatDockerIssue(msg) || msg || "Erro interno", "bad");
+      }
+      await load();
+    } finally {
+      setBotActionByInstance((prev) => ({ ...prev, [id]: "" }));
+    }
+  };
+
   const openEditInstance = (inst) => {
     const branding = inst?.branding || {};
     const channels = inst?.channels || {};
+    const id = asString(inst?.id);
     setEditChannels({ loading: false, error: "", channels: [] });
+    setInstanceWorkspaceMode("edit");
+    setInstanceWorkspaceId(id);
+    setPendingDeleteInstanceId("");
     setEdit({
-      open: true,
-      id: asString(inst?.id),
+      id,
       name: asString(inst?.name),
       guildId: asString(inst?.discordGuildId),
       brandName: asString(branding?.brandName || "AstraSystems"),
@@ -1182,7 +1654,10 @@ function Dashboard({ route, me, refreshMe, toast }) {
 
   const closeEditInstance = () => {
     setEditChannels({ loading: false, error: "", channels: [] });
-    setEdit((s) => ({ ...s, open: false }));
+    setInstanceWorkspaceMode("none");
+    setInstanceWorkspaceId("");
+    setPendingDeleteInstanceId("");
+    setEdit(createEmptyInstanceEdit());
   };
 
   const onSaveInstance = async () => {
@@ -1211,7 +1686,6 @@ function Dashboard({ route, me, refreshMe, toast }) {
           }
         })
       });
-      closeEditInstance();
       await load();
       toast("Instancia atualizada", "Configuracoes salvas.", "good");
     } catch (err) {
@@ -1246,6 +1720,8 @@ function Dashboard({ route, me, refreshMe, toast }) {
         toast("Bot offline", "O bot precisa estar online para listar canais.", "bad");
       } else if (msg === "bot_not_in_guild") {
         toast("Bot nao esta no servidor", "Convide o bot para esse servidor e tente novamente.", "bad");
+      } else if (msg === "instance_requires_own_bot_token") {
+        toast("Token/runtime divergente", "Esse servidor esta com um bot diferente do runtime principal. Ajuste o token da instância ou use o bot principal.", "bad");
       } else {
         toast("Falha ao carregar canais", msg, "bad");
       }
@@ -1253,13 +1729,18 @@ function Dashboard({ route, me, refreshMe, toast }) {
   };
 
   const onDeleteInstance = async (instId) => {
-    const ok = window.confirm("Excluir esta instancia? Isso remove o vinculo e o token configurado.");
-    if (!ok) return;
+    const id = asString(instId).trim();
+    if (!id) return;
+    if (pendingDeleteInstanceId !== id) {
+      setPendingDeleteInstanceId(id);
+      return toast("Confirme exclusão", "Clique novamente em Excluir para remover essa instância.", "bad");
+    }
 
     setBusy(true);
     try {
-      await apiFetch(`/api/instances/${encodeURIComponent(instId)}`, { method: "DELETE" });
-      if (asString(edit.id) === asString(instId)) closeEditInstance();
+      await apiFetch(`/api/instances/${encodeURIComponent(id)}`, { method: "DELETE" });
+      setPendingDeleteInstanceId("");
+      if (asString(edit.id) === id) closeEditInstance();
       await load();
       toast("Instancia removida", "A instancia foi excluida.", "good");
     } catch (err) {
@@ -1284,15 +1765,66 @@ function Dashboard({ route, me, refreshMe, toast }) {
 
   const onUpdateProfile = async () => {
     const name = asString(profileName).trim();
+    const draftAvatarUrl = asString(profileAvatarDraft).trim();
+    const currentCustomAvatar = asString(me?.profileAvatarUrl).trim();
+    const currentDiscordAvatar = asString(me?.discordAvatarUrl).trim();
+    const avatarUrl =
+      !currentCustomAvatar && draftAvatarUrl === currentDiscordAvatar ? "" : draftAvatarUrl;
     if (!name) return toast("Nome obrigatorio", "Digite um nome para exibir.", "bad");
+    if (avatarUrl && !/^https?:\/\/\S+$/i.test(avatarUrl)) {
+      return toast("Foto invalida", "Use uma URL http(s) valida para a foto.", "bad");
+    }
 
     setBusy(true);
     try {
-      await apiFetch("/api/me/profile", { method: "PUT", body: JSON.stringify({ name }) });
+      await apiFetch("/api/me/profile", { method: "PUT", body: JSON.stringify({ name, avatarUrl }) });
       await refreshMe();
-      toast("Perfil atualizado", "Seu nome foi atualizado.", "good");
+      toast("Perfil atualizado", "Nome e foto salvos com sucesso.", "good");
     } catch (err) {
-      toast("Falha ao atualizar perfil", err.message || "Erro interno", "bad");
+      const msg = err?.message || "Erro interno";
+      if (msg === "avatar_url_invalida") {
+        toast("Foto invalida", "Use uma URL http(s) valida para a foto.", "bad");
+      } else {
+        toast("Falha ao atualizar perfil", msg, "bad");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onUpdateEmail = async () => {
+    if (me?.authProvider !== "local") {
+      return toast("Email gerenciado pelo Discord", "Para contas Discord, altere o email direto no Discord.", "bad");
+    }
+
+    const email = asString(emailDraft).trim().toLowerCase();
+    const currentPassword = asString(emailPassword);
+    const currentEmail = asString(me?.email).trim().toLowerCase();
+    if (!email) return toast("Email obrigatorio", "Informe o novo email.", "bad");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Email invalido", "Digite um email valido.", "bad");
+    if (email === currentEmail) return toast("Sem alteracao", "O email informado ja e o atual.", "good");
+    if (!currentPassword) return toast("Senha atual", "Informe sua senha atual para confirmar a troca de email.", "bad");
+
+    setBusy(true);
+    try {
+      await apiFetch("/api/me/email", {
+        method: "PUT",
+        body: JSON.stringify({ email, currentPassword })
+      });
+      setEmailPassword("");
+      await refreshMe();
+      toast("Email atualizado", "Seu email de acesso foi atualizado.", "good");
+    } catch (err) {
+      const msg = err?.message || "Erro interno";
+      if (msg === "senha_atual_invalida") {
+        toast("Senha invalida", "A senha atual informada nao confere.", "bad");
+      } else if (msg === "email ja cadastrado") {
+        toast("Email em uso", "Ja existe uma conta com esse email.", "bad");
+      } else if (msg === "email_managed_by_discord") {
+        toast("Conta Discord", "Esse email e gerenciado pelo Discord OAuth.", "bad");
+      } else {
+        toast("Falha ao atualizar email", msg, "bad");
+      }
     } finally {
       setBusy(false);
     }
@@ -1328,34 +1860,140 @@ function Dashboard({ route, me, refreshMe, toast }) {
     const id = asString(storeInstanceId);
     return (instances || []).find((i) => asString(i?.id) === id) || null;
   }, [instances, storeInstanceId]);
+  const canPostFromStore = !!currentInstance?.discordGuildId && !!currentInstance?.hasBotToken;
 
   const firstInstance = useMemo(() => {
     return (instances || [])[0] || null;
   }, [instances]);
 
+  const recentTransactionsCount = useMemo(() => {
+    return Array.isArray(txs) ? txs.length : 0;
+  }, [txs]);
+
+  const pendingWithdrawalsCount = useMemo(() => {
+    return (withdrawals || []).filter((w) => asString(w?.status).toLowerCase() === "requested").length;
+  }, [withdrawals]);
+
+  const adminPendingWithdrawalsCount = useMemo(() => {
+    return Array.isArray(adminWithdrawals) ? adminWithdrawals.length : 0;
+  }, [adminWithdrawals]);
+
+  const onlineInstancesCount = useMemo(() => {
+    return (instances || []).filter((inst) => asString(inst?.runtime?.status).toLowerCase() === "online").length;
+  }, [instances]);
+
+  const selectedInstance = useMemo(() => {
+    const id = asString(instanceWorkspaceId).trim();
+    if (!id) return null;
+    return (instances || []).find((inst) => asString(inst?.id).trim() === id) || null;
+  }, [instanceWorkspaceId, instances]);
+
+  useEffect(() => {
+    if (!instanceWorkspaceId) return;
+    if (selectedInstance) return;
+    setInstanceWorkspaceId("");
+    setInstanceWorkspaceMode("none");
+    setEdit(createEmptyInstanceEdit());
+    setEditChannels({ loading: false, error: "", channels: [] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instanceWorkspaceId, selectedInstance]);
+
+  const filteredStoreProducts = useMemo(() => {
+    const list = Array.isArray(storeProducts.products) ? storeProducts.products : [];
+    const q = asString(storeSearch).trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((product) => {
+      const id = asString(product?.id).toLowerCase();
+      const name = asString(product?.name).toLowerCase();
+      const shortLabel = asString(product?.shortLabel).toLowerCase();
+      return id.includes(q) || name.includes(q) || shortLabel.includes(q);
+    });
+  }, [storeProducts.products, storeSearch]);
+
+  const selectedStoreProduct = useMemo(() => {
+    const pid = asString(storeSelectedProductId).trim();
+    if (!pid) return null;
+    const list = Array.isArray(storeProducts.products) ? storeProducts.products : [];
+    return list.find((product) => asString(product?.id).trim() === pid) || null;
+  }, [storeProducts.products, storeSelectedProductId]);
+
+  const storeCatalogSummary = useMemo(() => {
+    const list = Array.isArray(storeProducts.products) ? storeProducts.products : [];
+    const total = list.length;
+    const filtered = Array.isArray(filteredStoreProducts) ? filteredStoreProducts.length : 0;
+    const totalStock = list.reduce((sum, product) => {
+      const pid = asString(product?.id).trim();
+      return sum + Number(storeProducts.stockCounts?.[pid] || 0);
+    }, 0);
+    const outOfStock = list.reduce((sum, product) => {
+      const pid = asString(product?.id).trim();
+      const stock = Number(storeProducts.stockCounts?.[pid] || 0);
+      return sum + (stock > 0 ? 0 : 1);
+    }, 0);
+    return { total, filtered, totalStock, outOfStock };
+  }, [filteredStoreProducts, storeProducts.products, storeProducts.stockCounts]);
+
+  const stockBucketCount = useMemo(() => {
+    const bucket = asString(stockEditor.bucket).trim() || "default";
+    const list = stockEditor?.stock?.[bucket];
+    return Array.isArray(list) ? list.length : 0;
+  }, [stockEditor.bucket, stockEditor.stock]);
+
+  const stockTotalCount = useMemo(() => {
+    return countStockKeys(stockEditor.stock);
+  }, [stockEditor.stock]);
+
+  const stockBucketOptions = useMemo(() => {
+    const variantIds = (stockEditor.variants || [])
+      .map((v) => asString(v?.id).trim())
+      .filter(Boolean);
+    const currentBuckets = Object.keys(stockEditor.stock || {})
+      .map((id) => asString(id).trim())
+      .filter(Boolean);
+    const merged = [...new Set(["default", "shared", ...variantIds, ...currentBuckets])];
+    return merged;
+  }, [stockEditor.stock, stockEditor.variants]);
+
+  const stockActiveEntries = useMemo(() => {
+    const bucket = asString(stockEditor.bucket).trim() || "default";
+    const list = stockEditor?.stock?.[bucket];
+    return Array.isArray(list) ? list : [];
+  }, [stockEditor.bucket, stockEditor.stock]);
+
+  const stockDraftKeys = useMemo(() => {
+    const lines = asString(stockEditor.keysText)
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    return [...new Set(lines)];
+  }, [stockEditor.keysText]);
+
+  useEffect(() => {
+    if (!storeSelectedProductId) return;
+    if (selectedStoreProduct) return;
+    setStoreSelectedProductId("");
+    setStoreWorkspaceMode("none");
+    setPendingDeleteProductId("");
+    setPendingClearBucket("");
+    setProductEditor(createEmptyProductEditor());
+    setStockEditor(createEmptyStockEditor());
+    setPostEditor(createEmptyPostEditor());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStoreProduct, storeSelectedProductId]);
+
   const openCreateProduct = () => {
     if (!storeInstanceId) return toast("Instancia", "Selecione uma instancia para criar produtos.", "bad");
+    setStoreWorkspaceMode("product");
+    setStoreSelectedProductId("");
+    setPendingDeleteProductId("");
+    setStockEditor(createEmptyStockEditor());
+    setPostEditor(createEmptyPostEditor());
     setProductEditor({
       open: true,
       mode: "create",
       instanceId: storeInstanceId,
       saving: false,
-      draft: {
-        id: "",
-        name: "",
-        shortLabel: "",
-        description: "",
-        sections: [],
-        variants: [],
-        bannerImage: "",
-        previewImage: "",
-        prePostGif: "",
-        thumbnail: "",
-        footerImage: "",
-        demoUrl: "",
-        disableThumbnail: false,
-        infiniteStock: false
-      }
+      draft: createEmptyProductDraft()
     });
   };
 
@@ -1364,10 +2002,18 @@ function Dashboard({ route, me, refreshMe, toast }) {
     const clone = JSON.parse(JSON.stringify(product || {}));
     if (!Array.isArray(clone.sections)) clone.sections = [];
     if (!Array.isArray(clone.variants)) clone.variants = [];
+    setStoreWorkspaceMode("product");
+    setStoreSelectedProductId(asString(clone.id).trim());
+    setPendingDeleteProductId("");
+    setStockEditor(createEmptyStockEditor());
+    setPostEditor(createEmptyPostEditor());
     setProductEditor({ open: true, mode: "edit", instanceId: storeInstanceId, saving: false, draft: clone });
   };
 
-  const closeProductEditor = () => setProductEditor({ open: false, mode: "create", instanceId: "", saving: false, draft: null });
+  const closeProductEditor = () => {
+    setProductEditor(createEmptyProductEditor());
+    setStoreWorkspaceMode((mode) => (mode === "product" ? "none" : mode));
+  };
 
   const saveProductEditor = async () => {
     const instId = asString(productEditor.instanceId).trim();
@@ -1378,6 +2024,14 @@ function Dashboard({ route, me, refreshMe, toast }) {
     const name = asString(draft.name).trim();
     if (productEditor.mode === "create" && !id) return toast("ID obrigatorio", "Defina um id para o produto.", "bad");
     if (!name) return toast("Nome obrigatorio", "Defina um nome para o produto.", "bad");
+    const issues = validateProductDraftClient(draft, {
+      requireId: productEditor.mode === "create",
+      requireVariant: true
+    });
+    if (issues.length) {
+      const preview = issues.slice(0, 3).join(" ");
+      return toast("Revise o produto", preview, "bad");
+    }
 
     setProductEditor((s) => ({ ...s, saving: true }));
     try {
@@ -1444,13 +2098,23 @@ function Dashboard({ route, me, refreshMe, toast }) {
     const instId = asString(storeInstanceId).trim();
     const pid = asString(product?.id).trim();
     if (!instId || !pid) return;
-    const ok = window.confirm(`Excluir o produto ${pid}? Isso tambem apaga o estoque dele.`);
-    if (!ok) return;
+    if (pendingDeleteProductId !== pid) {
+      setPendingDeleteProductId(pid);
+      return toast("Confirme exclusao", `Clique novamente em Excluir para remover ${pid}.`, "bad");
+    }
 
     setStoreProducts((s) => ({ ...s, loading: true }));
     try {
       await apiFetch(`/api/instances/${encodeURIComponent(instId)}/products/${encodeURIComponent(pid)}`, { method: "DELETE" });
       await loadStoreProducts(instId);
+      setPendingDeleteProductId("");
+      if (asString(storeSelectedProductId).trim() === pid) {
+        setStoreSelectedProductId("");
+        setStoreWorkspaceMode("none");
+        setProductEditor(createEmptyProductEditor());
+        setStockEditor(createEmptyStockEditor());
+        setPostEditor(createEmptyPostEditor());
+      }
       toast("Produto removido", "Produto excluido.", "good");
     } catch (err) {
       toast("Falha ao excluir produto", err.message || "Erro interno", "bad");
@@ -1463,6 +2127,12 @@ function Dashboard({ route, me, refreshMe, toast }) {
     const pid = asString(product?.id).trim();
     if (!instId || !pid) return;
 
+    setStoreWorkspaceMode("stock");
+    setStoreSelectedProductId(pid);
+    setPendingDeleteProductId("");
+    setPendingClearBucket("");
+    setProductEditor(createEmptyProductEditor());
+    setPostEditor(createEmptyPostEditor());
     setStockEditor((s) => ({
       ...s,
       open: true,
@@ -1486,24 +2156,17 @@ function Dashboard({ route, me, refreshMe, toast }) {
     }
   };
 
-  const closeStock = () =>
-    setStockEditor({
-      open: false,
-      instanceId: "",
-      productId: "",
-      productName: "",
-      variants: [],
-      loading: false,
-      saving: false,
-      bucket: "default",
-      keysText: "",
-      stock: {}
-    });
+  const closeStock = () => {
+    setStockEditor(createEmptyStockEditor());
+    setPendingClearBucket("");
+    setStoreWorkspaceMode((mode) => (mode === "stock" ? "none" : mode));
+  };
 
-  const saveStock = async (nextStock) => {
+  const saveStock = async (nextStock, options = {}) => {
+    const { silentSuccess = false } = options;
     const instId = asString(stockEditor.instanceId).trim();
     const pid = asString(stockEditor.productId).trim();
-    if (!instId || !pid) return;
+    if (!instId || !pid) return false;
 
     setStockEditor((s) => ({ ...s, saving: true }));
     try {
@@ -1513,9 +2176,13 @@ function Dashboard({ route, me, refreshMe, toast }) {
       });
       setStockEditor((s) => ({ ...s, stock: data.stock || nextStock }));
       await loadStoreProducts(instId);
-      toast("Estoque salvo", "Atualizado com sucesso.", "good");
+      if (!silentSuccess) {
+        toast("Estoque salvo", "Atualizado com sucesso.", "good");
+      }
+      return true;
     } catch (err) {
       toast("Falha ao salvar estoque", err.message || "Erro interno", "bad");
+      return false;
     } finally {
       setStockEditor((s) => ({ ...s, saving: false }));
     }
@@ -1532,19 +2199,56 @@ function Dashboard({ route, me, refreshMe, toast }) {
 
     const stock = stockEditor.stock && typeof stockEditor.stock === "object" ? stockEditor.stock : {};
     const current = Array.isArray(stock[bucket]) ? stock[bucket] : [];
-    const next = { ...stock, [bucket]: [...current, ...lines] };
+    const dedupInput = [...new Set(lines)];
+    const existing = new Set(current.map((entry) => asString(entry).trim()).filter(Boolean));
+    const usedInOtherBuckets = new Set();
+    Object.entries(stock).forEach(([stockBucket, list]) => {
+      if (stockBucket === bucket || !Array.isArray(list)) return;
+      list.forEach((entry) => {
+        const normalized = asString(entry).trim();
+        if (normalized) usedInOtherBuckets.add(normalized);
+      });
+    });
+
+    const toAdd = dedupInput.filter((entry) => !existing.has(entry) && !usedInOtherBuckets.has(entry));
+    const skippedCurrent = dedupInput.filter((entry) => existing.has(entry)).length;
+    const skippedOther = dedupInput.filter((entry) => usedInOtherBuckets.has(entry)).length;
+    const skipped = skippedCurrent + skippedOther;
+    if (!toAdd.length) {
+      if (skippedOther > 0) {
+        return toast("Sem novas keys", "As keys já existem em outros buckets ou no bucket atual.", "bad");
+      }
+      return toast("Sem novas keys", "Todas as keys já existem nesse bucket.", "bad");
+    }
+    const next = { ...stock, [bucket]: [...current, ...toAdd] };
 
     setStockEditor((s) => ({ ...s, keysText: "" }));
-    await saveStock(next);
+    const ok = await saveStock(next, { silentSuccess: true });
+    if (ok) {
+      let msg = `${toAdd.length} keys adicionadas.`;
+      if (skipped > 0) {
+        msg = `${toAdd.length} adicionadas, ${skipped} ignoradas.`;
+      }
+      if (skippedOther > 0) {
+        msg = `${msg} ${skippedOther} já estavam em outros buckets.`;
+      }
+      toast("Estoque atualizado", msg, "good");
+    }
   };
 
   const clearStockBucket = async () => {
     const bucket = asString(stockEditor.bucket).trim() || "default";
-    const ok = window.confirm(`Limpar o bucket "${bucket}"?`);
-    if (!ok) return;
+    if (pendingClearBucket !== bucket) {
+      setPendingClearBucket(bucket);
+      return toast("Confirme limpeza", `Clique novamente em Limpar bucket para zerar "${bucket}".`, "bad");
+    }
     const stock = stockEditor.stock && typeof stockEditor.stock === "object" ? stockEditor.stock : {};
     const next = { ...stock, [bucket]: [] };
-    await saveStock(next);
+    const saved = await saveStock(next, { silentSuccess: true });
+    if (saved) {
+      setPendingClearBucket("");
+      toast("Bucket limpo", `Bucket "${bucket}" zerado com sucesso.`, "good");
+    }
   };
 
   const openPost = async (product) => {
@@ -1552,6 +2256,11 @@ function Dashboard({ route, me, refreshMe, toast }) {
     const pid = asString(product?.id).trim();
     if (!instId || !pid) return;
 
+    setStoreWorkspaceMode("post");
+    setStoreSelectedProductId(pid);
+    setPendingDeleteProductId("");
+    setProductEditor(createEmptyProductEditor());
+    setStockEditor(createEmptyStockEditor());
     setPostEditor({
       open: true,
       instanceId: instId,
@@ -1568,12 +2277,24 @@ function Dashboard({ route, me, refreshMe, toast }) {
       const list = data.channels || [];
       setPostEditor((s) => ({ ...s, loading: false, channels: list, channelId: asString(list?.[0]?.id || "") }));
     } catch (err) {
-      toast("Falha ao carregar canais", err.message || "Erro interno", "bad");
+      const msg = asString(err?.message);
+      if (msg === "guild_id_required") {
+        toast("Servidor pendente", "Vincule um servidor na instância antes de postar produto.", "bad");
+      } else if (msg === "bot_not_ready") {
+        toast("Bot offline", "O bot precisa estar online para carregar canais.", "bad");
+      } else if (msg === "instance_requires_own_bot_token") {
+        toast("Token/runtime divergente", "Esse servidor está com bot diferente do runtime ativo.", "bad");
+      } else {
+        toast("Falha ao carregar canais", msg || "Erro interno", "bad");
+      }
       setPostEditor((s) => ({ ...s, loading: false }));
     }
   };
 
-  const closePost = () => setPostEditor({ open: false, instanceId: "", productId: "", productName: "", channelId: "", purge: true, loading: false, channels: [] });
+  const closePost = () => {
+    setPostEditor(createEmptyPostEditor());
+    setStoreWorkspaceMode((mode) => (mode === "post" ? "none" : mode));
+  };
 
   const doPost = async () => {
     const instId = asString(postEditor.instanceId).trim();
@@ -1591,14 +2312,663 @@ function Dashboard({ route, me, refreshMe, toast }) {
       toast("Produto postado", "Mensagem enviada no canal selecionado.", "good");
       closePost();
     } catch (err) {
-      toast("Falha ao postar", err.message || "Erro interno", "bad");
+      const msg = asString(err?.message);
+      if (msg === "instance_requires_own_bot_token") {
+        toast("Publicação bloqueada", "Bot da instância diferente do runtime ativo. Ajuste o token ou inicie o runtime correto.", "bad");
+      } else if (msg === "bot_not_ready") {
+        toast("Bot offline", "O bot precisa estar online para postar produto.", "bad");
+      } else if (msg === "canal nao pertence ao servidor vinculado") {
+        toast("Canal inválido", "Selecione um canal do servidor vinculado à instância.", "bad");
+      } else {
+        toast("Falha ao postar", msg || "Erro interno", "bad");
+      }
       setPostEditor((s) => ({ ...s, loading: false }));
     }
   };
 
-  const avatarUrl = me?.discordAvatarUrl || null;
+  const closeStoreWorkspace = () => {
+    setStoreWorkspaceMode("none");
+    setPendingDeleteProductId("");
+    setPendingClearBucket("");
+    setProductEditor(createEmptyProductEditor());
+    setStockEditor(createEmptyStockEditor());
+    setPostEditor(createEmptyPostEditor());
+  };
+
+  const storeWorkspaceTitle = (() => {
+    if (storeWorkspaceMode === "product") {
+      if (productEditor.mode === "create") return "Criar produto";
+      return `Editar produto - ${asString(productEditor?.draft?.name || productEditor?.draft?.id || "").trim() || "sem nome"}`;
+    }
+    if (storeWorkspaceMode === "stock") {
+      return `Estoque - ${stockEditor.productName || stockEditor.productId || "produto"}`;
+    }
+    if (storeWorkspaceMode === "post") {
+      return `Postar no Discord - ${postEditor.productName || postEditor.productId || "produto"}`;
+    }
+    return "Workspace de produtos";
+  })();
+
+  const renderStoreWorkspaceContent = () => {
+    if (storeWorkspaceMode === "product") {
+      if (!productEditor.draft) return html`<div className="muted">Selecione um produto para editar.</div>`;
+      return html`
+        <div className="formGrid">
+          <div className="label">ID</div>
+          ${productEditor.mode === "create"
+            ? html`
+                <input
+                  className="input mono"
+                  value=${productEditor.draft.id || ""}
+                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, id: e.target.value } }))}
+                  placeholder="ex: product1"
+                />
+                <div className="help">Use letras/numeros e . _ - (sem espacos).</div>
+              `
+            : html`<div className="code mono">${asString(productEditor.draft.id)}</div>`}
+
+          <div className="label">Nome</div>
+          <input
+            className="input"
+            value=${productEditor.draft.name || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, name: e.target.value } }))}
+            placeholder="Nome do produto"
+          />
+
+          <div className="label">Short label</div>
+          <input
+            className="input"
+            value=${productEditor.draft.shortLabel || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, shortLabel: e.target.value } }))}
+            placeholder="Ex: BSRAGE"
+          />
+
+          <div className="label">Descricao</div>
+          <textarea
+            className="input"
+            rows="5"
+            value=${productEditor.draft.description || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, description: e.target.value } }))}
+            placeholder="Texto do produto (markdown)"
+          ></textarea>
+
+          <div className="hr"></div>
+
+          <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
+            <div className="label" style=${{ margin: 0 }}>Variacoes</div>
+            <${Button} variant="subtle" disabled=${productEditor.saving} onClick=${addVariantRow}>
+              <${Plus} size=${14} style=${{ marginRight: "6px" }} />
+              Adicionar variacao
+            </${Button}>
+          </div>
+          ${Array.isArray(productEditor.draft.variants) && productEditor.draft.variants.length
+            ? html`
+                <div className="stack">
+                  ${productEditor.draft.variants.map(
+                    (v, idx) => html`
+                      <div className="kpi">
+                        <div className="row grow">
+                          <input
+                            className="input mono"
+                            value=${v.id || ""}
+                            onInput=${(e) => {
+                              const value = e.target.value;
+                              setProductEditor((s) => {
+                                const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
+                                list[idx] = { ...(list[idx] || {}), id: value };
+                                return { ...s, draft: { ...s.draft, variants: list } };
+                              });
+                            }}
+                            placeholder="id (ex: 30d)"
+                          />
+                          <input
+                            className="input"
+                            value=${v.label || ""}
+                            onInput=${(e) => {
+                              const value = e.target.value;
+                              setProductEditor((s) => {
+                                const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
+                                list[idx] = { ...(list[idx] || {}), label: value };
+                                return { ...s, draft: { ...s.draft, variants: list } };
+                              });
+                            }}
+                            placeholder="label (ex: 30 dias)"
+                          />
+                        </div>
+                        <div className="row grow" style=${{ marginTop: "10px" }}>
+                          <input
+                            className="input"
+                            value=${v.duration || ""}
+                            onInput=${(e) => {
+                              const value = e.target.value;
+                              setProductEditor((s) => {
+                                const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
+                                list[idx] = { ...(list[idx] || {}), duration: value };
+                                return { ...s, draft: { ...s.draft, variants: list } };
+                              });
+                            }}
+                            placeholder="duracao (ex: 30 dias)"
+                          />
+                          <input
+                            className="input mono"
+                            value=${String(v.price ?? "")}
+                            onInput=${(e) => {
+                              const value = e.target.value;
+                              setProductEditor((s) => {
+                                const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
+                                list[idx] = { ...(list[idx] || {}), price: value };
+                                return { ...s, draft: { ...s.draft, variants: list } };
+                              });
+                            }}
+                            placeholder="preco (ex: 29.90)"
+                          />
+                          <input
+                            className="input"
+                            value=${v.emoji || ""}
+                            onInput=${(e) => {
+                              const value = e.target.value;
+                              setProductEditor((s) => {
+                                const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
+                                list[idx] = { ...(list[idx] || {}), emoji: value };
+                                return { ...s, draft: { ...s.draft, variants: list } };
+                              });
+                            }}
+                            placeholder="emoji (opcional)"
+                          />
+                        </div>
+                        <div style=${{ marginTop: "10px" }}>
+                          <${Button} variant="danger" disabled=${productEditor.saving} onClick=${() => removeVariantRow(idx)}>
+                            <${Trash2} size=${14} style=${{ marginRight: "6px" }} />
+                            Remover
+                          </${Button}>
+                        </div>
+                      </div>
+                    `
+                  )}
+                </div>
+              `
+            : html`<div className="muted2">Nenhuma variacao ainda. Adicione pelo botao acima.</div>`}
+
+          <div className="hr"></div>
+
+          <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
+            <div className="label" style=${{ margin: 0 }}>Blocos (opcional)</div>
+            <${Button} variant="subtle" disabled=${productEditor.saving} onClick=${addSectionRow}>
+              <${Plus} size=${14} style=${{ marginRight: "6px" }} />
+              Adicionar bloco
+            </${Button}>
+          </div>
+          ${Array.isArray(productEditor.draft.sections) && productEditor.draft.sections.length
+            ? html`
+                <div className="stack">
+                  ${productEditor.draft.sections.map(
+                    (sec, idx) => html`
+                      <div className="kpi">
+                        <input
+                          className="input"
+                          value=${sec.name || ""}
+                          onInput=${(e) => {
+                            const value = e.target.value;
+                            setProductEditor((s) => {
+                              const list = Array.isArray(s.draft?.sections) ? [...s.draft.sections] : [];
+                              list[idx] = { ...(list[idx] || {}), name: value };
+                              return { ...s, draft: { ...s.draft, sections: list } };
+                            });
+                          }}
+                          placeholder="Titulo do bloco"
+                        />
+                        <textarea
+                          className="input"
+                          rows="4"
+                          style=${{ marginTop: "10px" }}
+                          value=${sec.value || ""}
+                          onInput=${(e) => {
+                            const value = e.target.value;
+                            setProductEditor((s) => {
+                              const list = Array.isArray(s.draft?.sections) ? [...s.draft.sections] : [];
+                              list[idx] = { ...(list[idx] || {}), value };
+                              return { ...s, draft: { ...s.draft, sections: list } };
+                            });
+                          }}
+                          placeholder="Conteudo (markdown)"
+                        ></textarea>
+                        <div className="row" style=${{ marginTop: "10px", alignItems: "center", justifyContent: "space-between" }}>
+                          <label className="muted2">
+                            <input
+                              type="checkbox"
+                              checked=${!!sec.inline}
+                              onChange=${(e) => {
+                                const value = !!e.target.checked;
+                                setProductEditor((s) => {
+                                  const list = Array.isArray(s.draft?.sections) ? [...s.draft.sections] : [];
+                                  list[idx] = { ...(list[idx] || {}), inline: value };
+                                  return { ...s, draft: { ...s.draft, sections: list } };
+                                });
+                              }}
+                            />
+                            <span style=${{ marginLeft: "8px" }}>Inline</span>
+                          </label>
+                          <${Button} variant="danger" disabled=${productEditor.saving} onClick=${() => removeSectionRow(idx)}>
+                            <${Trash2} size=${14} style=${{ marginRight: "6px" }} />
+                            Remover
+                          </${Button}>
+                        </div>
+                      </div>
+                    `
+                  )}
+                </div>
+              `
+            : html`<div className="muted2">Use blocos para adicionar campos extras no embed (funcoes, infos, etc).</div>`}
+
+          <div className="hr"></div>
+
+          <div className="label">Midias (opcional)</div>
+          <input
+            className="input"
+            value=${productEditor.draft.bannerImage || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, bannerImage: e.target.value } }))}
+            placeholder="bannerImage (ex: assets/product1/banner.gif)"
+          />
+          <input
+            className="input"
+            value=${productEditor.draft.previewImage || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, previewImage: e.target.value } }))}
+            placeholder="previewImage (opcional)"
+          />
+          <input
+            className="input"
+            value=${productEditor.draft.prePostGif || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, prePostGif: e.target.value } }))}
+            placeholder="prePostGif (opcional)"
+          />
+          <input
+            className="input"
+            value=${productEditor.draft.thumbnail || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, thumbnail: e.target.value } }))}
+            placeholder="thumbnail (opcional)"
+          />
+          <input
+            className="input"
+            value=${productEditor.draft.footerImage || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, footerImage: e.target.value } }))}
+            placeholder="footerImage (opcional)"
+          />
+          <input
+            className="input"
+            value=${productEditor.draft.demoUrl || ""}
+            onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, demoUrl: e.target.value } }))}
+            placeholder="demoUrl (opcional)"
+          />
+
+          <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
+            <label className="muted2">
+              <input
+                type="checkbox"
+                checked=${!!productEditor.draft.disableThumbnail}
+                onChange=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, disableThumbnail: !!e.target.checked } }))}
+              />
+              <span style=${{ marginLeft: "8px" }}>Desativar thumbnail</span>
+            </label>
+            <label className="muted2">
+              <input
+                type="checkbox"
+                checked=${!!productEditor.draft.infiniteStock}
+                onChange=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, infiniteStock: !!e.target.checked } }))}
+              />
+              <span style=${{ marginLeft: "8px" }}>Estoque infinito</span>
+            </label>
+          </div>
+        </div>
+
+        <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
+          <${Button} variant="primary" disabled=${productEditor.saving} onClick=${saveProductEditor}>
+            <${Save} size=${16} style=${{ marginRight: "6px" }} />
+            ${productEditor.saving ? "Salvando..." : productEditor.mode === "create" ? "Criar produto" : "Salvar produto"}
+          </${Button}>
+          <${Button} variant="ghost" disabled=${productEditor.saving} onClick=${closeProductEditor}>
+            <${X} size=${16} style=${{ marginRight: "6px" }} />
+            Fechar painel
+          </${Button}>
+        </div>
+      `;
+    }
+
+    if (storeWorkspaceMode === "stock") {
+      return stockEditor.loading
+        ? html`<div className="muted">Carregando estoque...</div>`
+        : html`
+            <div className="formGrid stockWorkspace">
+              <div className="stockHeaderSummary">
+                <span className="badge none">Bucket atual: ${stockBucketCount}</span>
+                <span className="badge none">Total de keys: ${stockTotalCount}</span>
+                <span className="badge ${stockDraftKeys.length > 0 ? "pending" : "none"}">Fila para inserir: ${stockDraftKeys.length}</span>
+              </div>
+
+              <div className="label">Bucket</div>
+              <select
+                className="input"
+                value=${stockEditor.bucket}
+                onChange=${(e) => {
+                  setPendingClearBucket("");
+                  setStockEditor((s) => ({ ...s, bucket: e.target.value }));
+                }}
+              >
+                ${stockBucketOptions.map((id) => html`<option value=${id}>${id}</option>`)}
+              </select>
+
+              <div className="stockBucketChips">
+                ${stockBucketOptions.map((id) => {
+                  const count = Array.isArray(stockEditor?.stock?.[id]) ? stockEditor.stock[id].length : 0;
+                  const active = (asString(stockEditor.bucket).trim() || "default") === id;
+                  return html`
+                    <button
+                      className=${`stockChip ${active ? "active" : ""}`}
+                      onClick=${() => {
+                        setPendingClearBucket("");
+                        setStockEditor((s) => ({ ...s, bucket: id }));
+                      }}
+                    >
+                      <span className="mono">${id}</span>
+                      <span>${count}</span>
+                    </button>
+                  `;
+                })}
+              </div>
+              <div className="help">Use default para fallback geral, shared para estoque comum e buckets por variacao para controle fino.</div>
+
+              <div className="label">Inserção em lote (1 key por linha)</div>
+              <textarea
+                className="input mono stockInput"
+                rows="10"
+                value=${stockEditor.keysText}
+                onInput=${(e) => setStockEditor((s) => ({ ...s, keysText: e.target.value }))}
+                placeholder="Cole aqui suas keys:\nKEY-1\nKEY-2\nKEY-3"
+              ></textarea>
+
+              <div className="stockDraftInfo">
+                <span>Linhas detectadas: <b>${stockDraftKeys.length}</b></span>
+                ${stockDraftKeys.length
+                  ? html`<span className="mono">Prévia: ${stockDraftKeys.slice(0, 3).join(" · ")}${stockDraftKeys.length > 3 ? " ..." : ""}</span>`
+                  : html`<span className="muted2">Cole as keys para habilitar a inserção.</span>`}
+              </div>
+
+              <div className="stockActions">
+                <${Button} variant="primary" disabled=${stockEditor.saving || stockDraftKeys.length === 0} onClick=${addStockKeys}>
+                  <${Plus} size=${16} style=${{ marginRight: "6px" }} />
+                  ${stockEditor.saving ? "Salvando..." : "Adicionar keys"}
+                </${Button}>
+                <${Button} variant="danger" disabled=${stockEditor.saving} onClick=${clearStockBucket}>
+                  <${Trash2} size=${16} style=${{ marginRight: "6px" }} />
+                  ${pendingClearBucket === (asString(stockEditor.bucket).trim() || "default") ? "Confirmar limpeza" : "Limpar bucket"}
+                </${Button}>
+                <${Button} variant="ghost" disabled=${stockEditor.saving} onClick=${closeStock}>
+                  <${X} size=${16} style=${{ marginRight: "6px" }} />
+                  Fechar painel
+                </${Button}>
+              </div>
+
+              <div className="hr"></div>
+
+              <div className="stockBucketsGrid">
+                <div>
+                  <div className="label">Keys no bucket atual</div>
+                  <div className="stockBucketList mono">
+                    ${stockActiveEntries.length
+                      ? stockActiveEntries.slice(0, 120).map((key, idx) => html`<div className="stockKeyItem">${idx + 1}. ${asString(key)}</div>`)
+                      : html`<div className="muted2">Bucket vazio.</div>`}
+                    ${stockActiveEntries.length > 120
+                      ? html`<div className="muted2">Mostrando 120 de ${stockActiveEntries.length} keys.</div>`
+                      : null}
+                  </div>
+                </div>
+                <div>
+                  <div className="label">Resumo técnico</div>
+                  <div className="code mono stockJsonPreview">${JSON.stringify(stockEditor.stock || {}, null, 2)}</div>
+                </div>
+              </div>
+            </div>
+          `;
+    }
+
+    if (storeWorkspaceMode === "post") {
+      return postEditor.loading
+        ? html`<div className="muted">Carregando canais...</div>`
+        : html`
+            <div className="formGrid">
+              <div className="label">Canal</div>
+              <select className="input" value=${postEditor.channelId} onChange=${(e) => setPostEditor((s) => ({ ...s, channelId: e.target.value }))}>
+                <option value="">Selecionar...</option>
+                ${(postEditor.channels || []).map((c) => html`<option value=${c.id}>${c.label || c.name}</option>`)}
+              </select>
+
+              <label className="muted2">
+                <input type="checkbox" checked=${!!postEditor.purge} onChange=${(e) => setPostEditor((s) => ({ ...s, purge: !!e.target.checked }))} />
+                <span style=${{ marginLeft: "8px" }}>Limpar canal antes de postar (requer permissao)</span>
+              </label>
+
+              <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <${Button} variant="primary" disabled=${postEditor.loading} onClick=${doPost}>
+                  <${Send} size=${16} style=${{ marginRight: "6px" }} />
+                  Postar agora
+                </${Button}>
+                <${Button} variant="ghost" disabled=${postEditor.loading} onClick=${closePost}>
+                  <${X} size=${16} style=${{ marginRight: "6px" }} />
+                  Fechar painel
+                </${Button}>
+              </div>
+            </div>
+          `;
+    }
+
+    return html`
+      <div className="emptyState storeWorkspaceEmpty">
+        <div className="eTitle">Escolha uma ação para começar</div>
+        <div className="eDesc">Selecione um produto no catálogo para editar, ajustar estoque ou publicar no Discord sem abrir popup.</div>
+      </div>
+      <div className="storeQuickActions">
+        <${Button} variant="primary" disabled=${storeProducts.loading || !storeInstanceId} onClick=${openCreateProduct}>
+          <${Plus} size=${16} style=${{ marginRight: "6px" }} />
+          Novo produto
+        </${Button}>
+        <${Button} variant="ghost" disabled=${!selectedStoreProduct} onClick=${() => selectedStoreProduct && openEditProduct(selectedStoreProduct)}>
+          <${Edit3} size=${16} style=${{ marginRight: "6px" }} />
+          Editar selecionado
+        </${Button}>
+        <${Button} variant="subtle" disabled=${!selectedStoreProduct} onClick=${() => selectedStoreProduct && openStock(selectedStoreProduct)}>
+          <${Package} size=${16} style=${{ marginRight: "6px" }} />
+          Abrir estoque
+        </${Button}>
+        <${Button} variant="subtle" disabled=${!selectedStoreProduct || !canPostFromStore} onClick=${() => selectedStoreProduct && openPost(selectedStoreProduct)}>
+          <${Send} size=${16} style=${{ marginRight: "6px" }} />
+          Publicar no Discord
+        </${Button}>
+      </div>
+    `;
+  };
+
+  const instanceWorkspaceTitle = (() => {
+    if (instanceWorkspaceMode !== "edit") return "Workspace de instâncias";
+    return `Editar instância - ${asString(edit.name || edit.id).trim() || "sem nome"}`;
+  })();
+
+  const renderInstanceWorkspaceContent = () => {
+    if (instanceWorkspaceMode !== "edit" || !asString(edit.id).trim()) {
+      return html`
+        <div className="emptyState instanceWorkspaceEmpty">
+          <div className="eTitle">Selecione uma instância</div>
+          <div className="eDesc">Escolha uma instância na lista para editar vinculação, branding e canais sem popup.</div>
+        </div>
+      `;
+    }
+
+    const editId = asString(edit.id).trim();
+    return html`
+      <div className="formGrid">
+        <div className="label">Nome da instância</div>
+        <input className="input" value=${edit.name} onInput=${(e) => setEdit((s) => ({ ...s, name: e.target.value }))} placeholder="Ex: Minha Loja" />
+
+        <div className="label">Servidor (Guild ID)</div>
+        <input
+          className="input mono"
+          value=${edit.guildId}
+          onInput=${(e) => setEdit((s) => ({ ...s, guildId: e.target.value }))}
+          placeholder="Ex: 123456789012345678"
+        />
+        ${guilds?.length
+          ? html`
+              <div className="help">Ou escolha da lista (requer login com Discord):</div>
+              <select
+                className="input"
+                value=${edit.guildId}
+                onChange=${(e) => setEdit((s) => ({ ...s, guildId: e.target.value }))}
+              >
+                <option value="">Selecionar servidor...</option>
+                ${guilds.map((g) => html`<option value=${g.id}>${g.name}</option>`)}
+              </select>
+            `
+          : html`<div className="help">Para carregar a lista de servidores aqui, entre com Discord.</div>`}
+
+        <div className="hr"></div>
+
+        <div className="label">Branding</div>
+        <input
+          className="input"
+          value=${edit.brandName}
+          onInput=${(e) => setEdit((s) => ({ ...s, brandName: e.target.value }))}
+          placeholder="Nome da marca (ex: AstraSystems)"
+        />
+        <input
+          className="input mono"
+          value=${edit.accent}
+          onInput=${(e) => setEdit((s) => ({ ...s, accent: e.target.value }))}
+          placeholder="Cor de destaque (ex: #E6212A)"
+        />
+        <input
+          className="input"
+          value=${edit.logoUrl}
+          onInput=${(e) => setEdit((s) => ({ ...s, logoUrl: e.target.value }))}
+          placeholder="URL do logo (opcional)"
+        />
+        <div className="help">
+          Para vincular um servidor, selecione da lista abaixo (requer login Discord) ou cole o Guild ID manualmente.
+        </div>
+
+        <div className="hr"></div>
+
+        <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
+          <div className="label" style=${{ margin: 0 }}>Canais do bot</div>
+          <${Button}
+            variant="subtle"
+            disabled=${busy || editChannels.loading || !asString(edit.guildId).trim()}
+            onClick=${onLoadInstanceChannels}
+          >
+            <${RefreshCw} size=${14} style=${{ marginRight: "6px" }} />
+            ${editChannels.loading ? "Carregando..." : "Carregar canais"}
+          </${Button}>
+        </div>
+        <div className="help">
+          Configure onde o bot vai enviar logs, notificacoes de vendas e onde pedir avaliacao.
+          <br />
+          Para usar dropdown: vincule o servidor, convide o bot e clique em <b>Carregar canais</b>.
+        </div>
+        ${editChannels.error ? html`<div className="muted2">Erro ao carregar canais: <b>${editChannels.error}</b></div>` : null}
+
+        <div className="label">Canal de logs</div>
+        ${editChannels.channels?.length
+          ? html`
+              <select
+                className="input"
+                value=${edit.logsChannelId}
+                onChange=${(e) => setEdit((s) => ({ ...s, logsChannelId: e.target.value }))}
+              >
+                <option value="">Nao configurado</option>
+                ${editChannels.channels.map((c) => html`<option value=${c.id}>${c.label || c.name}</option>`)}
+              </select>
+            `
+          : html`
+              <input
+                className="input mono"
+                value=${edit.logsChannelId}
+                onInput=${(e) => setEdit((s) => ({ ...s, logsChannelId: e.target.value }))}
+                placeholder="ID do canal (opcional)"
+              />
+            `}
+        <div className="help">Onde o bot envia alertas importantes (DM falhou, estoque, auditoria, etc).</div>
+
+        <div className="label">Canal de vendas ao vivo</div>
+        ${editChannels.channels?.length
+          ? html`
+              <select
+                className="input"
+                value=${edit.salesChannelId}
+                onChange=${(e) => setEdit((s) => ({ ...s, salesChannelId: e.target.value }))}
+              >
+                <option value="">Nao configurar</option>
+                ${editChannels.channels.map((c) => html`<option value=${c.id}>${c.label || c.name}</option>`)}
+              </select>
+            `
+          : html`
+              <input
+                className="input mono"
+                value=${edit.salesChannelId}
+                onInput=${(e) => setEdit((s) => ({ ...s, salesChannelId: e.target.value }))}
+                placeholder="ID do canal (opcional)"
+              />
+            `}
+        <div className="help">O bot manda uma mensagem aqui sempre que uma compra for entregue com sucesso.</div>
+
+        <div className="label">Canal de feedback/avaliacoes</div>
+        ${editChannels.channels?.length
+          ? html`
+              <select
+                className="input"
+                value=${edit.feedbackChannelId}
+                onChange=${(e) => setEdit((s) => ({ ...s, feedbackChannelId: e.target.value }))}
+              >
+                <option value="">Nao configurar</option>
+                ${editChannels.channels.map((c) => html`<option value=${c.id}>${c.label || c.name}</option>`)}
+              </select>
+            `
+          : html`
+              <input
+                className="input mono"
+                value=${edit.feedbackChannelId}
+                onInput=${(e) => setEdit((s) => ({ ...s, feedbackChannelId: e.target.value }))}
+                placeholder="ID do canal (opcional)"
+              />
+            `}
+        <div className="help">Apos a entrega, o bot manda uma DM pedindo para avaliar nesse canal.</div>
+      </div>
+
+      <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
+        <${Button} variant="primary" disabled=${busy} onClick=${onSaveInstance}>
+          <${Save} size=${16} style=${{ marginRight: "6px" }} />
+          ${busy ? "Salvando..." : "Salvar alterações"}
+        </${Button}>
+        <${Button}
+          variant="subtle"
+          disabled=${busy || !asString(edit.guildId).trim()}
+          onClick=${() => onInvite(asString(edit.guildId).trim(), editId)}
+        >
+          <${Link2} size=${16} style=${{ marginRight: "6px" }} />
+          Gerar invite
+        </${Button}>
+        <${Button} variant="danger" disabled=${busy} onClick=${() => onDeleteInstance(editId)}>
+          <${Trash2} size=${16} style=${{ marginRight: "6px" }} />
+          ${pendingDeleteInstanceId === editId ? "Confirmar exclusao" : "Excluir instância"}
+        </${Button}>
+        <${Button} variant="ghost" disabled=${busy} onClick=${closeEditInstance}>
+          <${X} size=${16} style=${{ marginRight: "6px" }} />
+          Fechar painel
+        </${Button}>
+      </div>
+    `;
+  };
+
+  const avatarUrl = me?.profileAvatarUrl || me?.discordAvatarUrl || null;
   const displayName = me?.discordUsername || me?.displayName || (me?.email ? me.email.split("@")[0] : "Usuário");
   const initials = displayName.slice(0, 1).toUpperCase();
+  const profileAvatarPreview = asString(profileAvatarDraft).trim() || avatarUrl;
 
   // Plan expiry warning
   const [expiryDismissed, setExpiryDismissed] = useState(false);
@@ -1621,14 +2991,17 @@ function Dashboard({ route, me, refreshMe, toast }) {
       ${expiryWarning ? html`
         <div className="expiryBanner">
           <div className="expiryBannerLeft">
-            <span className="expiryBannerIcon">🔔</span>
+            <${Bell} size=${20} className="expiryBannerIcon" />
             <div>
               <div className="expiryBannerTitle">Plano expirando em breve!</div>
               <div className="expiryBannerDesc">Seu plano expira em <b>${expiryWarning}</b>. Renove agora para não perder acesso.</div>
             </div>
           </div>
           <div style=${{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-            <${Button} variant="primary" onClick=${() => route.navigate("/plans")}>Renovar Agora</${Button}>
+            <${Button} variant="primary" onClick=${() => route.navigate("/plans")}>
+              <${CreditCard} size=${16} style=${{ marginRight: "6px" }} />
+              Renovar Agora
+            </${Button}>
             <button className="expiryBannerDismiss" onClick=${() => setExpiryDismissed(true)} aria-label="Fechar">×</button>
           </div>
         </div>
@@ -1666,23 +3039,28 @@ function Dashboard({ route, me, refreshMe, toast }) {
                 Discord
               </div>
             ` : null}
+            ${me?.isPortalAdmin ? html`
+              <div className="pill good" style=${{ fontSize: "11px", padding: "4px 9px" }}>
+                Admin
+              </div>
+            ` : null}
           </div>
         </div>
 
         <div className="userStats">
           <div className="userStat">
-            <div className="userStatVal">${formatBRLFromCents(me?.walletCents || 0)}</div>
-            <div className="userStatLabel">Saldo</div>
-          </div>
-          <div className="userStatDivider"></div>
-          <div className="userStat">
-            <div className="userStatVal">${formatBRLFromCents(me?.salesCentsTotal || 0)}</div>
-            <div className="userStatLabel">Total vendido</div>
+            <div className="userStatVal">${me?.planActive ? "Ativo" : "Inativo"}</div>
+            <div className="userStatLabel">Plano</div>
           </div>
           <div className="userStatDivider"></div>
           <div className="userStat">
             <div className="userStatVal">${instances?.length || 0}</div>
-            <div className="userStatLabel">Instâncias</div>
+            <div className="userStatLabel">Instancias</div>
+          </div>
+          <div className="userStatDivider"></div>
+          <div className="userStat">
+            <div className="userStatVal">${onlineInstancesCount}</div>
+            <div className="userStatLabel">Bots online</div>
           </div>
         </div>
       </div>
@@ -1699,6 +3077,10 @@ function Dashboard({ route, me, refreshMe, toast }) {
         <button className=${`tab ${tab === "store" ? "active" : ""}`} onClick=${() => setTab("store")}>
           <${ShoppingBag} size=${15} strokeWidth=${1.9} aria-hidden="true" />
           <span>Loja</span>
+        </button>
+        <button className=${`tab ${tab === "wallet" ? "active" : ""}`} onClick=${() => setTab("wallet")}>
+          <${HandCoins} size=${15} strokeWidth=${1.9} aria-hidden="true" />
+          <span>Carteira</span>
         </button>
         <button className=${`tab ${tab === "account" ? "active" : ""}`} onClick=${() => setTab("account")}>
           <${CircleUserRound} size=${15} strokeWidth=${1.9} aria-hidden="true" />
@@ -1732,17 +3114,22 @@ function Dashboard({ route, me, refreshMe, toast }) {
       ${tab === "overview" ? html`
       <div className="card pad" style=${{ marginTop: "14px" }}>
         <div className="cardHead">
-          <h3>Onboarding</h3>
-          <div className=${`pill ${botStatus?.botReady ? "good" : "soon"}`}>
-            <span className=${`dot ${botStatus?.botReady ? "on" : "off"}`} style=${{ marginRight: "5px" }}></span>
-            ${botStatus?.botReady ? "Bot online" : "Bot offline"}
+          <h3>Configuração</h3>
+          <div className="row" style=${{ alignItems: "center", gap: "8px" }}>
+            <div className=${`pill ${botStatus?.botReady ? "good" : "soon"}`}>
+              <span className=${`dot ${botStatus?.botReady ? "on" : "off"}`} style=${{ marginRight: "5px" }}></span>
+              ${botStatus?.botReady ? "Bot online" : "Bot offline"}
+            </div>
+            ${me?.planActive && (instances?.length || 0) > 0 && firstInstance?.discordGuildId
+              ? html`<div className="pill good" style=${{ fontSize: "11px", padding: "4px 9px" }}>Setup completo</div>`
+              : null}
           </div>
         </div>
-        <div className="muted" style=${{ marginBottom: "14px" }}>
-          Fluxo: <b>Plano</b> → <b>Instância</b> → <b>Vincular servidor</b> → <b>Invite</b> → <b>Loja</b> → <b>Testar compra</b>
+        <div className="muted2" style=${{ marginBottom: "14px", fontSize: "13px" }}>
+          Siga os 3 passos abaixo para colocar seu bot no ar e começar a vender.
         </div>
         ${me?.planActive && !(instances?.length > 0)
-          ? html`<div className="pill reco" style=${{ marginBottom: "14px" }}>Próximo passo: criar sua instância com o token do bot.</div>`
+          ? html`<div className="pill reco" style=${{ marginBottom: "14px", display: "inline-flex" }}>Próximo passo: crie sua instância com o token do bot.</div>`
           : null}
         <div className="grid cols3">
           <div className="kpi">
@@ -1750,14 +3137,14 @@ function Dashboard({ route, me, refreshMe, toast }) {
               <span className="stepBadge">1</span>
               <div className="label" style=${{ margin: 0 }}>Plano</div>
             </div>
-            <div className="value">${me?.planActive ? "Ativo" : "Inativo"}</div>
-            <div className="hint">Trial 24h ou Start R$ 5,97/m. Reembolso em até 7 dias.</div>
+            <div className="value" style=${{ color: me?.planActive ? "var(--good)" : "inherit" }}>${me?.planActive ? "Ativo" : "Pendente"}</div>
+            <div className="hint">Trial 24h grátis ou plano Start a partir de R$ 5,97/mês.</div>
             <div style=${{ marginTop: "10px" }}>
               <div className="row grow" style=${{ gap: "8px" }}>
-                <${Button} variant="ghost" icon=${CreditCard} disabled=${busy} onClick=${() => route.navigate("/plans")}>Gerenciar plano</${Button}>
+                <${Button} variant="ghost" icon=${CreditCard} disabled=${busy} onClick=${() => route.navigate("/plans")}>Gerenciar</${Button}>
                 ${me?.planActive
                   ? null
-                  : html`<${Button} variant="subtle" icon=${Rocket} disabled=${busy} onClick=${() => route.navigate("/trial")}>Ativar trial</${Button}>`}
+                  : html`<${Button} variant="primary" icon=${Rocket} disabled=${busy} onClick=${() => route.navigate("/trial")}>Ativar trial</${Button}>`}
               </div>
             </div>
           </div>
@@ -1766,11 +3153,13 @@ function Dashboard({ route, me, refreshMe, toast }) {
               <span className="stepBadge">2</span>
               <div className="label" style=${{ margin: 0 }}>Instância</div>
             </div>
-            <div className="value">${(instances?.length || 0) > 0 ? "Criada" : "Pendente"}</div>
-            <div className="hint">Crie sua instância com o token do bot para começar a operar no Discord.</div>
+            <div className="value" style=${{ color: (instances?.length || 0) > 0 ? "var(--good)" : "inherit" }}>
+              ${(instances?.length || 0) > 0 ? "Criada" : "Pendente"}
+            </div>
+            <div className="hint">Cole o token do bot criado no Discord Developer Portal.</div>
             <div style=${{ marginTop: "10px" }}>
               <${Button}
-                variant="primary"
+                variant=${(instances?.length || 0) > 0 ? "ghost" : "primary"}
                 icon=${Plus}
                 disabled=${busy}
                 onClick=${() => {
@@ -1779,7 +3168,7 @@ function Dashboard({ route, me, refreshMe, toast }) {
                   setCreating(true);
                 }}
               >
-                Criar instância
+                ${(instances?.length || 0) > 0 ? "Gerenciar" : "Criar instância"}
               </${Button}>
             </div>
           </div>
@@ -1788,8 +3177,10 @@ function Dashboard({ route, me, refreshMe, toast }) {
               <span className="stepBadge">3</span>
               <div className="label" style=${{ margin: 0 }}>Invite</div>
             </div>
-            <div className="value">Adicionar bot</div>
-            <div className="hint">Gere o link de convite e adicione o bot ao seu servidor Discord.</div>
+            <div className="value" style=${{ color: firstInstance?.discordGuildId ? "var(--good)" : "inherit" }}>
+              ${firstInstance?.discordGuildId ? "Vinculado" : "Pendente"}
+            </div>
+            <div className="hint">Convide o bot ao servidor e vincule o Guild ID na instância.</div>
             <div style=${{ marginTop: "10px" }}>
               <${Button}
                 variant="subtle"
@@ -1808,82 +3199,182 @@ function Dashboard({ route, me, refreshMe, toast }) {
       ` : null}
 
       ${tab === "overview" ? html`
-      <div className="grid cols3" style=${{ marginTop: "16px" }}>
-        <div className="kpi">
-          <div className="label">Saldo de vendas</div>
-          <div className="value">${formatBRLFromCents(me?.walletCents || 0)}</div>
-          <div className="hint">Total vendido: <b>${formatBRLFromCents(me?.salesCentsTotal || 0)}</b></div>
-        </div>
-        <div className="kpi">
-          <div className="label">Plano</div>
-          <div className="value">${planText}</div>
-          <div className="hint">
-            ${me?.plan?.expiresAt ? html`Expira em: <b>${String(me.plan.expiresAt).slice(0, 10)}</b>` : html`Sem expiração`}
-          </div>
-          <div style=${{ marginTop: "12px" }}>
-            <${Button} variant="ghost" icon=${CreditCard} onClick=${() => route.navigate("/plans")}>Ver planos</${Button}>
-          </div>
-        </div>
-        <div className="kpi">
-          <div className="label">Instâncias ativas</div>
-          <div className="value">${instances?.length || 0}</div>
-          <div className="hint">Cada plano ativo libera 1 instância. Configure token e convide o bot.</div>
-          <div style=${{ marginTop: "12px" }}>
-            <${Button}
-              variant="subtle"
-              icon=${Link2}
-              onClick=${() => {
-                if (!firstInstance) return toast("Crie uma instância", "Crie sua instância com token antes do invite.", "bad");
-                onInvite(firstInstance.discordGuildId || "", firstInstance.id);
-              }}
-            >
-              Gerar invite
-            </${Button}>
-          </div>
-        </div>
-      </div>
-
       <div className="card pad" style=${{ marginTop: "14px" }}>
-        <div className="cardHead">
-          <h3>Solicitar saque</h3>
+        <div className="cardHead cardHeadCompact">
+          <h3>Acessos rápidos</h3>
         </div>
-        <div className="stack">
-          <div className="row grow" style=${{ gap: "10px" }}>
-            <input
-              className="input"
-              value=${withdrawAmount}
-              disabled=${busy}
-              onInput=${(e) => setWithdrawAmount(e.target.value)}
-              placeholder="Valor (ex: 50,00)"
-            />
-            <${Button} variant="primary" icon=${HandCoins} disabled=${busy} onClick=${onRequestWithdrawal}>
-              Solicitar saque
-            </${Button}>
-          </div>
-          <input
-            className="input mono"
-            value=${pixKey}
-            disabled=${busy}
-            onInput=${(e) => setPixKey(e.target.value)}
-            placeholder="Chave Pix (CPF / email / telefone / aleatória)"
-          />
-          <select className="input" value=${pixKeyType} disabled=${busy} onChange=${(e) => setPixKeyType(e.target.value)}>
-            <option value="">Tipo da chave (opcional)</option>
-            <option value="cpf">CPF</option>
-            <option value="cnpj">CNPJ</option>
-            <option value="email">Email</option>
-            <option value="phone">Telefone</option>
-            <option value="random">Aleatória</option>
-          </select>
-          <div className="help">Saque mínimo: <b>R$ 10,00</b>. Ao solicitar, o valor sai do saldo e fica pendente até processamento.</div>
+        <div className="actionsRow" style=${{ marginTop: "10px", gap: "8px", flexWrap: "wrap" }}>
+          <${Button} variant="subtle" icon=${Bot} onClick=${() => setTab("instances")}>Gerenciar instâncias</${Button}>
+          <${Button} variant="subtle" icon=${ShoppingBag} onClick=${() => setTab("store")}>Abrir loja</${Button}>
+          <${Button} variant="subtle" icon=${Wallet} onClick=${() => setTab("wallet")}>Abrir carteira</${Button}>
+          <${Button} variant="ghost" icon=${Settings} onClick=${() => setTab("account")}>Perfil e segurança</${Button}>
+        </div>
+        <div className="help" style=${{ marginTop: "10px" }}>
+          Saldo, vendas e transações ficam centralizados na aba <b>Carteira</b>. Perfil, email e segurança ficam na aba <b>Conta</b>.
         </div>
       </div>
       ` : null}
 
-      ${tab === "instances" ? html`
-      <div className="grid cols2" style=${{ marginTop: "18px" }}>
+      ${tab === "wallet" ? html`
+      <div className="grid cols3" style=${{ marginTop: "16px" }}>
+        <div className="kpi">
+          <div className="label">Saldo disponível</div>
+          <div className="value">${formatBRLFromCents(me?.walletCents || 0)}</div>
+          <div className="hint">Disponível para transferência via Pix</div>
+        </div>
+        <div className="kpi">
+          <div className="label">Total vendido</div>
+          <div className="value">${formatBRLFromCents(me?.salesCentsTotal || 0)}</div>
+          <div className="hint">Líquido recebido: <b>94%</b> por venda</div>
+        </div>
+        <div className="kpi">
+          <div className="label">Saques pendentes</div>
+          <div className="value">${pendingWithdrawalsCount}</div>
+          <div className="hint">Em processamento na fila de pagamento</div>
+        </div>
+      </div>
+
+      <div className="walletSplitGrid" style=${{ marginTop: "14px" }}>
+        <div className="card pad withdrawCard">
+          <div className="cardHead cardHeadCompact">
+            <h3>Solicitar saque</h3>
+            <span className="badge none">Saldo: ${formatBRLFromCents(me?.walletCents || 0)}</span>
+          </div>
+          <div className="stack">
+            <div className="row grow withdrawActionRow" style=${{ gap: "10px" }}>
+              <input
+                className="input"
+                value=${withdrawAmount}
+                disabled=${busy}
+                onInput=${(e) => setWithdrawAmount(e.target.value)}
+                placeholder="Valor (ex: 50,00)"
+              />
+              <${Button} variant="primary" icon=${HandCoins} disabled=${busy} onClick=${onRequestWithdrawal}>
+                Solicitar saque
+              </${Button}>
+            </div>
+            <input
+              className="input mono"
+              value=${pixKey}
+              disabled=${busy}
+              onInput=${(e) => setPixKey(e.target.value)}
+              placeholder="Chave Pix (CPF / email / telefone / aleatória)"
+            />
+            <select className="input" value=${pixKeyType} disabled=${busy} onChange=${(e) => setPixKeyType(e.target.value)}>
+              <option value="">Tipo da chave (opcional)</option>
+              <option value="cpf">CPF</option>
+              <option value="cnpj">CNPJ</option>
+              <option value="email">Email</option>
+              <option value="phone">Telefone</option>
+              <option value="random">Aleatória</option>
+            </select>
+            <div className="help">Saque mínimo: <b>R$ 10,00</b>. Ao solicitar, o valor sai do saldo e fica pendente até processamento.</div>
+          </div>
+        </div>
+
         <div className="card pad">
-          <div className="cardHead">
+          <div className="cardHead cardHeadCompact">
+            <h3>Transações recentes</h3>
+            <span className="badge none">${recentTransactionsCount} registros</span>
+          </div>
+          ${txs?.length
+            ? html`
+                <table className="table tableCompact tableFinancial">
+                  <thead>
+                    <tr>
+                      <th>Tipo</th>
+                      <th>Valor</th>
+                      <th>Status</th>
+                      <th>Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${txs.map(
+                      (t) => {
+                        const txType = getTransactionTypeMeta(t.type);
+                        const txStatus = getTransactionStatusMeta(t.status);
+                        return html`
+                        <tr>
+                          <td style=${{ fontWeight: 600 }}>${txType.label}</td>
+                          <td><b>${t.amountFormatted}</b></td>
+                          <td><span className=${`badge ${txStatus.className}`}>${txStatus.label}</span></td>
+                          <td><span className="muted2" style=${{ fontSize: "12px" }}>${formatDateTime(t.createdAt)}</span></td>
+                        </tr>
+                      `;
+                      }
+                    )}
+                  </tbody>
+                </table>
+              `
+            : html`
+                <div className="emptyState">
+                  <div className="eTitle">Sem transações</div>
+                  <div className="eDesc">Suas vendas e movimentações aparecerão aqui.</div>
+                </div>
+              `}
+        </div>
+      </div>
+
+      <div className="card pad" style=${{ marginTop: "14px" }}>
+        <div className="cardHead cardHeadCompact">
+          <h3>Saques solicitados</h3>
+          <span className=${`badge ${pendingWithdrawalsCount > 0 ? "pending" : "none"}`}>
+            ${pendingWithdrawalsCount > 0 ? `${pendingWithdrawalsCount} pendente(s)` : "Sem pendências"}
+          </span>
+        </div>
+        ${withdrawals?.length
+          ? html`
+              <table className="table tableCompact tableFinancial">
+                <thead>
+                  <tr>
+                    <th>Valor</th>
+                    <th>Status</th>
+                    <th>Chave Pix</th>
+                    <th>Data</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${withdrawals.map(
+                    (w) => {
+                      const status = getWithdrawalStatusMeta(w.status);
+                      return html`
+                      <tr>
+                        <td><b>${w.amountFormatted}</b></td>
+                        <td><span className=${`badge ${status.className}`}>${status.label}</span></td>
+                        <td className="mono" style=${{ fontSize: "12px" }}>${maskSensitive(w.pixKey)}</td>
+                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${formatDateTime(w.createdAt)}</span></td>
+                        <td>
+                          ${status.key === "requested"
+                            ? html`
+                                <${Button} variant="danger" disabled=${busy} onClick=${() => onCancelWithdrawal(w.id)}>
+                                  <${X} size=${14} style=${{ marginRight: "4px" }} />
+                                  ${pendingCancelWithdrawalId === asString(w.id) ? "Confirmar" : "Cancelar"}
+                                </${Button}>
+                              `
+                            : html`<span className="muted2">—</span>`}
+                        </td>
+                      </tr>
+                    `;
+                    }
+                  )}
+                </tbody>
+              </table>
+              <div className="help" style=${{ marginTop: "10px" }}>Saques são processados em fila. Mantenha sua chave Pix correta.</div>
+            `
+          : html`
+              <div className="emptyState">
+                <div className="eTitle">Sem saques</div>
+                <div className="eDesc">Solicite um saque quando tiver saldo disponível.</div>
+              </div>
+            `}
+      </div>
+      ` : null}
+
+      ${tab === "instances" ? html`
+      <div className="instancesWorkspace" style=${{ marginTop: "18px" }}>
+        <div className="card pad">
+          <div className="cardHead cardHeadCompact">
             <h3>Instâncias</h3>
             <${Button}
               variant="primary"
@@ -1907,24 +3398,49 @@ function Dashboard({ route, me, refreshMe, toast }) {
 
           ${creating
             ? html`
-                <div className="stack" style=${{ marginTop: "12px" }}>
-                  <input className="input" placeholder="Nome da sua loja / bot" value=${newName} onInput=${(e) => setNewName(e.target.value)} />
-                  <input
-                    className="input mono"
-                    type="password"
-                    placeholder="Token do bot (Discord Developer Portal)"
-                    value=${newBotToken}
-                    onInput=${(e) => setNewBotToken(e.target.value)}
-                  />
-                  <${Button}
-                    variant="primary"
-                    icon=${Bot}
-                    disabled=${busy || !me?.planActive || (instances?.length || 0) >= 1}
-                    onClick=${onCreateInstance}
-                  >
-                    ${busy ? "Validando..." : "Criar instância"}
-                  </${Button}>
-                  <div className="help">Cada assinatura libera 1 instância. O token é validado na hora.</div>
+                <div className="createInstanceForm" style=${{ marginTop: "16px", padding: "18px", borderRadius: "16px", background: "linear-gradient(135deg, rgba(230,33,42,0.08), rgba(255,77,87,0.04))", border: "1px solid rgba(230,33,42,0.2)" }}>
+                  <div style=${{ fontWeight: 800, fontSize: "14px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <${Rocket} size=${18} /> Nova Instância
+                  </div>
+                  <div className="stack" style=${{ gap: "10px" }}>
+                    <div>
+                      <div className="label" style=${{ marginBottom: "6px" }}>Nome da loja</div>
+                      <input className="input" placeholder="Ex: Minha Loja Premium" value=${newName} onInput=${(e) => setNewName(e.target.value)} />
+                    </div>
+                    <div>
+                      <div className="label" style=${{ marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <${Key} size=${12} /> Token do Bot
+                      </div>
+                      <input
+                        className="input mono"
+                        type="password"
+                        placeholder="Cole o token do Discord Developer Portal"
+                        value=${newBotToken}
+                        onInput=${(e) => setNewBotToken(e.target.value)}
+                      />
+                    </div>
+                    <div className="row" style=${{ gap: "10px", marginTop: "6px" }}>
+                      <${Button}
+                        variant="primary"
+                        icon=${Bot}
+                        disabled=${busy || !me?.planActive || (instances?.length || 0) >= 1}
+                        onClick=${onCreateInstance}
+                      >
+                        ${busy ? "Validando..." : "Criar instância"}
+                      </${Button}>
+                      <${Button}
+                        variant="ghost"
+                        icon=${X}
+                        onClick=${() => setCreating(false)}
+                      >
+                        Cancelar
+                      </${Button}>
+                    </div>
+                    <div className="help" style=${{ marginTop: "4px" }}>
+                      <${AlertCircle} size=${12} style=${{ marginRight: "4px", verticalAlign: "middle" }} />
+                      Cada assinatura libera 1 instância. O token é validado na hora.
+                    </div>
+                  </div>
                 </div>
               `
             : null}
@@ -1933,16 +3449,33 @@ function Dashboard({ route, me, refreshMe, toast }) {
             ? html`
                 <div className="stack" style=${{ marginTop: "14px" }}>
                   ${instances.map(
-                    (inst) => html`
-                      <div className="kpi">
+                    (inst) => {
+                      const instId = asString(inst?.id);
+                      const isSelectedInstance = asString(instanceWorkspaceId).trim() === instId;
+                      const runtime = inst?.runtime || {};
+                      const runtimeMeta = formatRuntimeStatus(runtime?.status);
+                      const runtimeErrorLabel = formatDockerIssue(runtime?.lastError);
+                      const messageContentEnabled = !!inst?.botProfile?.intents?.messageContentEnabled;
+                      const textCommandsDisabled = !!inst?.hasBotToken && !messageContentEnabled;
+                      const runtimeAction = asString(botActionByInstance?.[instId]).toLowerCase();
+                      const runtimeBusy = !!runtimeAction;
+                      return html`
+                      <div className=${`kpi instanceListCard ${isSelectedInstance ? "selected" : ""}`}>
                         <div style=${{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
                           <div>
                             <div style=${{ fontWeight: 900, fontSize: "16px", lineHeight: "1.2" }}>${inst.name || "Instância"}</div>
-                            <div className="mono muted2" style=${{ fontSize: "11px", marginTop: "3px" }}>${inst.id}</div>
+                            <div className="mono muted2" style=${{ fontSize: "11px", marginTop: "3px" }}>
+                              ${inst?.botProfile?.username ? `@${inst.botProfile.username} · ` : ""}${inst.id}
+                            </div>
                           </div>
-                          <div className=${`pill ${inst.discordGuildId ? "good" : "soon"}`}>
-                            <span className=${`dot ${inst.discordGuildId ? "on" : "off"}`} style=${{ marginRight: "5px" }}></span>
-                            ${inst.discordGuildId ? "Servidor vinculado" : "Sem servidor"}
+                          <div style=${{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <span className=${`badge ${runtimeMeta.className}`}>
+                              <span className=${`dot ${runtimeMeta.className === "active" ? "on" : "off"}`} style=${{ marginRight: "4px" }}></span>
+                              ${runtimeMeta.label}
+                            </span>
+                            <span className=${`badge ${inst.discordGuildId ? "active" : "none"}`}>
+                              ${inst.discordGuildId ? "Servidor OK" : "Sem servidor"}
+                            </span>
                           </div>
                         </div>
 
@@ -1959,60 +3492,129 @@ function Dashboard({ route, me, refreshMe, toast }) {
                           </div>
                           <div className="infoItem">
                             <span className="iKey">Token</span>
-                            <span className="iVal">${inst?.hasBotToken ? "✓ Configurado" : "Pendente"}</span>
+                            <span className="iVal">${inst?.hasBotToken ? "Configurado" : "Pendente"}</span>
+                          </div>
+                          <div className="infoItem">
+                            <span className="iKey">Runtime</span>
+                            <span className="iVal">${runtimeMeta.label}</span>
+                          </div>
+                          <div className="infoItem">
+                            <span className="iKey">Comandos !</span>
+                            <span className="iVal">${messageContentEnabled ? "Ativos" : "Desativados"}</span>
+                          </div>
+                          <div className="infoItem">
+                            <span className="iKey">Container</span>
+                            <span className="iVal mono">${runtime?.containerName || "—"}</span>
                           </div>
                           <div className="infoItem">
                             <span className="iKey">API Key</span>
                             <span className="iVal mono">${inst.apiKeyLast4 ? `****${inst.apiKeyLast4}` : "—"}</span>
                           </div>
                         </div>
+                        ${runtimeErrorLabel
+                          ? html`<div className="help" style=${{ marginTop: "8px", color: "rgba(239,68,68,0.9)" }}>${runtimeErrorLabel}</div>`
+                          : null}
+                        ${textCommandsDisabled
+                          ? html`<div className="help" style=${{ marginTop: "6px", color: "rgba(251,191,36,0.9)" }}>
+                              Message Content Intent desativada para este token. Os comandos com prefixo ! nao respondem ate ativar essa intent no Discord Developer Portal.
+                            </div>`
+                          : null}
 
-                        <div className="stack" style=${{ marginTop: "12px", gap: "8px" }}>
-                          <input
-                            className="input mono"
-                            type="password"
-                            placeholder=${inst?.hasBotToken ? "Atualizar token do bot" : "Colar token do bot"}
-                            value=${asString(tokenDraftByInstance?.[asString(inst.id)] || "")}
-                            onInput=${(e) =>
-                              setTokenDraftByInstance((prev) => ({ ...prev, [asString(inst.id)]: asString(e.target.value) }))
-                            }
-                          />
-                          <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <div className="instanceTokenSection" style=${{ marginTop: "14px", padding: "14px", borderRadius: "14px", background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                          <div className="label" style=${{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <${Key} size=${14} /> Token do Bot
+                          </div>
+                          <div className="row" style=${{ gap: "8px", flexWrap: "wrap" }}>
+                            <input
+                              className="input mono"
+                              type="password"
+                              style=${{ flex: "1", minWidth: "200px" }}
+                              placeholder=${inst?.hasBotToken ? "Atualizar token..." : "Cole o token do bot aqui"}
+                              value=${asString(tokenDraftByInstance?.[asString(inst.id)] || "")}
+                              onInput=${(e) =>
+                                setTokenDraftByInstance((prev) => ({ ...prev, [asString(inst.id)]: asString(e.target.value) }))
+                              }
+                            />
                             <${Button}
-                              variant="subtle"
+                              variant="primary"
+                              icon=${Save}
                               disabled=${busy || savingTokenFor === asString(inst.id)}
                               onClick=${() => onSaveBotToken(inst.id)}
                             >
-                              ${savingTokenFor === asString(inst.id) ? "Validando..." : "Salvar token"}
+                              ${savingTokenFor === asString(inst.id) ? "Validando..." : "Salvar"}
                             </${Button}>
                             <${Button}
                               variant="danger"
+                              icon=${Trash2}
                               disabled=${busy || !inst?.hasBotToken || clearingTokenFor === asString(inst.id)}
                               onClick=${() => onClearBotToken(inst.id)}
                             >
-                              ${clearingTokenFor === asString(inst.id) ? "Removendo..." : "Remover token"}
+                              ${clearingTokenFor === asString(inst.id) ? "..." : pendingClearTokenInstanceId === instId ? "Confirmar" : "Remover"}
                             </${Button}>
                           </div>
                         </div>
 
-                        <div className="hr"></div>
-
-                        <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                          <${Button} variant="ghost" disabled=${busy} onClick=${() => openEditInstance(inst)}>Editar / Vincular</${Button}>
-                          <${Button}
-                            variant="subtle"
-                            disabled=${busy}
-                            onClick=${() => {
-                              if (inst.discordGuildId) onInvite(inst.discordGuildId, inst.id);
-                              else openEditInstance(inst);
-                            }}
-                          >
-                            Gerar invite
-                          </${Button}>
-                          <${Button} variant="danger" disabled=${busy} onClick=${() => onDeleteInstance(inst.id)}>Excluir</${Button}>
+                        <div className="instanceRuntimeSection" style=${{ marginTop: "14px" }}>
+                          <div className="label" style=${{ marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <${Server} size=${14} /> Controles do Bot
+                          </div>
+                          <div className="instanceActionsGrid" style=${{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px" }}>
+                            <${Button}
+                              variant="success"
+                              icon=${Play}
+                              disabled=${busy || runtimeBusy || !inst?.hasBotToken}
+                              onClick=${() => onBotRuntimeAction(inst.id, "start")}
+                            >
+                              ${runtimeAction === "start" ? "Iniciando..." : "Iniciar"}
+                            </${Button}>
+                            <${Button}
+                              variant="ghost"
+                              icon=${RotateCcw}
+                              disabled=${busy || runtimeBusy || !inst?.hasBotToken}
+                              onClick=${() => onBotRuntimeAction(inst.id, "restart")}
+                            >
+                              ${runtimeAction === "restart" ? "..." : "Reiniciar"}
+                            </${Button}>
+                            <${Button}
+                              variant="ghost"
+                              icon=${Square}
+                              disabled=${busy || runtimeBusy || !inst?.hasBotToken}
+                              onClick=${() => onBotRuntimeAction(inst.id, "stop")}
+                            >
+                              ${runtimeAction === "stop" ? "..." : "Parar"}
+                            </${Button}>
+                            <${Button}
+                              variant="subtle"
+                              icon=${Settings}
+                              disabled=${busy}
+                              onClick=${() => openEditInstance(inst)}
+                            >
+                              ${isSelectedInstance ? "Editando" : "Configurar"}
+                            </${Button}>
+                            <${Button}
+                              variant="subtle"
+                              icon=${ExternalLink}
+                              disabled=${busy}
+                              onClick=${() => {
+                                if (inst.discordGuildId) onInvite(inst.discordGuildId, inst.id);
+                                else openEditInstance(inst);
+                              }}
+                            >
+                              Invite
+                            </${Button}>
+                            <${Button}
+                              variant="danger"
+                              icon=${Trash2}
+                              disabled=${busy}
+                              onClick=${() => onDeleteInstance(inst.id)}
+                            >
+                              ${pendingDeleteInstanceId === instId ? "Confirmar" : "Excluir"}
+                            </${Button}>
+                          </div>
                         </div>
                       </div>
-                    `
+                    `;
+                    }
                   )}
                 </div>
               `
@@ -2024,211 +3626,380 @@ function Dashboard({ route, me, refreshMe, toast }) {
               `}
         </div>
 
-        <div className="card pad">
-          <div className="cardHead">
-            <h3>Servidores Discord</h3>
+        <div className="stack">
+          <div className="card pad instanceWorkspacePanel">
+            <div className="cardHead cardHeadCompact">
+              <h3>${instanceWorkspaceTitle}</h3>
+              <div className="row" style=${{ alignItems: "center", gap: "8px" }}>
+                ${selectedInstance
+                  ? html`<span className="badge none">Selecionada: ${selectedInstance?.name || selectedInstance?.id}</span>`
+                  : null}
+                <${Button} variant="ghost" disabled=${instanceWorkspaceMode === "none"} onClick=${closeEditInstance}>
+                  <${X} size=${14} style=${{ marginRight: "6px" }} />
+                  Fechar
+                </${Button}>
+              </div>
+            </div>
+            <div className="help" style=${{ marginBottom: "10px" }}>
+              Edição sem popup: selecione uma instância e ajuste vínculo, branding e canais direto neste painel.
+            </div>
+            ${renderInstanceWorkspaceContent()}
           </div>
-          <div className="muted" style=${{ marginBottom: "12px" }}>
-            Servidores onde você tem permissão de administrar. Use para gerar o invite já selecionando o servidor.
-          </div>
-          <div className="stack">
-            ${guilds?.length
-              ? guilds.slice(0, 12).map(
-                  (g) => html`
-                    <div className="row" style=${{ alignItems: "center", gap: "12px" }}>
-                      <div className="guildIcon">
-                        ${g.iconUrl
-                          ? html`<img src=${g.iconUrl} alt=${g.name} className="guildIconImg" />`
-                          : html`<div className="guildIconFallback">${(g.name || "?").slice(0, 1).toUpperCase()}</div>`
-                        }
+
+          <div className="card pad">
+            <div className="cardHead cardHeadCompact">
+              <h3>Servidores Discord</h3>
+            </div>
+            <div className="muted" style=${{ marginBottom: "12px" }}>
+              Servidores onde você tem permissão de administrar. Use para gerar o invite já selecionando o servidor.
+            </div>
+            <div className="stack">
+              ${guilds?.length
+                ? guilds.slice(0, 12).map(
+                    (g) => html`
+                      <div className="row" style=${{ alignItems: "center", gap: "12px" }}>
+                        <div className="guildIcon">
+                          ${g.iconUrl
+                            ? html`<img src=${g.iconUrl} alt=${g.name} className="guildIconImg" />`
+                            : html`<div className="guildIconFallback">${(g.name || "?").slice(0, 1).toUpperCase()}</div>`
+                          }
+                        </div>
+                        <div style=${{ flex: 2, minWidth: "140px" }}>
+                          <div style=${{ fontWeight: 700 }}>${g.name}</div>
+                          <div className="muted2 mono" style=${{ fontSize: "11px" }}>${g.id}</div>
+                        </div>
+                        <${Button}
+                          variant="ghost"
+                          onClick=${() => {
+                            if (!firstInstance) return toast("Instância ausente", "Crie sua instância antes de convidar o bot.", "bad");
+                            onInvite(g.id, firstInstance.id);
+                          }}
+                        >
+                          Convidar bot
+                        </${Button}>
                       </div>
-                      <div style=${{ flex: 2, minWidth: "140px" }}>
-                        <div style=${{ fontWeight: 700 }}>${g.name}</div>
-                        <div className="muted2 mono" style=${{ fontSize: "11px" }}>${g.id}</div>
-                      </div>
-                      <${Button}
-                        variant="ghost"
-                        onClick=${() => {
-                          if (!firstInstance) return toast("Instância ausente", "Crie sua instância antes de convidar o bot.", "bad");
-                          onInvite(g.id, firstInstance.id);
-                        }}
-                      >
-                        Convidar bot
-                      </${Button}>
+                    `
+                  )
+                : html`
+                    <div className="emptyState">
+                      <div className="eTitle">Nenhum servidor</div>
+                      <div className="eDesc">Para listar seus servidores aqui, entre com Discord. Login por email não acessa essa lista.</div>
                     </div>
-                  `
-                )
-              : html`
-                  <div className="emptyState">
-                    <div className="eTitle">Nenhum servidor</div>
-                    <div className="eDesc">Para listar seus servidores aqui, entre com Discord. Login por email não acessa essa lista.</div>
-                  </div>
-                `}
+                  `}
+            </div>
           </div>
         </div>
       </div>
       ` : null}
 
       ${tab === "store" ? html`
-      <div className="card pad" style=${{ marginTop: "18px" }}>
-        <div className="cardHead">
-          <h3>Produtos e Estoque</h3>
-          <div className="row" style=${{ alignItems: "center", gap: "10px" }}>
-            <select
+      <div className="storeWorkspace" style=${{ marginTop: "18px" }}>
+        <div className="card pad storeCatalogPanel">
+          <!-- Store Header -->
+          <div className="storeHeader" style=${{ marginBottom: "16px" }}>
+            <div style=${{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+              <div style=${{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style=${{ width: "42px", height: "42px", borderRadius: "12px", background: "linear-gradient(135deg, rgba(230,33,42,0.2), rgba(255,77,87,0.1))", border: "1px solid rgba(230,33,42,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <${Package} size=${22} style=${{ color: "var(--accent2)" }} />
+                </div>
+                <div>
+                  <h3 style=${{ margin: 0, fontSize: "18px" }}>Catálogo de Produtos</h3>
+                  <div className="muted2" style=${{ fontSize: "12px", marginTop: "2px" }}>Gerencie seus produtos e estoque</div>
+                </div>
+              </div>
+              <div className="row" style=${{ gap: "8px", alignItems: "center" }}>
+                <select
+                  className="input"
+                  style=${{ width: "180px", padding: "10px 12px" }}
+                  value=${storeInstanceId}
+                  onChange=${(e) => setStoreInstanceId(e.target.value)}
+                  disabled=${storeProducts.loading || !instances?.length}
+                >
+                  ${instances?.length ? null : html`<option value="">Nenhuma instância</option>`}
+                  ${(instances || []).map((inst) => html`<option value=${inst.id}>${inst.name || inst.id}</option>`)}
+                </select>
+                <${Button} variant="ghost" icon=${RefreshCw} disabled=${storeProducts.loading || !storeInstanceId} onClick=${() => loadStoreProducts(storeInstanceId)}>
+                  Atualizar
+                </${Button}>
+                <${Button} variant="primary" icon=${Plus} disabled=${storeProducts.loading || !storeInstanceId} onClick=${openCreateProduct}>
+                  Novo Produto
+                </${Button}>
+              </div>
+            </div>
+          </div>
+
+          <!-- Search Bar -->
+          <div className="storeSearchBar" style=${{ marginBottom: "14px", position: "relative" }}>
+            <${Search} size=${16} style=${{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)", pointerEvents: "none" }} />
+            <input
               className="input"
-              style=${{ width: "min(280px, 100%)" }}
-              value=${storeInstanceId}
-              onChange=${(e) => setStoreInstanceId(e.target.value)}
-              disabled=${storeProducts.loading || !instances?.length}
-            >
-              ${instances?.length ? null : html`<option value="">Nenhuma instância</option>`}
-              ${(instances || []).map((inst) => html`<option value=${inst.id}>${inst.name || inst.id}</option>`)}
-            </select>
-            <${Button} variant="primary" disabled=${storeProducts.loading || !storeInstanceId} onClick=${openCreateProduct}>Criar produto</${Button}>
+              style=${{ paddingLeft: "42px" }}
+              value=${storeSearch}
+              onInput=${(e) => setStoreSearch(e.target.value)}
+              placeholder="Buscar produto por id, nome ou label..."
+              disabled=${storeProducts.loading}
+            />
+          </div>
+
+          <!-- Stats Grid - Compact -->
+          <div className="storeStatsCompact" style=${{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "16px" }}>
+            <div className="storeStatMini" style=${{ padding: "12px 14px", borderRadius: "12px", background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style=${{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <${Boxes} size=${16} style=${{ color: "var(--accent2)" }} />
+                <span className="label" style=${{ margin: 0 }}>Produtos</span>
+              </div>
+              <div style=${{ fontSize: "22px", fontWeight: 900, marginTop: "6px", fontFamily: "'Space Grotesk', sans-serif" }}>${storeCatalogSummary.total}</div>
+            </div>
+            <div className="storeStatMini" style=${{ padding: "12px 14px", borderRadius: "12px", background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style=${{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <${Search} size=${16} style=${{ color: "var(--muted)" }} />
+                <span className="label" style=${{ margin: 0 }}>Resultados</span>
+              </div>
+              <div style=${{ fontSize: "22px", fontWeight: 900, marginTop: "6px", fontFamily: "'Space Grotesk', sans-serif" }}>${storeCatalogSummary.filtered}</div>
+            </div>
+            <div className="storeStatMini" style=${{ padding: "12px 14px", borderRadius: "12px", background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style=${{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <${Key} size=${16} style=${{ color: "var(--good)" }} />
+                <span className="label" style=${{ margin: 0 }}>Estoque</span>
+              </div>
+              <div style=${{ fontSize: "22px", fontWeight: 900, marginTop: "6px", fontFamily: "'Space Grotesk', sans-serif", color: storeCatalogSummary.totalStock > 0 ? "var(--good)" : "var(--muted)" }}>${storeCatalogSummary.totalStock}</div>
+            </div>
+            <div className="storeStatMini" style=${{ padding: "12px 14px", borderRadius: "12px", background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style=${{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <${AlertCircle} size=${16} style=${{ color: storeCatalogSummary.outOfStock > 0 ? "var(--warn)" : "var(--muted)" }} />
+                <span className="label" style=${{ margin: 0 }}>Sem estoque</span>
+              </div>
+              <div style=${{ fontSize: "22px", fontWeight: 900, marginTop: "6px", fontFamily: "'Space Grotesk', sans-serif", color: storeCatalogSummary.outOfStock > 0 ? "var(--warn)" : "var(--muted)" }}>${storeCatalogSummary.outOfStock}</div>
+            </div>
+          </div>
+
+          <!-- Instance Status Banner -->
+          ${currentInstance
+            ? html`
+                <div className="instanceStatusBanner" style=${{ padding: "12px 14px", borderRadius: "12px", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(255,255,255,0.06)", marginBottom: "14px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                  <div style=${{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <${Server} size=${16} style=${{ color: "var(--muted)" }} />
+                    <span style=${{ fontSize: "13px", color: "var(--muted)" }}>${currentInstance?.name || "Instância"}</span>
+                    <span className=${`badge ${formatRuntimeStatus(currentInstance?.runtime?.status).className}`} style=${{ padding: "4px 8px" }}>
+                      ${formatRuntimeStatus(currentInstance?.runtime?.status).label}
+                    </span>
+                    ${currentInstance?.discordGuildId
+                      ? html`<span className="badge active" style=${{ padding: "4px 8px" }}><${CheckCircle} size=${12} style=${{ marginRight: "4px" }} />Servidor OK</span>`
+                      : html`<span className="badge none" style=${{ padding: "4px 8px" }}><${AlertCircle} size=${12} style=${{ marginRight: "4px" }} />Vincular servidor</span>`
+                    }
+                  </div>
+                </div>
+              `
+            : null}
+          ${currentInstance && !currentInstance?.hasBotToken
+            ? html`<div className="help" style=${{ marginBottom: "12px", padding: "10px 14px", borderRadius: "10px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "rgba(254,202,202,0.95)", display: "flex", alignItems: "center", gap: "8px" }}>
+                <${XCircle} size=${16} /> Configure o token do bot antes de postar produtos.
+              </div>`
+            : null}
+
+          <div className="storeProductList" style=${{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            ${storeProducts.loading
+              ? html`<div className="muted" style=${{ padding: "24px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+                  <${RefreshCw} size=${18} className="spin" /> Carregando produtos...
+                </div>`
+              : filteredStoreProducts?.length
+                ? filteredStoreProducts.map((p) => {
+                    const pid = asString(p?.id);
+                    const variants = Array.isArray(p?.variants) ? p.variants.length : 0;
+                    const stock = Number(storeProducts.stockCounts?.[pid] || 0);
+                    const isSelected = asString(storeSelectedProductId).trim() === pid;
+                    const shortDesc = asString(p?.description).replace(/\s+/g, " ").trim();
+                    return html`
+                      <article
+                        className=${`storeProductCard ${isSelected ? "selected" : ""}`}
+                        onClick=${() => setStoreSelectedProductId(pid)}
+                        style=${{ padding: "14px 16px", borderRadius: "14px", background: isSelected ? "rgba(230,33,42,0.08)" : "rgba(0,0,0,0.15)", border: isSelected ? "1px solid rgba(230,33,42,0.3)" : "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "all 0.2s ease" }}
+                      >
+                        <div style=${{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                          <div style=${{ flex: 1, minWidth: "200px" }}>
+                            <div style=${{ fontWeight: 800, fontSize: "15px", color: "var(--ink)", display: "flex", alignItems: "center", gap: "8px" }}>
+                              <${Box} size=${16} style=${{ color: isSelected ? "var(--accent2)" : "var(--muted)" }} />
+                              ${p?.name || pid}
+                            </div>
+                            <div className="mono muted2" style=${{ fontSize: "11px", marginTop: "4px", marginLeft: "24px" }}>${pid}</div>
+                            ${shortDesc
+                              ? html`<div className="muted2" style=${{ fontSize: "12px", marginTop: "6px", marginLeft: "24px", lineHeight: "1.4" }}>${shortDesc.length > 100 ? `${shortDesc.slice(0, 100)}...` : shortDesc}</div>`
+                              : null
+                            }
+                          </div>
+                          <div style=${{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                            <span className="badge none" style=${{ fontSize: "11px", padding: "4px 8px" }}>${variants} var.</span>
+                            <span className=${`badge ${stock > 0 ? "active" : "pending"}`} style=${{ fontSize: "11px", padding: "4px 8px" }}>
+                              <${Key} size=${11} style=${{ marginRight: "3px" }} />${stock}
+                            </span>
+                          </div>
+                        </div>
+                        <div style=${{ display: "flex", gap: "6px", marginTop: "12px", flexWrap: "wrap" }}>
+                          <${Button}
+                            variant="ghost"
+                            icon=${Edit3}
+                            onClick=${(e) => { e.stopPropagation(); openEditProduct(p); }}
+                          >
+                            Editar
+                          </${Button}>
+                          <${Button}
+                            variant="subtle"
+                            icon=${Package}
+                            onClick=${(e) => { e.stopPropagation(); openStock(p); }}
+                          >
+                            Estoque
+                          </${Button}>
+                          <${Button}
+                            variant="primary"
+                            icon=${Send}
+                            disabled=${!canPostFromStore}
+                            onClick=${(e) => { e.stopPropagation(); openPost(p); }}
+                          >
+                            Postar
+                          </${Button}>
+                          <${Button}
+                            variant="danger"
+                            icon=${Trash2}
+                            onClick=${(e) => { e.stopPropagation(); deleteProduct(p); }}
+                          >
+                            ${pendingDeleteProductId === pid ? "Confirmar" : "Excluir"}
+                          </${Button}>
+                        </div>
+                      </article>
+                    `;
+                  })
+                : html`
+                    <div className="emptyState" style=${{ padding: "40px 20px" }}>
+                      <div style=${{ width: "56px", height: "56px", borderRadius: "16px", background: "rgba(230,33,42,0.1)", border: "1px solid rgba(230,33,42,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                        <${Package} size=${28} style=${{ color: "var(--accent2)" }} />
+                      </div>
+                      <div className="eTitle" style=${{ fontSize: "16px", marginBottom: "6px" }}>${storeSearch ? "Nenhum resultado" : "Nenhum produto"}</div>
+                      <div className="eDesc" style=${{ maxWidth: "300px", margin: "0 auto" }}>
+                        ${storeSearch
+                          ? "Ajuste a busca para encontrar produtos."
+                          : "Crie seu primeiro produto para começar a vender."}
+                      </div>
+                      ${!storeSearch ? html`
+                        <${Button} variant="primary" icon=${Plus} style=${{ marginTop: "16px" }} onClick=${openCreateProduct}>
+                          Criar primeiro produto
+                        </${Button}>
+                      ` : null}
+                    </div>
+                  `}
           </div>
         </div>
-        <div className="help" style=${{ marginBottom: "14px" }}>
-          ${currentInstance?.discordGuildId
-            ? html`Servidor: <span className="mono"><b>${currentInstance.discordGuildId}</b></span> · Crie produtos, adicione estoque e poste nos canais.`
-            : html`<b>Atenção:</b> vincule um servidor na instância e convide o bot para conseguir postar produtos no Discord.`}
-        </div>
 
-        ${storeProducts.loading
-          ? html`<div className="muted" style=${{ padding: "16px 0" }}>Carregando produtos...</div>`
-          : storeProducts.products?.length
-            ? html`
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Nome</th>
-                      <th>Variações</th>
-                      <th>Estoque</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${storeProducts.products.map((p) => {
-                      const pid = asString(p?.id);
-                      const variants = Array.isArray(p?.variants) ? p.variants.length : 0;
-                      const stock = Number(storeProducts.stockCounts?.[pid] || 0);
-                      return html`
-                        <tr>
-                          <td className="mono" style=${{ fontSize: "12px" }}><b>${pid}</b></td>
-                          <td style=${{ fontWeight: 600 }}>${p?.name || pid}</td>
-                          <td>${variants}</td>
-                          <td><b style=${{ color: stock > 0 ? "var(--good)" : "var(--muted2)" }}>${stock}</b></td>
-                          <td>
-                            <div className="actionsRow">
-                              <${Button} variant="ghost" disabled=${false} onClick=${() => openEditProduct(p)}>Editar</${Button}>
-                              <${Button} variant="subtle" disabled=${false} onClick=${() => openStock(p)}>Estoque</${Button}>
-                              <${Button} variant="subtle" disabled=${!currentInstance?.discordGuildId} onClick=${() => openPost(p)}>Postar</${Button}>
-                              <${Button} variant="danger" disabled=${false} onClick=${() => deleteProduct(p)}>Excluir</${Button}>
-                            </div>
-                          </td>
-                        </tr>
-                      `;
-                    })}
-                  </tbody>
-                </table>
-              `
-            : html`
-                <div className="emptyState">
-                  <div className="eTitle">Nenhum produto cadastrado</div>
-                  <div className="eDesc">Crie seu primeiro produto para começar a vender na sua instância.</div>
-                </div>
-              `}
+        <div className="card pad storeWorkspacePanel">
+          <div className="cardHead cardHeadCompact">
+            <h3>${storeWorkspaceTitle}</h3>
+            <div className="row" style=${{ alignItems: "center", gap: "8px" }}>
+              ${selectedStoreProduct
+                ? html`<span className="badge none">Selecionado: ${selectedStoreProduct?.name || selectedStoreProduct?.id}</span>`
+                : null}
+              <${Button} variant="ghost" disabled=${storeWorkspaceMode === "none"} onClick=${closeStoreWorkspace}>
+                <${X} size=${14} style=${{ marginRight: "6px" }} />
+                Fechar
+              </${Button}>
+            </div>
+          </div>
+          <div className="help" style=${{ marginBottom: "10px" }}>
+            Edite sem popup: escolha um produto no catálogo e trabalhe direto neste painel.
+          </div>
+          ${renderStoreWorkspaceContent()}
+        </div>
       </div>
       ` : null}
 
-      ${tab === "overview" ? html`
-      <div className="card pad" style=${{ marginTop: "18px" }}>
-        <div className="cardHead">
-          <h3>Transações recentes</h3>
+      ${tab === "wallet" && me?.isPortalAdmin ? html`
+      <div className="card pad walletAdminCard" style=${{ marginTop: "14px" }}>
+        <div className="cardHead cardHeadCompact">
+          <h3>Operações de saques (Admin)</h3>
+          <span className=${`badge ${adminPendingWithdrawalsCount > 0 ? "pending" : "none"}`}>
+            ${adminPendingWithdrawalsCount > 0 ? `${adminPendingWithdrawalsCount} pendente(s)` : "Fila vazia"}
+          </span>
         </div>
-        ${txs?.length
-          ? html`
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Tipo</th>
-                    <th>Valor</th>
-                    <th>Status</th>
-                    <th>Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${txs.map(
-                    (t) => html`
-                      <tr>
-                        <td style=${{ fontWeight: 600 }}>${
-                          t.type === "sale_credit"
-                            ? "Venda"
-                            : t.type === "plan_purchase"
-                              ? "Plano"
-                              : t.type === "withdrawal_request"
-                                ? "Saque solicitado"
-                                : t.type === "withdrawal_cancelled"
-                                  ? "Saque cancelado"
-                                  : t.type
-                        }</td>
-                        <td><b>${t.amountFormatted}</b></td>
-                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${t.status}</span></td>
-                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${String(t.createdAt || "").slice(0, 19).replace("T", " ")}</span></td>
-                      </tr>
-                    `
-                  )}
-                </tbody>
-              </table>
-            `
-          : html`
-              <div className="emptyState">
-                <div className="eTitle">Sem transações</div>
-                <div className="eDesc">Suas vendas e movimentações aparecerão aqui.</div>
-              </div>
-            `}
-      </div>
+        <div className="help" style=${{ marginBottom: "10px" }}>
+          Conclua quando o Pix for enviado ou rejeite para devolver o saldo ao vendedor.
+        </div>
 
-      <div className="card pad" style=${{ marginTop: "14px" }}>
-        <div className="cardHead">
-          <h3>Saques solicitados</h3>
-        </div>
-        ${withdrawals?.length
+        ${adminWithdrawals?.length
           ? html`
-              <table className="table">
+              <div className="walletAdminTableWrap">
+              <table className="table tableCompact tableFinancial walletAdminTable">
                 <thead>
                   <tr>
+                    <th>Solicitante</th>
                     <th>Valor</th>
                     <th>Status</th>
-                    <th>Chave Pix</th>
+                    <th>Pix</th>
                     <th>Data</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${withdrawals.map(
-                    (w) => html`
+                  ${adminWithdrawals.map((w) => {
+                    const wid = asString(w?.id);
+                    const status = getWithdrawalStatusMeta(w?.status);
+                    const completeKey = `complete:${wid}`;
+                    const rejectKey = `reject:${wid}`;
+                    const isCompleting = adminWithdrawalActionKey === completeKey;
+                    const isRejecting = adminWithdrawalActionKey === rejectKey;
+                    const confirmingComplete =
+                      asString(pendingAdminWithdrawalAction?.id) === wid &&
+                      asString(pendingAdminWithdrawalAction?.action) === "complete";
+                    const confirmingReject =
+                      asString(pendingAdminWithdrawalAction?.id) === wid &&
+                      asString(pendingAdminWithdrawalAction?.action) === "reject";
+                    const ownerName = asString(w?.ownerDiscordUsername) || asString(w?.ownerDiscordUserId) || "Desconhecido";
+                    const ownerId = asString(w?.ownerDiscordUserId);
+                    const ownerEmail = asString(w?.ownerEmail);
+                    return html`
                       <tr>
-                        <td><b>${w.amountFormatted}</b></td>
-                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${w.status}</span></td>
-                        <td className="mono" style=${{ fontSize: "12px" }}>${asString(w.pixKey).slice(0, 3)}...${asString(w.pixKey).slice(-3)}</td>
-                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${String(w.createdAt || "").slice(0, 19).replace("T", " ")}</span></td>
                         <td>
-                          ${asString(w.status).toLowerCase() === "requested"
-                            ? html`<${Button} variant="danger" disabled=${busy} onClick=${() => onCancelWithdrawal(w.id)}>Cancelar</${Button}>`
-                            : html`<span className="muted2">—</span>`}
+                          <div className="walletAdminRequester">
+                            <span style=${{ fontWeight: 700 }}>${ownerName}</span>
+                            ${ownerId ? html`<span className="mono muted2" style=${{ fontSize: "11px" }}>${ownerId}</span>` : null}
+                            ${ownerEmail ? html`<span className="muted2" style=${{ fontSize: "11px" }}>${ownerEmail}</span>` : null}
+                          </div>
+                        </td>
+                        <td><b>${w.amountFormatted}</b></td>
+                        <td><span className=${`badge ${status.className}`}>${status.label}</span></td>
+                        <td className="walletAdminPix">
+                          <div className="mono">${asString(w.pixKey) || "—"}</div>
+                          ${asString(w.pixKeyType)
+                            ? html`<div className="muted2" style=${{ fontSize: "11px", marginTop: "3px" }}>Tipo: ${asString(w.pixKeyType).toUpperCase()}</div>`
+                            : null}
+                        </td>
+                        <td><span className="muted2" style=${{ fontSize: "12px" }}>${formatDateTime(w.createdAt)}</span></td>
+                        <td>
+                          <div className="walletAdminActions">
+                            <${Button}
+                              variant="subtle"
+                              disabled=${busy || !!adminWithdrawalActionKey}
+                              onClick=${() => onAdminProcessWithdrawal(wid, "complete")}
+                            >
+                              ${isCompleting ? "Concluindo..." : confirmingComplete ? "Confirmar conclusão" : "Concluir"}
+                            </${Button}>
+                            <${Button}
+                              variant="danger"
+                              disabled=${busy || !!adminWithdrawalActionKey}
+                              onClick=${() => onAdminProcessWithdrawal(wid, "reject")}
+                            >
+                              ${isRejecting ? "Rejeitando..." : confirmingReject ? "Confirmar rejeição" : "Rejeitar"}
+                            </${Button}>
+                          </div>
                         </td>
                       </tr>
-                    `
-                  )}
+                    `;
+                  })}
                 </tbody>
               </table>
-              <div className="help" style=${{ marginTop: "10px" }}>Saques são processados em fila. Mantenha sua chave Pix correta.</div>
+              </div>
             `
           : html`
               <div className="emptyState">
-                <div className="eTitle">Sem saques</div>
-                <div className="eDesc">Solicite um saque quando tiver saldo disponível.</div>
+                <div className="eTitle">Nenhum saque pendente</div>
+                <div className="eDesc">Quando houver solicitações, elas aparecerão aqui para processamento.</div>
               </div>
             `}
       </div>
@@ -2238,24 +4009,43 @@ function Dashboard({ route, me, refreshMe, toast }) {
       <div className="grid cols2" style=${{ marginTop: "18px" }}>
         <div className="card pad">
           <div className="cardHead">
-            <h3>Conta</h3>
+            <h3>Perfil</h3>
           </div>
 
-          ${avatarUrl ? html`
-            <div style=${{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 0 16px" }}>
+          <div style=${{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 0 16px" }}>
+            ${profileAvatarPreview
+              ? html`
               <img
-                src=${avatarUrl}
+                src=${profileAvatarPreview}
                 alt=${displayName}
                 style=${{ width: "54px", height: "54px", borderRadius: "50%", objectFit: "cover",
                           border: "2px solid rgba(255,255,255,0.14)", boxShadow: "0 0 0 3px rgb(var(--accent-rgb) / 0.22)" }}
               />
-              <div>
-                <div style=${{ fontWeight: 900, fontSize: "17px", fontFamily: '"Space Grotesk", sans-serif', letterSpacing: "-0.02em" }}>${displayName}</div>
-                ${me?.email ? html`<div className="muted2" style=${{ fontSize: "12px", marginTop: "2px" }}>${me.email}</div>` : null}
-              </div>
+            `
+              : html`
+                <div
+                  style=${{
+                    width: "54px",
+                    height: "54px",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 800,
+                    fontSize: "20px",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "2px solid rgba(255,255,255,0.14)"
+                  }}
+                >
+                  ${initials}
+                </div>
+              `}
+            <div>
+              <div style=${{ fontWeight: 900, fontSize: "17px", fontFamily: '"Space Grotesk", sans-serif', letterSpacing: "-0.02em" }}>${displayName}</div>
+              ${me?.email ? html`<div className="muted2" style=${{ fontSize: "12px", marginTop: "2px" }}>${me.email}</div>` : null}
             </div>
-            <div className="hr"></div>
-          ` : null}
+          </div>
+          <div className="hr"></div>
 
           <div className="stack">
             <div className="infoItem">
@@ -2268,33 +4058,76 @@ function Dashboard({ route, me, refreshMe, toast }) {
             </div>
             <div className="infoItem">
               <span className="iKey">Plano</span>
-              <span className="iVal">${planText}</span>
+              <span className="iVal">
+                ${planText}
+                <span className=${`badge ${me?.planActive ? "active" : "none"}`} style=${{ marginLeft: "7px" }}>
+                  ${me?.planActive ? "Ativo" : "Inativo"}
+                </span>
+              </span>
             </div>
             <div className="infoItem">
-              <span className="iKey">Saldo</span>
-              <span className="iVal">${formatBRLFromCents(me?.walletCents || 0)}</span>
+              <span className="iKey">Email</span>
+              <span className="iVal">${me?.email || "—"}</span>
             </div>
 
             <div className="hr"></div>
 
             <div className="label">Nome de exibição</div>
             <input className="input" value=${profileName} onInput=${(e) => setProfileName(e.target.value)} placeholder="Seu nome" />
-            <div>
-              <${Button} variant="subtle" disabled=${busy} onClick=${onUpdateProfile}>Salvar nome</${Button}>
+            <div className="label">Foto do perfil (URL)</div>
+            <input
+              className="input mono"
+              value=${profileAvatarDraft}
+              onInput=${(e) => setProfileAvatarDraft(e.target.value)}
+              placeholder="https://exemplo.com/avatar.png"
+            />
+            <div className="row" style=${{ gap: "8px", flexWrap: "wrap" }}>
+              <${Button} variant="subtle" disabled=${busy} onClick=${onUpdateProfile}>
+                <${Save} size=${16} style=${{ marginRight: "6px" }} />
+                Salvar perfil
+              </${Button}>
+              <${Button} variant="ghost" disabled=${busy} onClick=${() => setTab("wallet")}>
+                <${Wallet} size=${16} style=${{ marginRight: "6px" }} />
+                Ir para carteira
+              </${Button}>
             </div>
             <div className="help">
-              Nome exibido na dashboard. Se usar Discord, atualiza no próximo login.
+              Dados financeiros (saldo, vendas, transações e saques) ficam na aba Carteira.
             </div>
           </div>
         </div>
 
         <div className="card pad">
           <div className="cardHead">
-            <h3>Segurança</h3>
+            <h3>Segurança e Email</h3>
           </div>
           ${me?.authProvider === "local"
             ? html`
                 <div className="stack">
+                  <div className="muted" style=${{ marginBottom: "4px" }}>Atualizar email de acesso</div>
+                  <input
+                    className="input"
+                    type="email"
+                    value=${emailDraft}
+                    onInput=${(e) => setEmailDraft(e.target.value)}
+                    placeholder="novo-email@exemplo.com"
+                  />
+                  <input
+                    className="input"
+                    type="password"
+                    value=${emailPassword}
+                    onInput=${(e) => setEmailPassword(e.target.value)}
+                    placeholder="Senha atual (obrigatória)"
+                  />
+                  <div>
+                    <${Button} variant="subtle" disabled=${busy} onClick=${onUpdateEmail}>
+                      <${Mail} size=${16} style=${{ marginRight: "6px" }} />
+                      Atualizar email
+                    </${Button}>
+                  </div>
+
+                  <div className="hr"></div>
+
                   <div className="muted" style=${{ marginBottom: "4px" }}>Alterar senha</div>
                   <input
                     className="input"
@@ -2318,7 +4151,10 @@ function Dashboard({ route, me, refreshMe, toast }) {
                     placeholder="Confirmar nova senha"
                   />
                   <div>
-                    <${Button} variant="subtle" disabled=${busy} onClick=${onChangePassword}>Salvar nova senha</${Button}>
+                    <${Button} variant="subtle" disabled=${busy} onClick=${onChangePassword}>
+                      <${Lock} size=${16} style=${{ marginRight: "6px" }} />
+                      Salvar nova senha
+                    </${Button}>
                   </div>
                   <div className="help">
                     Nunca compartilhe sua senha ou o token do bot. Em caso de acesso suspeito, troque as credenciais imediatamente.
@@ -2326,554 +4162,166 @@ function Dashboard({ route, me, refreshMe, toast }) {
                 </div>
               `
             : html`
-                <div className="muted">
-                  Conta conectada via Discord OAuth. Para reforçar a segurança, ative 2FA na sua conta Discord e mantenha seu servidor protegido.
+                <div className="stack">
+                  <div className="infoItem">
+                    <span className="iKey">Email</span>
+                    <span className="iVal">${me?.email || "—"}</span>
+                  </div>
+                  <div className="muted">
+                    Conta conectada via Discord OAuth. Troca de email e avatar oficial devem ser feitas no Discord.
+                  </div>
+                  <div>
+                    <${Button}
+                      variant="ghost"
+                      onClick=${() => window.open("https://discord.com/settings/account", "_blank", "noopener,noreferrer")}
+                    >
+                      <${ExternalLink} size=${16} style=${{ marginRight: "6px" }} />
+                      Gerenciar no Discord
+                    </${Button}>
+                  </div>
+                  <div className="help">
+                    Para reforçar a segurança, ative 2FA na sua conta Discord.
+                  </div>
                 </div>
               `}
         </div>
       </div>
       ` : null}
 
-      <${Modal} open=${edit.open} title="Editar instância" onClose=${closeEditInstance}>
-        <div className="formGrid">
-          <div className="label">Nome da instância</div>
-          <input className="input" value=${edit.name} onInput=${(e) => setEdit((s) => ({ ...s, name: e.target.value }))} placeholder="Ex: Minha Loja" />
-
-          <div className="label">Servidor (Guild ID)</div>
-          <input
-            className="input mono"
-            value=${edit.guildId}
-            onInput=${(e) => setEdit((s) => ({ ...s, guildId: e.target.value }))}
-            placeholder="Ex: 123456789012345678"
-          />
-          ${guilds?.length
-            ? html`
-                <div className="help">Ou escolha da lista (requer login com Discord):</div>
-                <select
-                  className="input"
-                  value=${edit.guildId}
-                  onChange=${(e) => setEdit((s) => ({ ...s, guildId: e.target.value }))}
-                >
-                  <option value="">Selecionar servidor...</option>
-                  ${guilds.map((g) => html`<option value=${g.id}>${g.name}</option>`)}
-                </select>
-              `
-            : html`<div className="help">Para carregar a lista de servidores aqui, entre com Discord.</div>`}
-
-          <div className="hr"></div>
-
-          <div className="label">Branding</div>
-          <input
-            className="input"
-            value=${edit.brandName}
-            onInput=${(e) => setEdit((s) => ({ ...s, brandName: e.target.value }))}
-            placeholder="Nome da marca (ex: AstraSystems)"
-          />
-          <input
-            className="input mono"
-            value=${edit.accent}
-            onInput=${(e) => setEdit((s) => ({ ...s, accent: e.target.value }))}
-            placeholder="Cor de destaque (ex: #E6212A)"
-          />
-          <input
-            className="input"
-            value=${edit.logoUrl}
-            onInput=${(e) => setEdit((s) => ({ ...s, logoUrl: e.target.value }))}
-            placeholder="URL do logo (opcional)"
-          />
-          <div className="help">
-            Para vincular um servidor, selecione da lista abaixo (requer login Discord) ou cole o Guild ID manualmente.
-          </div>
-
-           <div className="hr"></div>
-
-           <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
-             <div className="label" style=${{ margin: 0 }}>Canais do bot</div>
-             <${Button}
-               variant="subtle"
-               disabled=${busy || editChannels.loading || !asString(edit.guildId).trim()}
-               onClick=${onLoadInstanceChannels}
-             >
-               ${editChannels.loading ? "Carregando..." : "Carregar canais"}
-             </${Button}>
-           </div>
-           <div className="help">
-             Configure onde o bot vai enviar logs, notificacoes de vendas e onde pedir avaliacao.
-             <br />
-             Para usar dropdown: vincule o servidor, convide o bot e clique em <b>Carregar canais</b>.
-           </div>
-           ${editChannels.error ? html`<div className="muted2">Erro ao carregar canais: <b>${editChannels.error}</b></div>` : null}
-
-           <div className="label">Canal de logs</div>
-           ${editChannels.channels?.length
-             ? html`
-                 <select
-                   className="input"
-                   value=${edit.logsChannelId}
-                   onChange=${(e) => setEdit((s) => ({ ...s, logsChannelId: e.target.value }))}
-                 >
-                   <option value="">Nao configurado</option>
-                   ${editChannels.channels.map((c) => html`<option value=${c.id}>${c.label || c.name}</option>`)}
-                 </select>
-               `
-             : html`
-                 <input
-                   className="input mono"
-                   value=${edit.logsChannelId}
-                   onInput=${(e) => setEdit((s) => ({ ...s, logsChannelId: e.target.value }))}
-                   placeholder="ID do canal (opcional)"
-                 />
-               `}
-           <div className="help">Onde o bot envia alertas importantes (DM falhou, estoque, auditoria, etc).</div>
-
-           <div className="label">Canal de vendas ao vivo</div>
-           ${editChannels.channels?.length
-             ? html`
-                 <select
-                   className="input"
-                   value=${edit.salesChannelId}
-                   onChange=${(e) => setEdit((s) => ({ ...s, salesChannelId: e.target.value }))}
-                 >
-                   <option value="">Nao configurar</option>
-                   ${editChannels.channels.map((c) => html`<option value=${c.id}>${c.label || c.name}</option>`)}
-                 </select>
-               `
-             : html`
-                 <input
-                   className="input mono"
-                   value=${edit.salesChannelId}
-                   onInput=${(e) => setEdit((s) => ({ ...s, salesChannelId: e.target.value }))}
-                   placeholder="ID do canal (opcional)"
-                 />
-               `}
-           <div className="help">O bot manda uma mensagem aqui sempre que uma compra for entregue com sucesso.</div>
-
-           <div className="label">Canal de feedback/avaliacoes</div>
-           ${editChannels.channels?.length
-             ? html`
-                 <select
-                   className="input"
-                   value=${edit.feedbackChannelId}
-                   onChange=${(e) => setEdit((s) => ({ ...s, feedbackChannelId: e.target.value }))}
-                 >
-                   <option value="">Nao configurar</option>
-                   ${editChannels.channels.map((c) => html`<option value=${c.id}>${c.label || c.name}</option>`)}
-                 </select>
-               `
-             : html`
-                 <input
-                   className="input mono"
-                   value=${edit.feedbackChannelId}
-                   onInput=${(e) => setEdit((s) => ({ ...s, feedbackChannelId: e.target.value }))}
-                   placeholder="ID do canal (opcional)"
-                 />
-               `}
-           <div className="help">Apos a entrega, o bot manda uma DM pedindo para avaliar nesse canal.</div>
-        </div>
-
-        <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
-          <${Button} variant="primary" disabled=${busy} onClick=${onSaveInstance}>${busy ? "Salvando..." : "Salvar alterações"}</${Button}>
-          <${Button}
-            variant="subtle"
-            disabled=${busy || !asString(edit.guildId).trim()}
-            onClick=${() => onInvite(asString(edit.guildId).trim(), asString(edit.id).trim())}
-          >
-            Gerar invite
-          </${Button}>
-          <${Button} variant="danger" disabled=${busy} onClick=${() => onDeleteInstance(edit.id)}>Excluir instância</${Button}>
-        </div>
-      </${Modal}>
-
-      <${Modal}
-        open=${productEditor.open}
-        title=${productEditor.mode === "create" ? "Criar produto" : "Editar produto"}
-        onClose=${closeProductEditor}
-      >
-        ${productEditor.draft
-          ? html`
-              <div className="formGrid">
-                <div className="label">ID</div>
-                ${productEditor.mode === "create"
-                  ? html`
-                      <input
-                        className="input mono"
-                        value=${productEditor.draft.id || ""}
-                        onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, id: e.target.value } }))}
-                        placeholder="ex: product1"
-                      />
-                      <div className="help">Use letras/numeros e . _ - (sem espacos).</div>
-                    `
-                  : html`<div className="code mono">${asString(productEditor.draft.id)}</div>`}
-
-                <div className="label">Nome</div>
-                <input
-                  className="input"
-                  value=${productEditor.draft.name || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, name: e.target.value } }))}
-                  placeholder="Nome do produto"
-                />
-
-                <div className="label">Short label</div>
-                <input
-                  className="input"
-                  value=${productEditor.draft.shortLabel || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, shortLabel: e.target.value } }))}
-                  placeholder="Ex: BSRAGE"
-                />
-
-                <div className="label">Descricao</div>
-                <textarea
-                  className="input"
-                  rows="5"
-                  value=${productEditor.draft.description || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, description: e.target.value } }))}
-                  placeholder="Texto do produto (markdown)"
-                ></textarea>
-
-                <div className="hr"></div>
-
-                <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
-                  <div className="label" style=${{ margin: 0 }}>Variacoes</div>
-                  <${Button} variant="subtle" disabled=${productEditor.saving} onClick=${addVariantRow}>Adicionar variacao</${Button}>
-                </div>
-                ${Array.isArray(productEditor.draft.variants) && productEditor.draft.variants.length
-                  ? html`
-                      <div className="stack">
-                        ${productEditor.draft.variants.map(
-                          (v, idx) => html`
-                            <div className="kpi">
-                              <div className="row grow">
-                                <input
-                                  className="input mono"
-                                  value=${v.id || ""}
-                                  onInput=${(e) => {
-                                    const value = e.target.value;
-                                    setProductEditor((s) => {
-                                      const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
-                                      list[idx] = { ...(list[idx] || {}), id: value };
-                                      return { ...s, draft: { ...s.draft, variants: list } };
-                                    });
-                                  }}
-                                  placeholder="id (ex: 30d)"
-                                />
-                                <input
-                                  className="input"
-                                  value=${v.label || ""}
-                                  onInput=${(e) => {
-                                    const value = e.target.value;
-                                    setProductEditor((s) => {
-                                      const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
-                                      list[idx] = { ...(list[idx] || {}), label: value };
-                                      return { ...s, draft: { ...s.draft, variants: list } };
-                                    });
-                                  }}
-                                  placeholder="label (ex: 30 dias)"
-                                />
-                              </div>
-                              <div className="row grow" style=${{ marginTop: "10px" }}>
-                                <input
-                                  className="input"
-                                  value=${v.duration || ""}
-                                  onInput=${(e) => {
-                                    const value = e.target.value;
-                                    setProductEditor((s) => {
-                                      const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
-                                      list[idx] = { ...(list[idx] || {}), duration: value };
-                                      return { ...s, draft: { ...s.draft, variants: list } };
-                                    });
-                                  }}
-                                  placeholder="duracao (ex: 30 dias)"
-                                />
-                                <input
-                                  className="input mono"
-                                  value=${String(v.price ?? "")}
-                                  onInput=${(e) => {
-                                    const value = e.target.value;
-                                    setProductEditor((s) => {
-                                      const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
-                                      list[idx] = { ...(list[idx] || {}), price: value };
-                                      return { ...s, draft: { ...s.draft, variants: list } };
-                                    });
-                                  }}
-                                  placeholder="preco (ex: 29.90)"
-                                />
-                                <input
-                                  className="input"
-                                  value=${v.emoji || ""}
-                                  onInput=${(e) => {
-                                    const value = e.target.value;
-                                    setProductEditor((s) => {
-                                      const list = Array.isArray(s.draft?.variants) ? [...s.draft.variants] : [];
-                                      list[idx] = { ...(list[idx] || {}), emoji: value };
-                                      return { ...s, draft: { ...s.draft, variants: list } };
-                                    });
-                                  }}
-                                  placeholder="emoji (opcional)"
-                                />
-                              </div>
-                              <div style=${{ marginTop: "10px" }}>
-                                <${Button} variant="danger" disabled=${productEditor.saving} onClick=${() => removeVariantRow(idx)}>Remover</${Button}>
-                              </div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    `
-                  : html`<div className="muted2">Nenhuma variacao ainda. Adicione pelo botao acima.</div>`}
-
-                <div className="hr"></div>
-
-                <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
-                  <div className="label" style=${{ margin: 0 }}>Blocos (opcional)</div>
-                  <${Button} variant="subtle" disabled=${productEditor.saving} onClick=${addSectionRow}>Adicionar bloco</${Button}>
-                </div>
-                ${Array.isArray(productEditor.draft.sections) && productEditor.draft.sections.length
-                  ? html`
-                      <div className="stack">
-                        ${productEditor.draft.sections.map(
-                          (sec, idx) => html`
-                            <div className="kpi">
-                              <input
-                                className="input"
-                                value=${sec.name || ""}
-                                onInput=${(e) => {
-                                  const value = e.target.value;
-                                  setProductEditor((s) => {
-                                    const list = Array.isArray(s.draft?.sections) ? [...s.draft.sections] : [];
-                                    list[idx] = { ...(list[idx] || {}), name: value };
-                                    return { ...s, draft: { ...s.draft, sections: list } };
-                                  });
-                                }}
-                                placeholder="Titulo do bloco"
-                              />
-                              <textarea
-                                className="input"
-                                rows="4"
-                                style=${{ marginTop: "10px" }}
-                                value=${sec.value || ""}
-                                onInput=${(e) => {
-                                  const value = e.target.value;
-                                  setProductEditor((s) => {
-                                    const list = Array.isArray(s.draft?.sections) ? [...s.draft.sections] : [];
-                                    list[idx] = { ...(list[idx] || {}), value };
-                                    return { ...s, draft: { ...s.draft, sections: list } };
-                                  });
-                                }}
-                                placeholder="Conteudo (markdown)"
-                              ></textarea>
-                              <div className="row" style=${{ marginTop: "10px", alignItems: "center", justifyContent: "space-between" }}>
-                                <label className="muted2">
-                                  <input
-                                    type="checkbox"
-                                    checked=${!!sec.inline}
-                                    onChange=${(e) => {
-                                      const value = !!e.target.checked;
-                                      setProductEditor((s) => {
-                                        const list = Array.isArray(s.draft?.sections) ? [...s.draft.sections] : [];
-                                        list[idx] = { ...(list[idx] || {}), inline: value };
-                                        return { ...s, draft: { ...s.draft, sections: list } };
-                                      });
-                                    }}
-                                  />
-                                  <span style=${{ marginLeft: "8px" }}>Inline</span>
-                                </label>
-                                <${Button} variant="danger" disabled=${productEditor.saving} onClick=${() => removeSectionRow(idx)}>Remover</${Button}>
-                              </div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    `
-                  : html`<div className="muted2">Use blocos para adicionar campos extras no embed (funcoes, infos, etc).</div>`}
-
-                <div className="hr"></div>
-
-                <div className="label">Midias (opcional)</div>
-                <input
-                  className="input"
-                  value=${productEditor.draft.bannerImage || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, bannerImage: e.target.value } }))}
-                  placeholder="bannerImage (ex: assets/product1/banner.gif)"
-                />
-                <input
-                  className="input"
-                  value=${productEditor.draft.previewImage || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, previewImage: e.target.value } }))}
-                  placeholder="previewImage (opcional)"
-                />
-                <input
-                  className="input"
-                  value=${productEditor.draft.prePostGif || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, prePostGif: e.target.value } }))}
-                  placeholder="prePostGif (opcional)"
-                />
-                <input
-                  className="input"
-                  value=${productEditor.draft.thumbnail || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, thumbnail: e.target.value } }))}
-                  placeholder="thumbnail (opcional)"
-                />
-                <input
-                  className="input"
-                  value=${productEditor.draft.footerImage || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, footerImage: e.target.value } }))}
-                  placeholder="footerImage (opcional)"
-                />
-                <input
-                  className="input"
-                  value=${productEditor.draft.demoUrl || ""}
-                  onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, demoUrl: e.target.value } }))}
-                  placeholder="demoUrl (opcional)"
-                />
-
-                <div className="row" style=${{ alignItems: "center", justifyContent: "space-between" }}>
-                  <label className="muted2">
-                    <input
-                      type="checkbox"
-                      checked=${!!productEditor.draft.disableThumbnail}
-                      onChange=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, disableThumbnail: !!e.target.checked } }))}
-                    />
-                    <span style=${{ marginLeft: "8px" }}>Desativar thumbnail</span>
-                  </label>
-                  <label className="muted2">
-                    <input
-                      type="checkbox"
-                      checked=${!!productEditor.draft.infiniteStock}
-                      onChange=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, infiniteStock: !!e.target.checked } }))}
-                    />
-                    <span style=${{ marginLeft: "8px" }}>Estoque infinito</span>
-                  </label>
-                </div>
-              </div>
-
-              <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
-                <${Button} variant="primary" disabled=${productEditor.saving} onClick=${saveProductEditor}>
-                  ${productEditor.saving ? "Salvando..." : productEditor.mode === "create" ? "Criar produto" : "Salvar produto"}
-                </${Button}>
-                <${Button} variant="ghost" disabled=${productEditor.saving} onClick=${closeProductEditor}>Cancelar</${Button}>
-              </div>
-            `
-          : null}
-      </${Modal}>
-
-      <${Modal} open=${stockEditor.open} title=${`Estoque - ${stockEditor.productName || stockEditor.productId}`} onClose=${closeStock}>
-        ${stockEditor.loading
-          ? html`<div className="muted">Carregando estoque...</div>`
-          : html`
-              <div className="formGrid">
-                <div className="label">Bucket</div>
-                <select className="input" value=${stockEditor.bucket} onChange=${(e) => setStockEditor((s) => ({ ...s, bucket: e.target.value }))}>
-                  <option value="default">default</option>
-                  <option value="shared">shared</option>
-                  ${(stockEditor.variants || [])
-                    .map((v) => asString(v?.id).trim())
-                    .filter(Boolean)
-                    .map((id) => html`<option value=${id}>${id}</option>`)}
-                </select>
-                <div className="help">Voce pode separar estoque por variacao (bucket = id da variacao).</div>
-
-                <div className="label">Adicionar keys (1 por linha)</div>
-                <textarea
-                  className="input mono"
-                  rows="6"
-                  value=${stockEditor.keysText}
-                  onInput=${(e) => setStockEditor((s) => ({ ...s, keysText: e.target.value }))}
-                  placeholder="KEY-1\nKEY-2\nKEY-3"
-                ></textarea>
-
-                <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                  <${Button} variant="primary" disabled=${stockEditor.saving} onClick=${addStockKeys}>
-                    ${stockEditor.saving ? "Salvando..." : "Adicionar e salvar"}
-                  </${Button}>
-                  <${Button} variant="danger" disabled=${stockEditor.saving} onClick=${clearStockBucket}>Limpar bucket</${Button}>
-                </div>
-
-                <div className="hr"></div>
-
-                <div className="label">Resumo</div>
-                <div className="code mono">${JSON.stringify(stockEditor.stock || {}, null, 2)}</div>
-              </div>
-            `}
-      </${Modal}>
-
-      <${Modal} open=${postEditor.open} title=${`Postar - ${postEditor.productName || postEditor.productId}`} onClose=${closePost}>
-        ${postEditor.loading
-          ? html`<div className="muted">Carregando canais...</div>`
-          : html`
-              <div className="formGrid">
-                <div className="label">Canal</div>
-                <select className="input" value=${postEditor.channelId} onChange=${(e) => setPostEditor((s) => ({ ...s, channelId: e.target.value }))}>
-                  <option value="">Selecionar...</option>
-                  ${(postEditor.channels || []).map((c) => html`<option value=${c.id}>${c.label || c.name}</option>`)}
-                </select>
-
-                <label className="muted2">
-                  <input type="checkbox" checked=${!!postEditor.purge} onChange=${(e) => setPostEditor((s) => ({ ...s, purge: !!e.target.checked }))} />
-                  <span style=${{ marginLeft: "8px" }}>Limpar canal antes de postar (requer permissao)</span>
-                </label>
-
-                <div style=${{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                  <${Button} variant="primary" disabled=${postEditor.loading} onClick=${doPost}>Postar agora</${Button}>
-                  <${Button} variant="ghost" disabled=${postEditor.loading} onClick=${closePost}>Cancelar</${Button}>
-                </div>
-              </div>
-            `}
-      </${Modal}>
     </div>
   `;
 }
 
-function Tutorials() {
+function Tutorials({ route }) {
+  const steps = [
+    {
+      icon: html`<${UserPlus} size=${22} />`,
+      title: "Criar conta e entrar",
+      desc: "Acesse a plataforma com Discord (recomendado) ou crie uma conta com email e senha.",
+      details: [
+        "Login com Discord permite ver a lista de seus servidores automaticamente",
+        "Para login por email, use uma senha forte com pelo menos 6 caracteres",
+        "Você pode conectar o Discord depois em Configurações"
+      ]
+    },
+    {
+      icon: html`<${CreditCard} size=${22} />`,
+      title: "Escolher um plano",
+      desc: "Ative o Trial gratuito para testar ou escolha um plano pago com mais recursos.",
+      details: [
+        "Trial: 24 horas grátis com acesso completo",
+        "Start: A partir de R$ 5,97/mês com todas as funcionalidades",
+        "A cada R$ 20 em vendas, você ganha +1 dia no plano automaticamente"
+      ]
+    },
+    {
+      icon: html`<${Bot} size=${22} />`,
+      title: "Criar sua instância",
+      desc: "Configure seu bot Discord com um token próprio para começar a vender.",
+      details: [
+        "Acesse discord.com/developers e crie uma Application",
+        "Gere um Bot Token na seção Bot do Developer Portal",
+        "Cole o token na criação da instância - ele é validado na hora"
+      ]
+    },
+    {
+      icon: html`<${Link2} size=${22} />`,
+      title: "Convidar o bot",
+      desc: "Adicione o bot ao seu servidor Discord com as permissões corretas.",
+      details: [
+        "Use o botão 'Gerar invite' na Dashboard ou na lista de instâncias",
+        "Conceda permissões de Gerenciar Canais e Gerenciar Mensagens",
+        "O bot precisa de acesso aos canais onde vai operar"
+      ]
+    },
+    {
+      icon: html`<${Store} size=${22} />`,
+      title: "Cadastrar produtos",
+      desc: "Crie seus produtos com variações, preços e estoque na aba Loja.",
+      details: [
+        "Defina nome, descrição e imagem do produto",
+        "Adicione variações (ex: 30 dias, 60 dias, Lifetime)",
+        "Gerencie estoque de keys/licenças por bucket"
+      ]
+    },
+    {
+      icon: html`<${Send} size=${22} />`,
+      title: "Publicar no Discord",
+      desc: "Envie o embed do produto para um canal e comece a receber pedidos.",
+      details: [
+        "Selecione o canal de destino no seu servidor",
+        "O embed inclui botão de compra integrado",
+        "Clientes pagam via PIX e recebem a key automaticamente"
+      ]
+    },
+    {
+      icon: html`<${Wallet} size=${22} />`,
+      title: "Acompanhar vendas",
+      desc: "Monitore seu saldo, transações e solicite saques via PIX.",
+      details: [
+        "Vendas aparecem em tempo real na Dashboard",
+        "Taxa de apenas 6% por venda - a menor do mercado",
+        "Saque mínimo de R$ 10,00 direto na sua chave PIX"
+      ]
+    },
+    {
+      icon: html`<${Shield} size=${22} />`,
+      title: "Boas práticas",
+      desc: "Mantenha sua conta e servidor seguros com estas recomendações.",
+      details: [
+        "Nunca compartilhe seu token do bot ou senha da conta",
+        "Ative 2FA na sua conta Discord e email",
+        "Configure um canal de logs para auditoria"
+      ]
+    }
+  ];
+
   return html`
     <div className="container">
-      <h2 className="sectionTitle">Tutoriais</h2>
-      <div className="grid cols2">
-        <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>1) Criar conta e entrar</h3>
-          <div className="muted">
-            Voce pode entrar com Discord (recomendado) ou criar uma conta com email e senha.
-            <br />
-            <span className="muted2">Obs: a lista de servidores so aparece para quem entrou com Discord.</span>
-          </div>
+      <div className="hero" style=${{ paddingTop: "20px", paddingBottom: "10px" }}>
+        <div className="pill" style=${{ margin: "0 auto 12px", width: "fit-content" }}>
+          <${BookOpen} size=${14} style=${{ marginRight: "6px" }} />
+          Central de Ajuda
         </div>
-        <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>2) Escolher um plano</h3>
-          <div className="muted">
-            Va em <b>Planos</b> e ative o <b>Trial</b> para testar ou escolha um plano pago.
-            <br />
-            O status e a data de expiracao aparecem na Dashboard.
+        <h1 style=${{ fontSize: "clamp(28px, 5vw, 42px)" }}>
+          Tutoriais e <span className="accent">Guias</span>
+        </h1>
+        <p className="muted" style=${{ maxWidth: "600px", margin: "8px auto 0" }}>
+          Aprenda a configurar e usar a AstraSystems em poucos minutos.
+          Siga o passo a passo abaixo para começar a vender.
+        </p>
+      </div>
+
+      <div className="tutorialSteps">
+        ${steps.map((step, idx) => html`
+          <div className="tutorialStep" key=${idx}>
+            <div className="tutorialStepHeader">
+              <div className="tutorialStepNumber">${idx + 1}</div>
+              <div className="tutorialStepIcon">${step.icon}</div>
+              <div className="tutorialStepInfo">
+                <div className="tutorialStepTitle">${step.title}</div>
+                <div className="tutorialStepDesc">${step.desc}</div>
+              </div>
+            </div>
+            <div className="tutorialStepDetails">
+              ${step.details.map((detail, i) => html`
+                <div className="tutorialDetail" key=${i}>
+                  <${Check} size=${14} style=${{ color: "var(--good)", flexShrink: 0 }} />
+                  <span>${detail}</span>
+                </div>
+              `)}
+            </div>
           </div>
-        </div>
-        <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>3) Vendas e saques</h3>
-          <div className="muted">
-            Na Dashboard, acompanhe seu <b>Saldo de vendas</b> e solicite <b>saques via Pix</b>.
-            <br />
-            Assim que uma venda for entregue pelo bot, seu saldo e as transacoes sao atualizados.
-          </div>
-        </div>
-        <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>4) Criar sua instancia</h3>
-          <div className="muted">
-            Em <b>Instancias</b>, clique em <b>Criar instancia</b>, defina um nome e informe o token do bot do cliente.
-            <br />
-            O token e validado na hora. Cada assinatura ativa libera <b>1 bot/instancia</b>.
-          </div>
-        </div>
-        <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>5) Convidar o bot</h3>
-          <div className="muted">
-            Na Dashboard, use <b>Gerar invite</b> (ou <b>Convidar Bot</b> na lista de servidores).
-            <br />
-            Garanta permissao de <b>Gerenciar Canais</b> e <b>Gerenciar Mensagens</b> para o bot funcionar corretamente.
-          </div>
-        </div>
-        <div className="card pad">
-          <h3 className="sectionTitle" style=${{ marginTop: 0 }}>6) Boas praticas</h3>
-          <div className="muted">
-            Crie uma categoria para carrinhos/atendimento, defina uma role de staff e mantenha um canal de logs.
-            <br />
-            Evite compartilhar token/senha e ative 2FA na conta do Discord.
+        `)}
+      </div>
+
+      <div className="tutorialCTA">
+        <div className="card pad" style=${{ textAlign: "center", background: "linear-gradient(135deg, rgba(230,33,42,0.08), rgba(255,77,87,0.04))", border: "1px solid rgba(230,33,42,0.2)" }}>
+          <div style=${{ fontWeight: 900, fontSize: "18px", marginBottom: "8px" }}>Pronto para começar?</div>
+          <div className="muted" style=${{ marginBottom: "16px" }}>Configure seu bot em menos de 5 minutos.</div>
+          <div style=${{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+            <${Button} variant="primary" icon=${Rocket} onClick=${() => route.navigate("/dashboard")}>Acessar Dashboard</${Button}>
+            <${Button} variant="ghost" icon=${HelpCircle} onClick=${() => window.open("https://discord.gg/5H7xhCptbX", "_blank")}>Suporte no Discord</${Button}>
           </div>
         </div>
       </div>
@@ -2882,84 +4330,98 @@ function Tutorials() {
 }
 
 function Terms() {
+  const sections = [
+    {
+      icon: html`<${Package} size=${18} />`,
+      title: "Serviços oferecidos",
+      content: "A AstraSystems fornece uma plataforma SaaS para automação de vendas no Discord, incluindo: bot de vendas com integração PIX, dashboard de gerenciamento, sistema de estoque, carteira digital e ferramentas de configuração. Cada instância opera com o token de bot fornecido pelo cliente."
+    },
+    {
+      icon: html`<${Shield} size=${18} />`,
+      title: "Conta e segurança",
+      content: "Você é responsável por manter suas credenciais seguras. Nunca compartilhe seu token de bot, senha ou dados de acesso. Em caso de suspeita de acesso não autorizado, altere imediatamente suas credenciais e contate o suporte. A AstraSystems não se responsabiliza por acessos indevidos causados por negligência do usuário."
+    },
+    {
+      icon: html`<${CreditCard} size=${18} />`,
+      title: "Pagamentos e planos",
+      content: "Os pagamentos são processados via Mercado Pago (PIX). A confirmação ocorre em tempo real após aprovação do pagamento. O acesso aos recursos depende do status do plano ativo. Cada R$ 20 em vendas processadas adiciona automaticamente +1 dia ao plano. A taxa por venda é de 6% sobre o valor líquido."
+    },
+    {
+      icon: html`<${Wallet} size=${18} />`,
+      title: "Carteira e saques",
+      content: "O saldo da carteira é atualizado em tempo real após cada venda confirmada. Saques podem ser solicitados a partir de R$ 10,00 via chave PIX. O processamento ocorre em até 24 horas úteis. A AstraSystems pode solicitar verificações adicionais para prevenir fraudes."
+    },
+    {
+      icon: html`<${Receipt} size=${18} />`,
+      title: "Reembolsos",
+      content: "Solicitações de reembolso devem ser feitas em até 7 dias após a compra, mediante comprovação de falha técnica não resolvida pelo suporte. Reembolsos são analisados caso a caso. O Trial gratuito não gera direito a reembolso. Vendas realizadas através do bot não são passíveis de reembolso pela AstraSystems."
+    },
+    {
+      icon: html`<${AlertTriangle} size=${18} />`,
+      title: "Uso aceitável",
+      content: "É proibido usar a plataforma para: fraude, spam, venda de produtos ilegais, violação de direitos autorais, discriminação, ou qualquer atividade que viole leis brasileiras ou os Termos de Serviço do Discord. Violações resultam em suspensão imediata sem direito a reembolso."
+    },
+    {
+      icon: html`<${Server} size=${18} />`,
+      title: "Disponibilidade",
+      content: "A AstraSystems busca manter disponibilidade 24/7, mas pode haver interrupções para manutenção, atualizações ou problemas técnicos. Não garantimos disponibilidade ininterrupta. Manutenções programadas serão comunicadas com antecedência quando possível."
+    },
+    {
+      icon: html`<${FileText} size=${18} />`,
+      title: "Alterações nos termos",
+      content: "Estes termos podem ser atualizados periodicamente. Alterações significativas serão comunicadas por email ou pela plataforma. O uso continuado após alterações implica aceitação dos novos termos."
+    },
+    {
+      icon: html`<${Info} size=${18} />`,
+      title: "Isenção de responsabilidade",
+      content: "A AstraSystems não é afiliada, endossada ou patrocinada pelo Discord Inc. Discord é marca registrada de Discord Inc. Não nos responsabilizamos por ações do Discord que afetem o funcionamento dos bots, incluindo suspensões de conta ou alterações na API."
+    }
+  ];
+
   return html`
     <div className="container">
-      <h2 className="sectionTitle">Termos de Servico</h2>
-      <div className="card pad">
-        <div className="muted">
-          <b>Ultima atualizacao:</b> 14/02/2026
-          <br />
-          Ao criar uma conta ou usar a plataforma AstraSystems, voce concorda com os termos abaixo.
+      <div className="hero" style=${{ paddingTop: "20px", paddingBottom: "10px" }}>
+        <div className="pill" style=${{ margin: "0 auto 12px", width: "fit-content" }}>
+          <${FileText} size=${14} style=${{ marginRight: "6px" }} />
+          Documento Legal
         </div>
+        <h1 style=${{ fontSize: "clamp(28px, 5vw, 42px)" }}>
+          Termos de <span className="accent">Serviço</span>
+        </h1>
+        <p className="muted" style=${{ maxWidth: "600px", margin: "8px auto 0" }}>
+          Última atualização: 27 de fevereiro de 2026
+        </p>
+      </div>
 
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>1) O que entregamos</h3>
-        <div className="muted">
-          A AstraSystems fornece um portal (Dashboard) e integracoes para ajudar voce a operar automacoes e fluxos no Discord, incluindo recursos de
-          onboarding, carteira, planos e ferramentas de configuracao.
+      <div className="legalIntro">
+        <div className="card pad" style=${{ borderLeft: "3px solid var(--accent)" }}>
+          <p className="muted" style=${{ margin: 0, lineHeight: 1.7 }}>
+            Ao criar uma conta ou utilizar os serviços da AstraSystems, você concorda integralmente com estes Termos de Serviço.
+            Se você não concordar com algum termo, não utilize a plataforma.
+          </p>
         </div>
+      </div>
 
-        <div style=${{ height: "12px" }}></div>
+      <div className="legalSections">
+        ${sections.map((section, idx) => html`
+          <div className="legalSection" key=${idx}>
+            <div className="legalSectionHeader">
+              <div className="legalSectionIcon">${section.icon}</div>
+              <h3 className="legalSectionTitle">${idx + 1}. ${section.title}</h3>
+            </div>
+            <p className="legalSectionContent">${section.content}</p>
+          </div>
+        `)}
+      </div>
 
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>2) Conta e seguranca</h3>
-        <div className="muted">
-          Voce e responsavel por manter sua conta segura, incluindo senha (quando usar login por email) e acesso ao Discord.
-          Nao compartilhe token do bot ou credenciais. Se suspeitar de acesso indevido, troque suas credenciais e contate o suporte.
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>3) Pagamentos, planos e carteira</h3>
-        <div className="muted">
-          Planos e pagamentos (ex: Pix) podem ser processados por provedores terceiros (ex: Mercado Pago). Prazos de confirmacao podem variar.
-          O acesso a recursos pode depender do status do pagamento e do plano ativo. Saques podem levar algum tempo e podem exigir validacoes.
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>4) Reembolsos e cancelamento</h3>
-        <div className="muted">
-          Politicas de reembolso e cancelamento dependem do tipo de plano, do metodo de pagamento e do caso (ex: falha tecnica comprovada).
-          Quando aplicavel, solicitacoes devem ser feitas em prazo razoavel e com os dados da transacao.
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>5) Privacidade e dados</h3>
-        <div className="muted">
-          Podemos armazenar dados como email, identificadores do Discord (quando voce usa login via Discord), plano, saldo, transacoes e instancias.
-          Usamos esses dados para operar a plataforma, prevenir fraude e oferecer suporte.
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>6) Limitacoes</h3>
-        <div className="muted">
-          Nenhum sistema e livre de falhas. A AstraSystems pode alterar, suspender ou descontinuar recursos para manutencao, seguranca ou melhorias,
-          buscando minimizar impacto quando possivel.
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>7) Suporte</h3>
-        <div className="muted">
-          Para suporte, fale com a equipe pelo canal oficial de atendimento (Discord) ou pelo meio indicado no momento da compra.
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>8) Uso aceitavel</h3>
-        <div className="muted">
-          Voce concorda em nao usar a plataforma para fraude, spam, conteudo ilegal, violacao de direitos autorais ou qualquer atividade que viole
-          leis aplicaveis ou regras do Discord.
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>9) Nao afiliacao</h3>
-        <div className="muted">
-          Discord e uma marca de terceiros. A AstraSystems nao e afiliada, endossada ou patrocinada pelo Discord.
+      <div className="legalFooter">
+        <div className="card pad" style=${{ textAlign: "center", background: "rgba(255,255,255,0.02)" }}>
+          <div className="muted" style=${{ marginBottom: "12px" }}>
+            Dúvidas sobre os termos? Entre em contato pelo nosso Discord.
+          </div>
+          <${Button} variant="ghost" icon=${HelpCircle} onClick=${() => window.open("https://discord.gg/5H7xhCptbX", "_blank")}>
+            Falar com Suporte
+          </${Button}>
         </div>
       </div>
     </div>
@@ -2967,53 +4429,115 @@ function Terms() {
 }
 
 function Privacy() {
+  const dataTypes = [
+    { label: "Email", desc: "Utilizado para login e comunicações importantes" },
+    { label: "Discord ID", desc: "Identificador único da sua conta Discord" },
+    { label: "Nome de usuário", desc: "Para personalização e identificação" },
+    { label: "Avatar", desc: "Exibição no perfil da plataforma" },
+    { label: "Servidores", desc: "Lista de servidores que você administra (com sua autorização)" },
+    { label: "Transações", desc: "Histórico de vendas e movimentações financeiras" },
+    { label: "Chave PIX", desc: "Para processamento de saques solicitados" }
+  ];
+
+  const sections = [
+    {
+      icon: html`<${Eye} size=${18} />`,
+      title: "Dados coletados",
+      content: "Coletamos apenas dados essenciais para operação da plataforma: informações de conta (email, Discord ID), dados de uso (plano, instâncias, configurações), dados financeiros (transações, saldo, chave PIX para saques) e logs técnicos (IP, navegador) para segurança."
+    },
+    {
+      icon: html`<${Settings} size=${18} />`,
+      title: "Como usamos seus dados",
+      content: "Seus dados são utilizados para: autenticação e acesso à plataforma, processamento de pagamentos e saques, operação das instâncias de bot, prevenção de fraudes, comunicações sobre sua conta, melhorias no serviço e cumprimento de obrigações legais."
+    },
+    {
+      icon: html`<${ExternalLink} size=${18} />`,
+      title: "Compartilhamento",
+      content: "Compartilhamos dados apenas com: Mercado Pago (processamento de pagamentos), Discord (autenticação OAuth e operação de bots), e autoridades quando exigido por lei. Nunca vendemos seus dados pessoais para terceiros."
+    },
+    {
+      icon: html`<${Lock} size=${18} />`,
+      title: "Segurança",
+      content: "Implementamos medidas de segurança incluindo: criptografia em trânsito (HTTPS), hash de senhas (bcrypt), tokens de acesso com expiração, monitoramento de atividades suspeitas e backups regulares. Apesar dos esforços, nenhum sistema é 100% seguro."
+    },
+    {
+      icon: html`<${Clock} size=${18} />`,
+      title: "Retenção de dados",
+      content: "Mantemos seus dados enquanto sua conta estiver ativa. Dados de transações são mantidos por 5 anos para fins legais/fiscais. Após exclusão da conta, dados pessoais são removidos em até 30 dias, exceto quando a retenção for obrigatória por lei."
+    },
+    {
+      icon: html`<${User} size=${18} />`,
+      title: "Seus direitos",
+      content: "Você tem direito a: acessar seus dados pessoais, corrigir informações incorretas, solicitar exclusão da conta, exportar seus dados e revogar consentimentos. Para exercer esses direitos, entre em contato pelo suporte."
+    },
+    {
+      icon: html`<${Bell} size=${18} />`,
+      title: "Cookies e rastreamento",
+      content: "Utilizamos cookies essenciais para autenticação e preferências. Não utilizamos cookies de rastreamento publicitário. Você pode gerenciar cookies nas configurações do navegador, mas isso pode afetar a funcionalidade da plataforma."
+    }
+  ];
+
   return html`
     <div className="container">
-      <h2 className="sectionTitle">Politica de Privacidade</h2>
-      <div className="card pad">
-        <div className="muted">
-          <b>Ultima atualizacao:</b> 14/02/2026
-          <br />
-          Esta politica explica quais dados coletamos e como usamos para operar a AstraSystems.
+      <div className="hero" style=${{ paddingTop: "20px", paddingBottom: "10px" }}>
+        <div className="pill" style=${{ margin: "0 auto 12px", width: "fit-content" }}>
+          <${ShieldCheck} size=${14} style=${{ marginRight: "6px" }} />
+          Documento Legal
         </div>
+        <h1 style=${{ fontSize: "clamp(28px, 5vw, 42px)" }}>
+          Política de <span className="accent">Privacidade</span>
+        </h1>
+        <p className="muted" style=${{ maxWidth: "600px", margin: "8px auto 0" }}>
+          Última atualização: 27 de fevereiro de 2026
+        </p>
+      </div>
 
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>1) Dados que podemos armazenar</h3>
-        <div className="muted">
-          Podemos armazenar email (quando voce cria conta por email), identificadores do Discord (quando voce entra com Discord), dados de plano,
-          saldo/carteira, transacoes, instancias, guild ID (quando vincula) e informacoes de configuracao basica.
+      <div className="legalIntro">
+        <div className="card pad" style=${{ borderLeft: "3px solid var(--good)" }}>
+          <p className="muted" style=${{ margin: 0, lineHeight: 1.7 }}>
+            A AstraSystems respeita sua privacidade. Esta política explica como coletamos, usamos e protegemos seus dados pessoais
+            em conformidade com a Lei Geral de Proteção de Dados (LGPD).
+          </p>
         </div>
+      </div>
 
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>2) Finalidades</h3>
-        <div className="muted">
-          Usamos esses dados para autenticar usuarios, operar o dashboard, processar pagamentos (quando habilitado), prevenir fraude, melhorar a
-          plataforma e prestar suporte.
+      <div className="privacyDataTypes">
+        <div className="card pad">
+          <h3 style=${{ margin: "0 0 16px", fontFamily: '"Space Grotesk", sans-serif', fontSize: "16px" }}>
+            <${Eye} size=${16} style=${{ marginRight: "8px", verticalAlign: "middle" }} />
+            Dados que podemos coletar
+          </h3>
+          <div className="dataTypeGrid">
+            ${dataTypes.map((dt, i) => html`
+              <div className="dataTypeItem" key=${i}>
+                <div className="dataTypeLabel">${dt.label}</div>
+                <div className="dataTypeDesc">${dt.desc}</div>
+              </div>
+            `)}
+          </div>
         </div>
+      </div>
 
-        <div style=${{ height: "12px" }}></div>
+      <div className="legalSections">
+        ${sections.map((section, idx) => html`
+          <div className="legalSection" key=${idx}>
+            <div className="legalSectionHeader">
+              <div className="legalSectionIcon">${section.icon}</div>
+              <h3 className="legalSectionTitle">${idx + 1}. ${section.title}</h3>
+            </div>
+            <p className="legalSectionContent">${section.content}</p>
+          </div>
+        `)}
+      </div>
 
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>3) Terceiros</h3>
-        <div className="muted">
-          Quando habilitado, pagamentos podem ser processados por provedores terceiros (ex: Mercado Pago). Tambem podemos usar a API do Discord para
-          login e listagem de servidores (quando voce autoriza).
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>4) Retencao e seguranca</h3>
-        <div className="muted">
-          Mantemos dados apenas pelo tempo necessario para operar a plataforma e cumprir obrigacoes legais. Aplicamos medidas razoaveis de seguranca
-          para proteger dados, incluindo hash de senha em contas locais.
-        </div>
-
-        <div style=${{ height: "12px" }}></div>
-
-        <h3 className="sectionTitle" style=${{ marginTop: 0 }}>5) Seus direitos</h3>
-        <div className="muted">
-          Voce pode solicitar correcao ou exclusao de dados quando aplicavel. Para isso, contate o suporte pelo canal oficial.
+      <div className="legalFooter">
+        <div className="card pad" style=${{ textAlign: "center", background: "rgba(255,255,255,0.02)" }}>
+          <div className="muted" style=${{ marginBottom: "12px" }}>
+            Para questões sobre privacidade ou exercer seus direitos, entre em contato.
+          </div>
+          <${Button} variant="ghost" icon=${Mail} onClick=${() => window.open("https://discord.gg/5H7xhCptbX", "_blank")}>
+            Contatar sobre Privacidade
+          </${Button}>
         </div>
       </div>
     </div>

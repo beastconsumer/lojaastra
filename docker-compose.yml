@@ -1,5 +1,6 @@
 services:
   bot:
+    image: botdc-bot:latest
     build:
       context: .
       dockerfile: Dockerfile.bot
@@ -11,6 +12,7 @@ services:
       PORTAL_HOST: 0.0.0.0
       ADMIN_PANEL_HOST: 0.0.0.0
     ports:
+      - "3000:3000"
       - "3100:3100"
     volumes:
       - ./data:/app/data

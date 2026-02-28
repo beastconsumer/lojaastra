@@ -5,6 +5,8 @@ Resumo das medidas de seguranca aplicadas e praticas recomendadas.
 ## Controles implementados
 - Sessao assinada no portal (`nm_session`) com exp.
 - Comparacao de assinatura com `timingSafeEqual`.
+- Sessao admin assinada via cookie HttpOnly (`as_admin_session`) com `SameSite=Strict`.
+- Login admin com usuario/senha e bloqueio temporario por tentativas excessivas.
 - Criptografia de token OAuth em armazenamento local.
 - Hash de token de bot por instancia.
 - Possibilidade de proteger admin com bearer token.
