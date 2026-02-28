@@ -2374,9 +2374,16 @@ async function postProductToChannel(guild, channel, productId) {
 }
 
 async function sendPreProductGif(channel, product) {
-  const gifPath = product?.prePostGif;
+  const gifPath = String(product?.prePostGif || "").trim();
   if (!gifPath) return;
   try {
+    const remoteUrl = normalizeRemoteMediaUrl(gifPath);
+    if (remoteUrl) {
+      const embed = new EmbedBuilder().setColor(BRAND_COLOR).setImage(remoteUrl);
+      await channel.send({ embeds: [embed] });
+      log("info", "preGif:sent:remote", { channelId: channel?.id, url: remoteUrl });
+      return;
+    }
     const built = buildAttachment(gifPath);
     if (!built) return;
     await channel.send({ files: [built.attachment] });
@@ -2531,9 +2538,9 @@ function buildProductEmbeds(product, includeMedia = true) {
       product.bannerImage &&
       String(product.prePostGif).toLowerCase() === String(product.bannerImage).toLowerCase();
     if (!sameAsPreGif) {
-      const banner = attachIfExists(product.bannerImage, files);
-      if (banner) {
-        embeds.push(new EmbedBuilder().setImage(`attachment://${banner.name}`));
+      const bannerEmbed = new EmbedBuilder();
+      if (setEmbedImageFromSource(bannerEmbed, product.bannerImage, files)) {
+        embeds.push(bannerEmbed);
       }
     } else {
       log("info", "buildProductEmbeds:skipBannerDuplicate", { bannerImage: product.bannerImage });
@@ -2548,10 +2555,8 @@ function buildProductEmbeds(product, includeMedia = true) {
   if (includeMedia) {
     const disableThumb = product?.disableThumbnail === true;
     if (!disableThumb) {
-      const thumb = attachIfExists(product.thumbnail, files);
-      if (thumb) {
-        main.setThumbnail(`attachment://${thumb.name}`);
-      } else if (client.user) {
+      const hasCustomThumb = setEmbedThumbnailFromSource(main, product.thumbnail, files);
+      if (!hasCustomThumb && client.user) {
         const avatar = client.user.displayAvatarURL({ extension: "png", size: 256 });
         if (avatar) {
           main.setThumbnail(avatar);
@@ -2561,8 +2566,7 @@ function buildProductEmbeds(product, includeMedia = true) {
   }
 
   if (includeMedia) {
-    const preview = attachIfExists(product.previewImage, files);
-    if (preview) main.setImage(`attachment://${preview.name}`);
+    setEmbedImageFromSource(main, product.previewImage, files);
   }
 
   if (Array.isArray(product.sections)) {
@@ -2583,17 +2587,17 @@ function buildProductEmbeds(product, includeMedia = true) {
 
   if (includeMedia && Array.isArray(product.gifImages)) {
     for (const gifPath of product.gifImages) {
-      const gif = attachIfExists(gifPath, files);
-      if (gif) {
-        embeds.push(new EmbedBuilder().setImage(`attachment://${gif.name}`));
+      const gifEmbed = new EmbedBuilder();
+      if (setEmbedImageFromSource(gifEmbed, gifPath, files)) {
+        embeds.push(gifEmbed);
       }
     }
   }
 
   if (includeMedia) {
-    const footer = attachIfExists(product.footerImage, files);
-    if (footer) {
-      embeds.push(new EmbedBuilder().setImage(`attachment://${footer.name}`));
+    const footerEmbed = new EmbedBuilder();
+    if (setEmbedImageFromSource(footerEmbed, product.footerImage, files)) {
+      embeds.push(footerEmbed);
     }
   }
 
@@ -3193,6 +3197,18 @@ function getMaxAttachmentBytes() {
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_MAX_ATTACHMENT_BYTES;
 }
 
+function normalizeRemoteMediaUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
 function buildAttachment(filePath) {
   if (!filePath) return null;
   const abs = resolveAssetPath(filePath);
@@ -3219,6 +3235,32 @@ function attachIfExists(filePath, files) {
   if (!built) return null;
   files.push(built.attachment);
   return { name: built.name };
+}
+
+function setEmbedImageFromSource(embed, source, files) {
+  if (!embed) return false;
+  const remoteUrl = normalizeRemoteMediaUrl(source);
+  if (remoteUrl) {
+    embed.setImage(remoteUrl);
+    return true;
+  }
+  const media = attachIfExists(source, files);
+  if (!media) return false;
+  embed.setImage(`attachment://${media.name}`);
+  return true;
+}
+
+function setEmbedThumbnailFromSource(embed, source, files) {
+  if (!embed) return false;
+  const remoteUrl = normalizeRemoteMediaUrl(source);
+  if (remoteUrl) {
+    embed.setThumbnail(remoteUrl);
+    return true;
+  }
+  const media = attachIfExists(source, files);
+  if (!media) return false;
+  embed.setThumbnail(`attachment://${media.name}`);
+  return true;
 }
 
 function applyDiscount(price, percent) {

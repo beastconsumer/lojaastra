@@ -73,6 +73,17 @@ function asString(value) {
   return String(value);
 }
 
+function isHttpMediaUrl(value) {
+  const raw = asString(value).trim();
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function formatBRLFromCents(cents) {
   const value = Number(cents || 0) / 100;
   try {
@@ -2563,36 +2574,60 @@ function Dashboard({ route, me, refreshMe, toast }) {
           <div className="hr"></div>
 
           <div className="label">Midias (opcional)</div>
+          <div className="label">Banner no topo do embed</div>
           <input
             className="input"
             value=${productEditor.draft.bannerImage || ""}
             onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, bannerImage: e.target.value } }))}
-            placeholder="bannerImage (ex: assets/product1/banner.gif)"
+            placeholder="https://... ou assets/... (opcional)"
           />
+          <div className="label">Imagem principal do produto</div>
           <input
             className="input"
             value=${productEditor.draft.previewImage || ""}
             onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, previewImage: e.target.value } }))}
-            placeholder="previewImage (opcional)"
+            placeholder="https://... ou assets/... (opcional)"
           />
+          <div className="label">GIF acima do produto (pre-post)</div>
           <input
             className="input"
             value=${productEditor.draft.prePostGif || ""}
             onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, prePostGif: e.target.value } }))}
-            placeholder="prePostGif (opcional)"
+            placeholder="https://...gif ou assets/...gif"
           />
+          <div className="help">
+            Esse GIF e enviado antes da mensagem principal do produto no canal.
+          </div>
+          ${isHttpMediaUrl(productEditor.draft.prePostGif)
+            ? html`
+                <img
+                  src=${productEditor.draft.prePostGif}
+                  alt="Preview do GIF pre-post"
+                  style=${{
+                    maxWidth: "100%",
+                    maxHeight: "180px",
+                    objectFit: "cover",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(255,255,255,0.12)"
+                  }}
+                />
+              `
+            : null}
+          <div className="label">Thumbnail do embed</div>
           <input
             className="input"
             value=${productEditor.draft.thumbnail || ""}
             onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, thumbnail: e.target.value } }))}
-            placeholder="thumbnail (opcional)"
+            placeholder="https://... ou assets/... (opcional)"
           />
+          <div className="label">Imagem de rodape</div>
           <input
             className="input"
             value=${productEditor.draft.footerImage || ""}
             onInput=${(e) => setProductEditor((s) => ({ ...s, draft: { ...s.draft, footerImage: e.target.value } }))}
-            placeholder="footerImage (opcional)"
+            placeholder="https://... ou assets/... (opcional)"
           />
+          <div className="label">URL de demonstracao</div>
           <input
             className="input"
             value=${productEditor.draft.demoUrl || ""}
